@@ -37,7 +37,7 @@ set clock_recipe_b      [lindex $argv  9]
 set clock_recipe_c      [lindex $argv 10]
 set uram_option         [lindex $argv 11]
 set notify_via_sns      [lindex $argv 12]
-
+set VDEFINES            [lindex $argv 13]
 ##################################################
 ## Flow control variables 
 ##################################################
@@ -104,34 +104,50 @@ puts "All reports and intermediate results will be time stamped with $timestamp"
 
 set_msg_config -id {Chipscope 16-3} -suppress
 set_msg_config -string {AXI_QUAD_SPI} -suppress
+set_msg_config -string {PIPE_CL_SH_AURORA_STAT} -suppress
+set_msg_config -string {PIPE_CL_SH_HMC_STAT} -suppress
+set_msg_config -string {PIPE_AURORA_CHANNEL_UP} -suppress
+set_msg_config -string {PIPE_HMC_IIC} -suppress
+set_msg_config -string {PIPE_SH_CL_AURORA_STAT} -suppress
+
 
 # Suppress Warnings
 # These are to avoid warning messages that may not be real issues. A developer
 # may comment them out if they wish to see more information from warning
 # messages.
 set_msg_config -id {Common 17-55}        -suppress
-set_msg_config -id {Vivado 12-4739}      -suppress
-set_msg_config -id {Constraints 18-4866} -suppress
+set_msg_config -id {Designutils 20-1567} -suppress
 set_msg_config -id {IP_Flow 19-2162}     -suppress
+set_msg_config -id {Project 1-498}       -suppress
 set_msg_config -id {Route 35-328}        -suppress
-set_msg_config -id {Vivado 12-1008}      -suppress
 set_msg_config -id {Vivado 12-508}       -suppress
+set_msg_config -id {Constraints 18-4866} -suppress
 set_msg_config -id {filemgmt 56-12}      -suppress
+set_msg_config -id {Constraints 18-4644} -suppress
+set_msg_config -id {Coretcl 2-64}        -suppress
+set_msg_config -id {Vivado 12-4739}      -suppress
+set_msg_config -id {Vivado 12-5201}      -suppress
 set_msg_config -id {DRC CKLD-1}          -suppress
-set_msg_config -id {DRC CKLD-2}          -suppress
 set_msg_config -id {IP_Flow 19-2248}     -suppress
-set_msg_config -id {Vivado 12-1580}      -suppress
+#set_msg_config -id {Opt 31-155}          -suppress
+set_msg_config -id {Synth 8-115}         -suppress
+set_msg_config -id {Synth 8-3936}        -suppress
+set_msg_config -id {Vivado 12-1023}      -suppress
 set_msg_config -id {Constraints 18-550}  -suppress
 set_msg_config -id {Synth 8-3295}        -suppress
 set_msg_config -id {Synth 8-3321}        -suppress
 set_msg_config -id {Synth 8-3331}        -suppress
 set_msg_config -id {Synth 8-3332}        -suppress
-set_msg_config -id {Synth 8-6014}        -suppress
-set_msg_config -id {Timing 38-436}       -suppress
-set_msg_config -id {DRC REQP-1853}       -suppress
 set_msg_config -id {Synth 8-350}         -suppress
 set_msg_config -id {Synth 8-3848}        -suppress
 set_msg_config -id {Synth 8-3917}        -suppress
+set_msg_config -id {Synth 8-6014}        -suppress
+set_msg_config -id {Vivado 12-1580}      -suppress
+set_msg_config -id {Constraints 18-619}  -suppress
+set_msg_config -id {DRC CKLD-2}          -suppress
+set_msg_config -id {DRC REQP-1853}       -suppress
+set_msg_config -id {Timing 38-436}       -suppress
+
 
 puts "AWS FPGA: ([clock format [clock seconds] -format %T]) Calling the encrypt.tcl.";
 
@@ -235,8 +251,8 @@ if {$implement} {
       set_property IP_REPO_PATHS $cacheDir [current_project]
       puts "\nAWS FPGA: ([clock format [clock seconds] -format %T]) - Combining Shell and CL design checkpoints";
       add_files $HDK_SHELL_DIR/build/checkpoints/from_aws/SH_CL_BB_routed.dcp
-      add_files $CL_DIR/build/checkpoints/${timestamp}.CL.post_synth.dcp
-      set_property SCOPED_TO_CELLS {CL} [get_files $CL_DIR/build/checkpoints/${timestamp}.CL.post_synth.dcp]
+      add_files $CL_DIR/build/checkpoints/$synth_dcp
+      set_property SCOPED_TO_CELLS {WRAPPER_INST/CL} [get_files $CL_DIR/build/checkpoints/$synth_dcp]
 
       #Read the constraints, note *DO NOT* read cl_clocks_aws (clocks originating from AWS shell)
       read_xdc [ list \
@@ -245,7 +261,7 @@ if {$implement} {
       set_property PROCESSING_ORDER late [get_files cl_pnr_user.xdc]
 
       puts "\nAWS FPGA: ([clock format [clock seconds] -format %T]) - Running link_design";
-      link_design -top $TOP -part [DEVICE_TYPE] -reconfig_partitions {SH CL}
+      link_design -top $TOP -part [DEVICE_TYPE] -reconfig_partitions {WRAPPER_INST/SH WRAPPER_INST/CL}
 
       puts "\nAWS FPGA: ([clock format [clock seconds] -format %T]) - PLATFORM.IMPL==[get_property PLATFORM.IMPL [current_design]]";
       ##################################################
