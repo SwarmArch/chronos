@@ -5,14 +5,18 @@ const int ADDR_BASE_NEIGHBORS = 4 << 2;
 const int ADDR_INIT_BASE_OFFSET = 8 << 2;
 const int ADDR_INIT_BASE_NEIGHBORS = 9 << 2;
 
-const int ADDR_DEQ_TASK = 0xc0000000;
+const int ADDR_DEQ_TASK      = 0xc0000000;
 const int ADDR_DEQ_TASK_HINT = 0xc0000004;
-const int ADDR_DEQ_TASK_TTYPE = 0xc0000008;
+const int ADDR_DEQ_TASK_TTYPE= 0xc0000008;
 const int ADDR_DEQ_TASK_ARG0 = 0xc000000c;
 const int ADDR_DEQ_TASK_ARG1 = 0xc0000010;
-const int ADDR_FINISH_TASK = 0xc0000020;
+const int ADDR_FINISH_TASK   = 0xc0000020;
 const int ADDR_UNDO_LOG_ADDR = 0xc0000030;
 const int ADDR_UNDO_LOG_DATA = 0xc0000034;
+const int ADDR_CUR_CYCLE     = 0xc0000050;
+const int ADDR_PRINTF        = 0xc0000040;
+const int ADDR_TILE_ID       = 0xc0000060;
+const int ADDR_CORE_ID       = 0xc0000064;
 
 #define BUF  0
 #define INV 1
@@ -44,6 +48,10 @@ inline void init() {
 
    __asm__( "li gp, 0x7f000000 ");
 
+/*
+*/
+
+
 }
 void undo_log_write(uint* addr, uint data) {
    *(volatile int *)( ADDR_UNDO_LOG_ADDR) = (uint) addr;
@@ -56,6 +64,12 @@ void enq_task_arg2(uint ttype, uint ts, uint hint, uint arg0, uint arg1){
      *(volatile int *)( ADDR_DEQ_TASK_TTYPE) = (ttype);
      *(volatile int *)( ADDR_DEQ_TASK_ARG0) = (arg0);
      *(volatile int *)( ADDR_DEQ_TASK_ARG1) = (arg1);
+     *(volatile int *)( ADDR_DEQ_TASK) = ts;
+}
+void enq_task_arg0(uint ttype, uint ts, uint hint){
+
+     *(volatile int *)( ADDR_DEQ_TASK_HINT) = (hint);
+     *(volatile int *)( ADDR_DEQ_TASK_TTYPE) = (ttype);
      *(volatile int *)( ADDR_DEQ_TASK) = ts;
 }
 
@@ -164,6 +178,17 @@ void des_task(uint ts, uint comp, uint port, uint logicVal) {
 
 void main() {
     init();
+   __asm__( "lui a0, 0xc0000");
+   __asm__( "lw a1, 96(a0)"); // tile_id
+   __asm__( "lw a2, 100(a0)"); // core_id
+   __asm__( "slli a1,a1,4");
+   __asm__( "add a1,a1,a2");
+   __asm__( "li a2, 0x7e00");
+   __asm__( "add a1,a1,a2");
+   __asm__( "slli sp,a1,16");
+
+   register int *x asm ("sp");
+
 
     gate_state = (int*) ((*(int *) (ADDR_BASE_DATA))<<2) ;
     edge_offset  =(int*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;

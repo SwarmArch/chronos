@@ -370,8 +370,8 @@ int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log
         unsigned int start_task_core = buf[i*16 + 6] >> 24 & 0x3f;
         unsigned int start_task_slot = buf[i*16 + 6] >> 17 & 0x7f;
         //printf(" \t \t %x %x %x %x\n", buf[i*16], buf[i*16+1], buf[i*16+14], buf[i*16+11]);
-        unsigned int gvt_ts = buf[i*16+9];
-        unsigned int gvt_tb = buf[i*16+10];
+        unsigned int gvt_ts = buf[i*16+10];
+        unsigned int gvt_tb = buf[i*16+11];
         unsigned int abort_running_task = buf[i*16+2];
         unsigned int to_tq_abort_valid = buf[i*16+3] >> 31;
         unsigned int to_tq_resource_abort = (buf[i*16+3] >> 30 & 1);
@@ -395,6 +395,12 @@ int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log
         unsigned int cut_ties_ready = buf[i*16 + 8] >> 30 & 1;
         unsigned int cut_ties_slot = buf[i*16 + 8] >> 23 & 0x7f;
         unsigned int cut_ties_children = buf[i*16 + 8] >> 19 & 0xf;
+
+        unsigned int undo_task_valid = buf[i*16 + 9] >> 31 & 1;
+        unsigned int undo_task_ready = buf[i*16 + 9] >> 30 & 1;
+        unsigned int undo_task_slot = buf[i*16 + 9] >> 24 & 0x3f;
+        unsigned int undo_task_ttype = buf[i*16 + 9] >> 20 & 0xf;
+        unsigned int undo_task_hint = buf[i*16 + 9] & 0xfffff;
         if (seq == -1) {
             continue;
         }
@@ -460,6 +466,58 @@ int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log
                );
 
          }
+         if (undo_task_valid & undo_task_ready) {
+            fprintf(fw,"[%6d][%10u][%6d:%10u] [%d:%3d,%3d] out_task slot%4d %d ttype:%d \n",
+               seq, cycle,
+               gvt_ts, gvt_tb,
+               gvt_task_slot_valid, gvt_task_slot, max_vt_slot,
+               undo_task_slot, undo_task_hint, undo_task_ttype
+               );
+
+         }
+    }
+
+   return 0;
+}
+
+int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
+
+   uint32_t log_size;
+   uint32_t gvt;
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
+   printf("CQ log size %d gvt %d\n", log_size, gvt);
+   if (log_size > 17000) return 1;
+   // if (log_size > 100) log_size -= 100;
+   //unsigned char* log_buffer;
+   //log_buffer = (unsigned char *)malloc(log_size*64);
+
+   unsigned int read_offset = 0;
+   unsigned int read_len = log_size * 64;
+   unsigned int rc;
+   uint64_t cl_addr = (1L<<36) + (ID << 20);
+   while (read_offset < read_len) {
+      rc = pread(fd,
+            log_buffer + read_offset,
+            // keep Tx size under 64*64 to prevent shell timeouts
+            (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
+            cl_addr);
+      read_offset += rc;
+   }
+
+   //write_task_unit_log(log_buffer, fw, log_size);
+   unsigned int* buf = (unsigned int*) log_buffer;
+   for (int i=0;i<log_size ;i++) {
+        unsigned int seq = buf[i*16 + 0];
+        unsigned int cycle = buf[i*16 + 1];
+
+        unsigned int word = buf[i*16 + 2];
+        unsigned int word_2 = buf[i*16 + 3];
+            fprintf(fw,"[%6d][%10u] %08x %08x\n",
+               seq, cycle, word, word_2
+               );
+
+
     }
 
    return 0;
@@ -667,7 +725,7 @@ void cq_stats (uint32_t tile) {
     printf("stall cycles: cq_full: %8d, cc_full: %8d, no_task: %8d\n",
                idle_cq_full, idle_cc_full, idle_no_task);
 
-    return;
+    //return;
     pci_poke(tile, ID_CQ, CQ_LOOKUP_MODE , 1);
     for (int i=0;i<64;i++) {
         uint32_t ts,tb, state, hint;
