@@ -356,8 +356,11 @@ puts "AWS FPGA: ([clock format [clock seconds] -format %T]) - Compress files for
 # Create manifest file
 set manifest_file [open "$CL_DIR/build/checkpoints/to_aws/${timestamp}.manifest.txt" w]
 set hash [lindex [split [exec sha256sum $CL_DIR/build/checkpoints/to_aws/${timestamp}.SH_CL_routed.dcp] ] 0]
+set TOOL_VERSION $::env(VIVADO_TOOL_VERSION)
+set vivado_version [string range [version -short] 0 5]
+puts "vivado_version is $vivado_version\n"
 
-puts $manifest_file "manifest_format_version=1\n"
+puts $manifest_file "manifest_format_version=2\n"
 puts $manifest_file "pci_vendor_id=$vendor_id\n"
 puts $manifest_file "pci_device_id=$device_id\n"
 puts $manifest_file "pci_subsystem_id=$subsystem_id\n"
@@ -366,6 +369,7 @@ puts $manifest_file "dcp_hash=$hash\n"
 puts $manifest_file "shell_version=$shell_version\n"
 puts $manifest_file "dcp_file_name=${timestamp}.SH_CL_routed.dcp\n"
 puts $manifest_file "hdk_version=$hdk_version\n"
+puts $manifest_file "tool_version=v$vivado_version\n"
 puts $manifest_file "date=$timestamp\n"
 puts $manifest_file "clock_recipe_a=$clock_recipe_a\n"
 puts $manifest_file "clock_recipe_b=$clock_recipe_b\n"
@@ -387,7 +391,7 @@ puts "AWS FPGA: ([clock format [clock seconds] -format %T]) - Finished creating 
 
 if {[string compare $notify_via_sns "1"] == 0} {
   puts "AWS FPGA: ([clock format [clock seconds] -format %T]) - Calling notification script to send e-mail to $env(EMAIL)";
-  exec $env(HDK_COMMON_DIR)/scripts/notify_via_sns.py
+  exec $env(AWS_FPGA_REPO_DIR)/shared/bin/scripts/notify_via_sns.py
 }
 
 puts "AWS FPGA: ([clock format [clock seconds] -format %T]) - Build complete.";
