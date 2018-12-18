@@ -1,21 +1,7 @@
-// Amazon FPGA Hardware Development Kit
-//
-// Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-//
-// Licensed under the Amazon Software License (the "License"). You may not use
-// this file except in compliance with the License. A copy of the License is
-// located at
-//
-//    http://aws.amazon.com/asl/
-//
-// or in the "license" file accompanying this file. This file is distributed on
-// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-// implied. See the License for the specific language governing permissions and
-// limitations under the License.
-
 //import uvm_pkg::*;
 
 //typedef enum bit {SIDE_B, SIDE_A} components_side_e;
+import arch_package::*;
 `timescale 1ps/1ps
 module ddr4_rank #(
 		   parameter MC_DQ_WIDTH = 16, // Memory DQ bus width
@@ -33,7 +19,8 @@ module ddr4_rank #(
 		   parameter MEM_PART_WIDTH = "x4", // Single Device width
 		   // Shows which SDRAMs are connected to side A(first half) and side B(second half) of RCD.
 		   parameter DDR_SIM_MODEL = "MICRON", // "MICRON" or "DENALI" memory model
-		   parameter DM_DBI = "" // Disables dm_dbi_n if set to NONE
+		   parameter DM_DBI = "", // Disables dm_dbi_n if set to NONE
+       parameter UTYPE_density CONFIGURED_DENSITY = _4G
 		   )
   (
    // side A of the RCD
@@ -72,16 +59,14 @@ module ddr4_rank #(
    output reg 		     alert_n		  
    );
 
-  import arch_package::*;
-
   genvar 		     device_x; // used in for loop in generate block (shows number of current device)
   genvar 		     device_y; // used in for loop in generate block (shows number of current device)
+
   
   // Local parameters
   localparam DRAM_WIDTH = (MEM_PART_WIDTH=="x4") ? 4 : 
                           (MEM_PART_WIDTH=="x8") ? 8 : 
 			              16;
-
   localparam SDRAM_ADDR_BITS = 18 - MC_ABITS; // Redundants Address bits to SDRAM devices
   localparam DQ_PER_DEVICE = (MEM_PART_WIDTH=="x4") ? 4 : // DQ per Device is 4-bits
                              (MEM_PART_WIDTH=="x8") ? 8 : // DQ per Device is 8-bits
@@ -249,7 +234,8 @@ module ddr4_rank #(
 		    iDDR4.BA        <= #(fbt_delay[device_x]) qb_ba; // input [MAX_BANK_BITS-1:0]
 		    // The RCD output inversion to side B address signal invert qb_addr[13]=1'b1.
 		    // This is issue because the address to SDRAM will be out of bounds (max range is addr[13:0]='h1FFF), to resolve this issue we set qb_addr[13] to 1'b0.
-		    iDDR4.ADDR      <= #(fbt_delay[device_x]) ddr4_model_qb_addr[13:0]; // input [13:0]
+		    //iDDR4.ADDR      <= #(fbt_delay[device_x]) {1'b0, ddr4_model_qb_addr[12:0]}; // input [13:0]
+        iDDR4.ADDR      <= #(fbt_delay[device_x]) ddr4_model_qb_addr[13:0]; // input [13:0]
 		    iDDR4.ADDR_17   <= #(fbt_delay[device_x]) ddr4_model_qb_addr[17]; // input
 		  end // block: always_block_fbt_delays_side_b
 	      end // block: add_fbt_delays_side_b
@@ -279,7 +265,8 @@ module ddr4_rank #(
 		    iDDR4.BA        <= qb_ba; // input [MAX_BANK_BITS-1:0]
 		    // The RCD output inversion to side B address signal invert qb_addr[13]=1'b1.
 		    // This is issue because the address to SDRAM will be out of bounds (max range is addr[13:0]='h1FFF), to resolve this issue we set qb_addr[13] to 1'b0.
-		    iDDR4.ADDR      <= ddr4_model_qb_addr[13:0]; // input [13:0]
+		    //iDDR4.ADDR      <= {1'b0, ddr4_model_qb_addr[12:0]}; // input [13:0]
+        iDDR4.ADDR      <= ddr4_model_qb_addr[13:0]; // input [13:0]
 		    iDDR4.ADDR_17   <= ddr4_model_qb_addr[17]; // input
 		  end // block: always_block_without_fbt_delays_side_b		
 	      end // block: without_fbt_delays_side_b
@@ -325,7 +312,8 @@ module ddr4_rank #(
    `ifdef THREE_DS 
            .CONFIGURED_RANKS (4),
    `endif
-           .CONFIGURED_DENSITY(_8G),.CONFIGURED_DQ_BITS (DRAM_WIDTH)
+           .CONFIGURED_DQ_BITS (DRAM_WIDTH),
+           .CONFIGURED_DENSITY (CONFIGURED_DENSITY)
            ) u_ddr4_model(
 				     .model_enable (), // inout
 				     .iDDR4 (iDDR4)

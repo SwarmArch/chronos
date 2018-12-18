@@ -24,6 +24,7 @@ waves.shm
 *.order
 *.symvers
 
+.*
 *~
 .\#*
 \#*
@@ -34,48 +35,16 @@ waves.shm
 *.so
 *.a
 *.ko
-fio
-
-!SDAccel/aws_platform/xilinx_aws-vu9p-f1_1ddr-xpr-2pr_4_0/sw/lib/x86_64/libxilinxopencl.so
-!SDAccel/aws_platform/xilinx_aws-vu9p-f1_4ddr-xpr-2pr_4_0/sw/lib/x86_64/libxilinxopencl.so
-!SDAccel/aws_platform/xilinx_aws-vu9p-f1_4ddr-xpr-2pr-debug_4_0/sw/lib/x86_64/libxilinxopencl.so
-!SDAccel/aws_platform/xilinx_aws-vu9p-f1_dynamic_5_0/sw/lib/x86_64/libxilinxopencl.so 
-!SDAccel/aws_platform/xilinx_aws-vu9p-f1-04261818_dynamic_5_0/sw/lib/x86_64/libxilinxopencl.so
+*.csr
+*.swo
+*.swn
+*.swm
 
 nohup.out
 *.nohup.out
 
 # Shell DCP files are stored in S3 and downloaded by hdk_setup.sh
 hdk/common/shell_*/build/checkpoints/from_aws/SH_CL_BB_routed.dcp*
-
-# HDK generated files
-hdk/cl/examples/*/build/create-afi/
-hdk/cl/examples/*/build/scripts/.srcs/
-hdk/cl/examples/*/software/runtime/sh_dpi_tasks
-hdk/cl/examples/cl_hello_world/software/runtime/test_hello_world
-hdk/cl/examples/cl_hello_world_vhdl/software/runtime/test_hello_world_vhdl
-hdk/cl/examples/cl_hello_world_vhdl/software/runtime/test_hello_world_vhdl
-hdk/cl/examples/cl_uram_example/software/runtime/test_uram_example
-hdk/cl_uram_example/software/runtime/test_uram_example
-hdk/common/shell_*/build/debug_probes/
-hdk/common/verif/models/sh_bfm/cl_ports_sh_bfm.vh
-
-# SDAccel generated files
-SDAccel/**/*.d
-SDAccel/**/*.o.cmd
-SDAccel/aws_platform/xilinx_aws-*/hw/xilinx_aws-vu9p-*.dsa*
-SDAccel/tools/*.d
-SDAccel/tools/*.o
-SDAccel/tools/xbsak
-
-# SDK generated files
-sdk/linux_kernel_drivers/edma/.*.o.cmd
-sdk/linux_kernel_drivers/edma/.*.ko.cmd
-sdk/linux_kernel_drivers/edma/.tmp_versions
-sdk/linux_kernel_drivers/xdma/.*.o.cmd
-sdk/linux_kernel_drivers/xdma/.*.ko.cmd
-sdk/linux_kernel_drivers/xdma/.tmp_versions
-sdk/userspace/lib/
 
 # Generated checkpoints
 checkpoints
@@ -92,16 +61,31 @@ vivado*.log
 # Pycharm projects
 .idea/
 
-# Eclipse projects
-.project
-.pydevproject
-.settings
-
 # Python compiled code
 *.pyc
 
-# pytest artifacts
-.cache/
+# all files from vivado simulations except tb.wcfg
+**sim/
+!tb.wcfg
 
-# Patches
-patches/*
+
+# graph inputs
+*.net
+*.gr
+
+# auto generated files
+**/cl_clocks_aws.xdc
+obj_dir
+debug_probes
+*.log
+test_swarm
+#graph_gen
+sdk/userspace/lib
+*.hex
+*.dump
+*.out
+a
+*.color
+*.sssp
+*.edges
+*.bin

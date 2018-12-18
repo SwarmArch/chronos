@@ -1,0 +1,14 @@
+1. Vivado should be installed and the $PATH pointing to its bin directory
+
+2. Add version (from vivado -version) to hdk/supported_vivado_versions.txt if not already there
+
+
+3. Obtain the necessary verification models (ddr)  
+If you have an AWS compatible vivado version then this step is not necessary. 
+hdk_setup.sh should build these models for you. 
+If not, then these should be copied maually to hdk/common/verif/models.
+A version can be found at /afs/csail.mit.edu/u/m/maleen/repos/aws-fpga/hdk/common/verif/models
+
+4. set $XILINX_VIVADO to point to XIlinx installation. eg. (Xilinx/Vivado/2017.1)
+
+5. set $CL_DIR to hdk/cl/developer_designs/cl_swarm
