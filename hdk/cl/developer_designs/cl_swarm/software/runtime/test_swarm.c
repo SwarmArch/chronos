@@ -61,7 +61,8 @@ int initialize_log(char* log_name);
 int check_afi_ready(int slot);
 
 FILE* fhex;
-int fd;
+int write_fd;
+int read_fd;
 
 void pci_peek(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t* data) {
    uint32_t ocl_addr = (tile << 16) + (comp << 8) + addr;
@@ -253,6 +254,7 @@ rand_string(char *str, size_t size)
 }
 
 void dma_write(unsigned char* write_buffer, uint32_t write_len, size_t write_addr) {
+    /*
    size_t write_offset = 0;
    int rc;
    while (write_offset < write_len) {
@@ -270,6 +272,7 @@ void dma_write(unsigned char* write_buffer, uint32_t write_len, size_t write_add
       write_offset += rc;
    }
    rc = 0;
+   */
 }
 uint32_t hti(char c) {
 	if (c >= 'A' && c <= 'F')
@@ -351,19 +354,22 @@ void load_code() {
 
 
     free(content);
+    int rc =fpga_dma_burst_write(write_fd, code_buffer, code_len, code_start);
+    if(rc<0){
+        printf("unable to open read dma queue\n");
+        exit(0);
+    }
     dma_write(code_buffer, code_len, code_start);
 }
 
 int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     int rc;
-    char device_file_name[256];
     unsigned char *write_buffer, *read_buffer;
 
     read_buffer = NULL;
     write_buffer = NULL;
-    fd = -1;
-
-    rc = sprintf(device_file_name, "/dev/edma%i_queue_0", slot_id);
+    write_fd = -1;
+    read_fd = -1;
 
     /* make sure the AFI is loaded and ready */
     rc = check_slot_config(slot_id);
@@ -372,16 +378,16 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       exit(0);
     }
 
-    fd = open(device_file_name, O_RDWR);
-    if(fd<0){
-        printf("Cannot open device file %s.\nMaybe the EDMA "
-               "driver isn't installed, isn't modified to attach to the PCI ID of "
-               "your CL, or you're using a device file that doesn't exist?\n"
-               "See the edma_install manual at <aws-fpga>/sdk/linux_kernel_drivers/edma/edma_install.md\n"
-               "Remember that rescanning your FPGA can change the device file.\n"
-               "To remove and re-add your edma driver and reset the device file mappings, run\n"
-               "`sudo rmmod edma-drv && sudo insmod <aws-fpga>/sdk/linux_kernel_drivers/edma/edma-drv.ko`\n",
-               device_file_name);
+    write_fd = fpga_dma_open_queue(FPGA_DMA_XDMA, slot_id,
+        /*channel*/ 0, /*is_read*/ false);
+    if(write_fd<0){
+        printf("unable to open write dma queue\n");
+        exit(0);
+    }
+    read_fd = fpga_dma_open_queue(FPGA_DMA_XDMA, slot_id,
+        /*channel*/ 0, /*is_read*/ true);
+    if(read_fd<0){
+        printf("unable to open read dma queue\n");
         exit(0);
     }
 
@@ -412,16 +418,22 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
    int file_len = n;
    read_buffer = (unsigned char *)malloc(headers[1]*4);
-   dma_write(write_buffer, file_len, 0);
+   rc =fpga_dma_burst_write(write_fd, write_buffer, file_len, 0);
+   if(rc<0){
+        printf("unable to open read dma queue\n");
+        exit(0);
+   }
    // DMA Write
+   printf("Write success\n");
    rc = 0;
 
    if (fhex) {
       load_code();
    }
+   printf("Loading code... Success\n");
 
 
-   fsync(fd);
+   //fsync(fd);
 
    rc = fpga_pci_attach(slot_id, pf_id, bar_id, 0, &pci_bar_handle);
    if (rc > 0) {
@@ -449,7 +461,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    }
 
    for (int i=0;i<N_TILES;i++) {
-      dma_write(spill_area, SCRATCHPAD_END_OFFSET, ADDR_BASE_SPILL + i*TOTAL_SPILL_ALLOCATION);
+      fpga_dma_burst_write(write_fd, spill_area,
+              SCRATCHPAD_END_OFFSET,
+              ADDR_BASE_SPILL + i*TOTAL_SPILL_ALLOCATION);
    }
    /*
     for (int i=0;i<8;i++) {
@@ -694,11 +708,11 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        if (gvt == -1 || gvt == -2) break; // -2 to ignore some non-spec bugs
        if (task_unit_logging_on) {
            usleep(400);
-           log_task_unit(pci_bar_handle, fd, fwtu, log_buffer, ID_TASK_UNIT);
+           log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
            //log_riscv(pci_bar_handle, fd, fws1, log_buffer, 1);
-           log_cache(pci_bar_handle, fd, fwl2, ID_L2);
-           //log_splitter(pci_bar_handle, fd, fwsp, ID_SPLITTER);
-           if (!NON_SPEC) log_cq(pci_bar_handle, fd, fwcq, log_buffer, ID_CQ);
+           log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
+           //log_splitter(pci_bar_handle, read_fd, fwsp, ID_SPLITTER);
+           if (!NON_SPEC) log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
            usleep(400);
 
            uint32_t n_tasks, n_tied_tasks, heap_capacity;
@@ -755,9 +769,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &endCycle);
    usleep(800);
    if (task_unit_logging_on) {
-       log_task_unit(pci_bar_handle, fd, fwtu, log_buffer, ID_TASK_UNIT);
-       log_cache(pci_bar_handle, fd, fwl2, ID_L2);
-       log_cq(pci_bar_handle, fd, fwcq, log_buffer, ID_CQ);
+       log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
+       log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
+       log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
    }
    fflush(fwtu);
    fflush(fwcq);
@@ -781,7 +795,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       task_unit_stats(i);
       //if (!NON_SPEC) cq_stats(i);
    }
-   log_riscv(pci_bar_handle, fd, fws1, log_buffer, 1);
+   log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
 
 
    printf("SSSP completed, flushing cache..\n");
@@ -1015,14 +1029,10 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     if (read_buffer != NULL) {
         free(read_buffer);
     }
-    if (fd >= 0) {
-        close(fd);
-
-    }
     return 0;
 }
 int dma_example(int slot_id) {
-    int fd, rc;
+    int write_fd, read_fd, rc;
     char device_file_name[256];
     char *write_buffer, *read_buffer;
     static const size_t buffer_size = 128;
@@ -1030,7 +1040,6 @@ int dma_example(int slot_id) {
 
     read_buffer = NULL;
     write_buffer = NULL;
-    fd = -1;
 
     rc = sprintf(device_file_name, "/dev/edma%i_queue_0", slot_id);
     fail_on((rc = (rc < 0)? 1:0), out, "Unable to format device file name.");
@@ -1040,18 +1049,13 @@ int dma_example(int slot_id) {
     rc = check_slot_config(slot_id);
     fail_on(rc, out, "slot config is not correct");
 
-    fd = open(device_file_name, O_RDWR);
-    if(fd<0){
-        printf("Cannot open device file %s.\nMaybe the EDMA "
-               "driver isn't installed, isn't modified to attach to the PCI ID of "
-               "your CL, or you're using a device file that doesn't exist?\n"
-               "See the edma_install manual at <aws-fpga>/sdk/linux_kernel_drivers/edma/edma_install.md\n"
-               "Remember that rescanning your FPGA can change the device file.\n"
-               "To remove and re-add your edma driver and reset the device file mappings, run\n"
-               "`sudo rmmod edma-drv && sudo insmod <aws-fpga>/sdk/linux_kernel_drivers/edma/edma-drv.ko`\n",
-               device_file_name);
-        fail_on((rc = (fd < 0)? 1:0), out, "unable to open DMA queue. ");
-    }
+    read_fd = fpga_dma_open_queue(FPGA_DMA_XDMA, slot_id,
+        /*channel*/ 0, /*is_read*/ true);
+    fail_on((rc = (read_fd < 0) ? -1 : 0), out, "unable to open read dma queue");
+
+    write_fd = fpga_dma_open_queue(FPGA_DMA_XDMA, slot_id,
+        /*channel*/ 0, /*is_read*/ false);
+    fail_on((rc = (write_fd < 0) ? -1 : 0), out, "unable to open write dma queue");
 
     write_buffer = (char *)malloc(buffer_size);
     read_buffer = (char *)malloc(buffer_size);
@@ -1061,46 +1065,17 @@ int dma_example(int slot_id) {
     }
 
     rand_string(write_buffer, buffer_size);
+    rc = fpga_dma_burst_write(write_fd, write_buffer, buffer_size,
+            0);
 
-   size_t write_offset = 0;
-   while (write_offset < buffer_size) {
-       if (write_offset != 0) {
-      printf("Partial write by driver, trying again with remainder of buffer (%lu bytes)\n",
-          buffer_size - write_offset);
-       }
-       rc = pwrite(fd,
-      write_buffer + write_offset,
-      buffer_size - write_offset,
-      write_offset);
-       if (rc < 0) {
-      fail_on((rc = (rc < 0)? errno:0), out, "call to pwrite failed.");
-       }
-       write_offset += rc;
-   }
    rc = 0;
 
     /* fsync() will make sure the write made it to the target buffer
      * before read is done
      */
 
-    fsync(fd);
 
-        size_t read_offset = 0;
-        while (read_offset < buffer_size) {
-            if (read_offset != 0) {
-                printf("Partial read by driver, trying again with remainder of buffer (%lu bytes)\n",
-                    buffer_size - read_offset);
-            }
-            rc = pread(fd,
-                read_buffer + read_offset,
-                buffer_size - read_offset,
-                read_offset);
-            if (rc < 0) {
-                fail_on((rc = (rc < 0)? errno:0), out, "call to pread failed.");
-            }
-            read_offset += rc;
-        }
-        rc = 0;
+        rc = fpga_dma_burst_read(read_fd, read_buffer, buffer_size,0);
 
       if (memcmp(write_buffer, read_buffer, buffer_size) == 0) {
          printf("DRAM DMA read the same string as it wrote on channel %d (it worked correctly!)\n", channel);
@@ -1129,9 +1104,6 @@ out:
     }
     if (read_buffer != NULL) {
         free(read_buffer);
-    }
-    if (fd >= 0) {
-        close(fd);
     }
     /* if there is an error code, exit with status 1 */
     return (rc != 0 ? 1 : 0);
