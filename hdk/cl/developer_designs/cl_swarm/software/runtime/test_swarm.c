@@ -254,25 +254,29 @@ rand_string(char *str, size_t size)
 }
 
 void dma_write(unsigned char* write_buffer, uint32_t write_len, size_t write_addr) {
-    /*
+
    size_t write_offset = 0;
    int rc;
+   // After moving to v1.4, dma transfers larger than 512 B doesn't work.
+   // Not sure why this happens; but temp fix by splitting larger transfers to
+   // 512 B chunks.
    while (write_offset < write_len) {
       if (write_offset != 0) {
-         printf("Partial write by driver, trying again with remainder of buffer (%lu bytes)\n",
-               write_len - write_offset);
+     //    printf("Partial write by driver, trying again with remainder of buffer (%lu bytes)\n",
+     //          write_len - write_offset);
       }
-      rc = pwrite(fd,
+      rc = pwrite(write_fd,
             write_buffer + write_offset,
-            write_len - write_offset,
+            (write_len - write_offset) > 512 ? 512 : (write_len - write_offset) ,
             write_addr + write_offset);
       if (rc < 0) {
          printf("call to pwrite failed.\n");
       }
+      //printf("rc %d\n", rc);
       write_offset += rc;
    }
    rc = 0;
-   */
+
 }
 uint32_t hti(char c) {
 	if (c >= 'A' && c <= 'F')
@@ -418,9 +422,10 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
    int file_len = n;
    read_buffer = (unsigned char *)malloc(headers[1]*4);
-   rc =fpga_dma_burst_write(write_fd, write_buffer, file_len, 0);
-   if(rc<0){
-        printf("unable to open read dma queue\n");
+   //rc =fpga_dma_burst_write(write_fd, write_buffer, file_len, 0);
+   dma_write(write_buffer, file_len, 0);
+   if(rc!=0){
+        printf("unable to write_dma\n");
         exit(0);
    }
    // DMA Write
@@ -698,6 +703,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       */
    pci_peek(0, 1, CORE_PC, &inst_word );
    printf("pc %x\n", inst_word);
+
    //exit(0);
 
 
