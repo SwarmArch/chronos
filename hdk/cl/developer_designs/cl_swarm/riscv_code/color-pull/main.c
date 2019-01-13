@@ -19,9 +19,11 @@ const int ADDR_TILE_ID       = 0xc0000060;
 const int ADDR_CORE_ID       = 0xc0000064;
 
 #define ENQUEUER_TASK  0
-#define CALC_COLOR_TASK  1
-#define NOTIFY_NEIGHBORS_TASK 2
-#define RECEIVE_COLOR_TASK 3
+#define ENQ_NEIGHBOR_TASK 1
+#define READ_COLOR_TASK 2
+#define UPDATE_COLOR_TASK 3
+#define CALC_COLOR_TASK 4
+#define WRITE_COLOR_TASK 5
 
 typedef unsigned int uint;
 
@@ -86,9 +88,42 @@ void enqueuer_task(uint ts, uint hint, uint enq_start, uint arg1) {
      uint degree = edge_offset[nextV+1] - edge_offset[nextV];
      if (degree>255) degree = 255;
      next_ts = (255-degree) << 24 | nextV << 1;
-     enq_task_arg0(CALC_COLOR_TASK, next_ts, nextV);
+     enq_task_arg1(ENQ_NEIGHBOR_TASK, next_ts, nextV, 0);
      n_child++;
    }
+}
+
+void enq_neighbor_task(uint ts, uint vid, uint enq_start, uint arg1) {
+   uint eo_begin = edge_offset[vid] + enq_start;
+   uint eo_end = edge_offset[vid+1];
+   if (eo_end > eo_begin + 6) {
+       enq_task_arg1(ENQ_NEIGHBOR_TASK, ts, vid, enq_start +6);
+       eo_end = eo_begin + 6;
+   }
+
+   for (int i = eo_begin; i < eo_end; i++) {
+      uint neighbor = edge_neighbors[i];
+      enq_task_arg1(READ_COLOR_TASK, ts, neighbor, vid);
+   }
+   enq_task_arg0(CALC_COLOR_TASK, ts+1, 1 << 24 | vid);
+}
+
+void read_color_task(uint ts, uint neighbor, uint vid, uint arg1) {
+   uint color = colors[neighbor];
+   if (color != 0xffffffff) {
+      enq_task_arg2(UPDATE_COLOR_TASK, ts, 1 << 24 | vid, color, neighbor);
+   }
+}
+
+void update_color_task(uint ts, uint vid, uint color, uint neighbor) {
+    vid = vid & 0xffffff;
+   if (color < 32) {
+      uint vec = scratch[vid*4];
+      undo_log_write(&(scratch[vid*4]), vec);
+      vec = vec | ( 1<<color);
+      scratch[vid*4] = vec;
+      //enq_task_arg0(7, ts, neighbor*100 + color);
+   } // else todo
 }
 
 void calc_color_task(uint ts, uint vid, uint arg0, uint arg1) {
@@ -100,41 +135,15 @@ void calc_color_task(uint ts, uint vid, uint arg0, uint arg1) {
       vec >>= 1;
       bit++;
    }
-   // color = bit
-   enq_task_arg2(NOTIFY_NEIGHBORS_TASK, ts, (1<<24) | vid, bit, 0);
+   enq_task_arg1(WRITE_COLOR_TASK, ts, vid ,bit);
 
 }
 
-void notify_neighbors_task(uint ts, uint vid, uint color, uint enq_start) {
-   vid = vid & 0xffffff;
-   if (enq_start ==0) {
-      undo_log_write(&(colors[vid]), colors[vid]);
-      colors[vid] = color;
-   }
-   uint eo_begin = edge_offset[vid] + enq_start;
-   uint eo_end = edge_offset[vid+1];
-   if (eo_end > eo_begin + 6) {
-       enq_task_arg1(NOTIFY_NEIGHBORS_TASK, ts, (1<<24) | vid, enq_start +6);
-       eo_end = eo_begin + 6;
-   }
+void write_color_task(uint ts, uint vid, uint color, uint arg1) {
 
-   for (int i = eo_begin; i < eo_end; i++) {
-      uint neighbor = edge_neighbors[i];
-      enq_task_arg2(RECEIVE_COLOR_TASK, ts, neighbor, color, vid);
-   }
+   undo_log_write(&(colors[vid]), colors[vid]);
+   colors[vid] = color;
 }
-
-void receive_color_task(uint ts, uint vid, uint color, uint neighbor) {
-    vid = vid & 0xffffff;
-   if (color < 32) {
-      uint vec = scratch[vid*4];
-      undo_log_write(&(scratch[vid*4]), vec);
-      vec = vec | ( 1<<color);
-      scratch[vid*4] = vec;
-      //enq_task_arg0(7, ts, neighbor*100 + color);
-   } // else todo
-}
-
 
 void main() {
    init();
@@ -156,14 +165,20 @@ void main() {
         case ENQUEUER_TASK:
            enqueuer_task(ts, hint, arg0, arg1);
            break;
+        case ENQ_NEIGHBOR_TASK:
+           enq_neighbor_task(ts, hint, arg0, arg1);
+           break;
+        case READ_COLOR_TASK:
+           read_color_task(ts, hint, arg0, arg1);
+           break;
+        case UPDATE_COLOR_TASK:
+           update_color_task(ts, hint, arg0, arg1);
+           break;
         case CALC_COLOR_TASK:
            calc_color_task(ts, hint, arg0, arg1);
            break;
-        case NOTIFY_NEIGHBORS_TASK:
-           notify_neighbors_task(ts, hint, arg0, arg1);
-           break;
-        case RECEIVE_COLOR_TASK:
-           receive_color_task(ts, hint, arg0, arg1);
+        case WRITE_COLOR_TASK:
+           write_color_task(ts, hint, arg0, arg1);
            break;
       }
       finish_task();
