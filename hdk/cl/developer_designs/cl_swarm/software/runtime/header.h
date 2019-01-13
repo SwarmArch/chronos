@@ -7,6 +7,7 @@
 
 #include <fpga_pci.h>
 #include <fpga_mgmt.h>
+#include <fpga_dma.h>
 #include <utils/lcd.h>
 
 #include <fcntl.h>

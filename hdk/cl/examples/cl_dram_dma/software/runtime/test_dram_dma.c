@@ -181,7 +181,7 @@ int interrupt_example(int slot_id, int interrupt_number){
     int poll_limit = 20;
     uint32_t interrupt_reg_offset = 0xd00;
 
-  
+
     rc = sprintf(event_file_name, "/dev/xdma%i_events_%i", slot_id, interrupt_number);
     fail_on((rc = (rc < 0)? 1:0), out, "Unable to format event file name.");
 
@@ -201,7 +201,7 @@ int interrupt_example(int slot_id, int interrupt_number){
     rc = fpga_pci_poke(pci_bar_handle, interrupt_reg_offset , 1 << interrupt_number);
     fail_on(rc, out, "Unable to write to the fpga !");
 
-    // Poll checks whether an interrupt was generated. 
+    // Poll checks whether an interrupt was generated.
     rd = poll(fds, num_fds, poll_timeout);
     if((rd > 0) && (fds[0].revents & POLLIN)) {
         uint32_t events_user;
@@ -211,7 +211,7 @@ int interrupt_example(int slot_id, int interrupt_number){
         rc = pread(fd, &events_user, sizeof(events_user), 0);
         fail_on((rc = (rc < 0)? 1:0), out, "call to pread failed.");
 
-        printf("Interrupt present for Interrupt %i, events %i. It worked!\n", 
+        printf("Interrupt present for Interrupt %i, events %i. It worked!\n",
                interrupt_number, events_user);
 
         //Clear the interrupt register
