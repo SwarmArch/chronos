@@ -397,13 +397,15 @@ void WriteOutputColor(FILE* fp) {
    int SIZE_GROUND_TRUTH =((numV+15)/16)*16;
    int SIZE_INITLIST = ((numV+15)/16)*16;
    int SIZE_SCRATCH = size_of_field(numV, 16);
+   int SIZE_JOIN_CNT = size_of_field(numV, 4);
 
    int BASE_DIST = 16;
    int BASE_EDGE_OFFSET = BASE_DIST + SIZE_DIST;
    int BASE_NEIGHBORS = BASE_EDGE_OFFSET + SIZE_EDGE_OFFSET;
    int BASE_INITLIST = BASE_NEIGHBORS + SIZE_NEIGHBORS;
    int BASE_SCRATCH = BASE_INITLIST + SIZE_INITLIST;
-   int BASE_GROUND_TRUTH = BASE_SCRATCH + SIZE_SCRATCH;
+   int BASE_JOIN_CNT = BASE_SCRATCH + SIZE_SCRATCH;
+   int BASE_GROUND_TRUTH = BASE_JOIN_CNT + SIZE_JOIN_CNT;
    int BASE_END = BASE_GROUND_TRUTH + SIZE_GROUND_TRUTH;
 
    uint32_t* data = (uint32_t*) calloc(BASE_END, sizeof(uint32_t));
@@ -419,8 +421,9 @@ void WriteOutputColor(FILE* fp) {
    data[8] = BASE_END;
    data[9] = BASE_INITLIST;
    data[10] = BASE_SCRATCH;
+   data[11] = BASE_JOIN_CNT;
 
-   for (int i=0;i<11;i++) {
+   for (int i=0;i<12;i++) {
       printf("header %d: %d\n", i, data[i]);
    }
    //todo ground truth
