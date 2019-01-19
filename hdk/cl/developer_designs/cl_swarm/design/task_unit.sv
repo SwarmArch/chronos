@@ -1290,8 +1290,6 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       log_word.n_tasks = new_n_tasks;
       log_word.n_tied_tasks = new_n_tied_tasks;
 
-      log_word.deq_hint = alt_log_word ? task_enq_data.args[31:0] :  task_deq_data.hint;
-      log_word.deq_ts   = alt_log_word ? task_enq_data.args[63:32] : task_deq_data.ts;
 
       log_word.overflow_task.valid = overflow_valid;
       log_word.overflow_task.ready = overflow_ready;
@@ -1325,6 +1323,10 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.enq_task_coal_child.ready = task_enq_ready;
         log_word.enq_task_coal_child.slot  = next_free_tq_slot;
         log_word.enq_task_coal_child.epoch_1 = epoch[next_free_tq_slot];
+        if (alt_log_word) begin
+           log_word.deq_hint = task_enq_data.args[31:0] ;
+           log_word.deq_ts   = task_enq_data.args[63:32];
+        end
         log_valid = 1;
      end else if (coal_child_valid & coal_child_ready) begin
         log_word.enq_task_n_coal_child = 1'b0;
@@ -1340,13 +1342,18 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
      if (task_deq_valid & task_deq_ready) begin
         log_word.deq_task.slot    = task_deq_tq_slot;
         log_word.deq_task.tied    = tied_task[task_deq_tq_slot];
-        log_word.deq_hint = task_deq_data.hint;
-        log_word.deq_ts   = task_deq_data.ts;
+
+        if (!alt_log_word) begin
+           log_word.deq_hint = task_deq_data.hint;
+           log_word.deq_ts   = task_deq_data.ts;
+        end
         log_valid = 1;
      end else if (splitter_deq_valid & splitter_deq_ready) begin
         log_word.deq_task.slot    =  splitter_deq_slot;
-        log_word.deq_hint = splitter_deq_task.hint;
-        log_word.deq_ts   = splitter_deq_task.ts;
+        if (!alt_log_word) begin
+          log_word.deq_hint = splitter_deq_task.hint;
+          log_word.deq_ts   = splitter_deq_task.ts;
+        end
         log_valid = 1;
      end
      if (commit_task_valid & commit_task_ready) begin
