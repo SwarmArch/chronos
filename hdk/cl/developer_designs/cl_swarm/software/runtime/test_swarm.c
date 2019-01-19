@@ -508,6 +508,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    uint32_t log_active_tiles = 0;
 
    bool task_unit_logging_on = false;
+   //task_unit_logging_on = true;
 
    assert(spill_threshold > (tied_cap + (1<<LOG_CQ_SIZE) + spill_size));
    assert((spill_size % 8) == 0);
@@ -715,8 +716,8 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        if (task_unit_logging_on) {
            usleep(400);
            log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
-           //log_riscv(pci_bar_handle, fd, fws1, log_buffer, 1);
-           log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
+           //log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
+           //log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
            //log_splitter(pci_bar_handle, read_fd, fwsp, ID_SPLITTER);
            if (!NON_SPEC) log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
            usleep(400);
@@ -773,7 +774,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &endCycle);
    endCycle64 = (endCycle64 << 32) | endCycle;
    pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &endCycle);
-   usleep(800);
+   usleep(2800);
    if (task_unit_logging_on) {
        log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
        log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
@@ -966,7 +967,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
              }
              if (error) num_errors++;
              ref_count++;
-             if ( ( error & (num_errors < 10)) || i==numV-1)
+             if ( ( error & (num_errors < 10000)) || i==numV-1)
                  printf("vid:%3d dist:%5d, ref:%5d, %s, num_errors:%2d\n",
                        i, act_dist, ref_dist,
                          act_dist == ref_dist ? "MATCH" : "FAIL", num_errors);

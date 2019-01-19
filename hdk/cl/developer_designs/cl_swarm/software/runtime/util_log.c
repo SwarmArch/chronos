@@ -64,14 +64,15 @@ int log_task_unit(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned ch
    uint64_t cl_addr = (1L<<36) + (ID_TASK_UNIT << 20);
    while (read_offset < read_len) {
       rc = pread(fd,
-            log_buffer + read_offset,
+            log_buffer,// + read_offset,
             // keep Tx size under 64*64 to prevent shell timeouts
             (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
             cl_addr);
       read_offset += rc;
+      write_task_unit_log(log_buffer, fw, rc/64);
    }
 
-   write_task_unit_log(log_buffer, fw, log_size);
+   //write_task_unit_log(log_buffer, fw, log_size);
    return 0;
 }
 
@@ -249,46 +250,46 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t ID_L2)
    uint64_t cl_addr = (1L<<36) + (ID_L2 << 20);
    while (read_offset < read_len) {
       rc = pread(fd,
-            log_buffer + read_offset,
+            log_buffer,// + read_offset,
             (read_len - read_offset) > 3200 ? 3200 :(read_len - read_offset),
             cl_addr);
       read_offset += rc;
-   }
-   const char *ops[8];
-   ops[0] = "NONE ";
-   ops[1] = "READ ";
-   ops[2] = "WRITE";
-   ops[3] = "EVICT";
-   ops[4] = "RESPR";
-   ops[5] = "RESPW";
-   ops[6] = "FLUSH";
-   ops[7] = "ERROR";
-   unsigned int* buf = (unsigned int*) log_buffer;
-   for (int i=0;i<log_size;i++) {
-        unsigned int seq = buf[i*16 + 0];
-        unsigned int cycle = buf[i*16 + 1];
-        unsigned int repl_tag = buf[i*16 + 2];
+       const char *ops[8];
+       ops[0] = "NONE ";
+       ops[1] = "READ ";
+       ops[2] = "WRITE";
+       ops[3] = "EVICT";
+       ops[4] = "RESPR";
+       ops[5] = "RESPW";
+       ops[6] = "FLUSH";
+       ops[7] = "ERROR";
+       unsigned int* buf = (unsigned int*) log_buffer;
+       for (int i=0;i<rc/64;i++) {
+            unsigned int seq = buf[i*16 + 0];
+            unsigned int cycle = buf[i*16 + 1];
+            unsigned int repl_tag = buf[i*16 + 2];
 
-        unsigned int repl_way = (buf[i*16+3] >> 2) & 0x3;
-        unsigned int hit = (buf[i*16+3] >> 4) & 0x1;
-        unsigned int retry = (buf[i*16+3] >> 5) & 0x1;
-        unsigned int op = (buf[i*16+3] >> 6) & 0x7;
+            unsigned int repl_way = (buf[i*16+3] >> 2) & 0x3;
+            unsigned int hit = (buf[i*16+3] >> 4) & 0x1;
+            unsigned int retry = (buf[i*16+3] >> 5) & 0x1;
+            unsigned int op = (buf[i*16+3] >> 6) & 0x7;
 
-        unsigned int addr_l = (buf[i*16+3]) >> 9;
-        unsigned int addr_h = (buf[i*16+4]) & 0x7ff;
-        unsigned long long addr = (addr_h << 23) + addr_l;
-        unsigned int id = (buf[i*16+4] >> 11);
+            unsigned int addr_l = (buf[i*16+3]) >> 9;
+            unsigned int addr_h = (buf[i*16+4]) & 0x7ff;
+            unsigned long long addr = (addr_h << 23) + addr_l;
+            unsigned int id = (buf[i*16+4] >> 11);
 
-        unsigned int index = (addr >> 6) & 0x3ff;
-        unsigned int tag = (addr >> 16);
+            unsigned int index = (addr >> 6) & 0x3ff;
+            unsigned int tag = (addr >> 16);
 
-        fprintf(fw, "[%6d][%12u][%2d:%2d] %s %s %1d %2d %8llx (tag:%5x index:%3x)  %6x \n",
-                seq, cycle, id >> 4, id & 0xf,  ops[op],
-                hit ? "H": "M",
-                retry, repl_way,
-                addr, tag, index,
-                repl_tag
-            );
+            fprintf(fw, "[%6d][%12u][%2d:%2d] %s %s %1d %2d %8llx (tag:%5x index:%3x)  %6x \n",
+                    seq, cycle, id >> 4, id & 0xf,  ops[op],
+                    hit ? "H": "M",
+                    retry, repl_way,
+                    addr, tag, index,
+                    repl_tag
+                );
+       }
    }
    return 0;
 }
@@ -541,78 +542,77 @@ int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
    uint64_t cl_addr = (1L<<36) + (ID_CORE << 20);
    while (read_offset < read_len) {
       rc = pread(fd,
-            log_buffer + read_offset,
+            log_buffer,// + read_offset,
             // keep Tx size under 64*64 to prevent shell timeouts
             (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
             cl_addr);
       read_offset += rc;
-   }
 
-   //write_task_unit_log(log_buffer, fw, log_size);
-   unsigned int* buf = (unsigned int*) log_buffer;
-   for (int i=0;i<log_size ;i++) {
-        unsigned int seq = buf[i*16 + 0];
-        unsigned int cycle = buf[i*16 + 1];
+      unsigned int* buf = (unsigned int*) log_buffer;
+      for (int i=0;i<rc/64 ;i++) {
+           unsigned int seq = buf[i*16 + 0];
+           unsigned int cycle = buf[i*16 + 1];
 
-        unsigned int state = buf[i*16 + 2] >> 12 & 0xf;
-        unsigned int awvalid = buf[i*16 + 2] >> 11 & 1;
-        unsigned int awready = buf[i*16 + 2] >> 10 & 1;
-        unsigned int wvalid = buf[i*16 + 2] >> 9 & 1;
-        unsigned int wready = buf[i*16 + 2] >> 8 & 1;
-        unsigned int arvalid = buf[i*16 + 2] >> 7 & 1;
-        //unsigned int arready = buf[i*16 + 2] >> 6 & 1;
-        //unsigned int rvalid = buf[i*16 + 2] >> 5 & 1;
-        //unsigned int rrready = buf[i*16 + 2] >> 4 & 1;
-        unsigned int bvalid = buf[i*16 + 2] >> 3 & 1;
-        unsigned int bready = buf[i*16 + 2] >> 2 & 1;
-        //unsigned int rlast = buf[i*16 + 2] >> 1 & 1;
-        //unsigned int wlast = buf[i*16 + 2] >> 0 & 1;
+           unsigned int state = buf[i*16 + 2] >> 12 & 0xf;
+           unsigned int awvalid = buf[i*16 + 2] >> 11 & 1;
+           unsigned int awready = buf[i*16 + 2] >> 10 & 1;
+           unsigned int wvalid = buf[i*16 + 2] >> 9 & 1;
+           unsigned int wready = buf[i*16 + 2] >> 8 & 1;
+           unsigned int arvalid = buf[i*16 + 2] >> 7 & 1;
+           //unsigned int arready = buf[i*16 + 2] >> 6 & 1;
+           //unsigned int rvalid = buf[i*16 + 2] >> 5 & 1;
+           //unsigned int rrready = buf[i*16 + 2] >> 4 & 1;
+           unsigned int bvalid = buf[i*16 + 2] >> 3 & 1;
+           unsigned int bready = buf[i*16 + 2] >> 2 & 1;
+           //unsigned int rlast = buf[i*16 + 2] >> 1 & 1;
+           //unsigned int wlast = buf[i*16 + 2] >> 0 & 1;
 
-        unsigned int awid = buf[i*16 + 8] >> 16;
-        unsigned int bid = buf[i*16 + 7] & 0xffff;
-        unsigned int awaddr = buf[i*16 + 6];
-        unsigned int wdata = buf[i*16 + 5];
+           unsigned int awid = buf[i*16 + 8] >> 16;
+           unsigned int bid = buf[i*16 + 7] & 0xffff;
+           unsigned int awaddr = buf[i*16 + 6];
+           unsigned int wdata = buf[i*16 + 5];
 
-        unsigned int pc = buf[i*16 + 12];
-        unsigned int dbus_cmd_addr = buf[i*16 + 11];
-        unsigned int dbus_cmd_data = buf[i*16 + 10];
-        unsigned int dbus_rsp_data = buf[i*16 +  9];
-        unsigned int dbus_cmd_valid = buf[i*16 +  2] >> 19 & 1;
-        unsigned int dbus_cmd_ready = buf[i*16 +  2] >> 18 & 1;
-        unsigned int dbus_cmd_wr = buf[i*16 +  2] >> 17 & 1;
-        unsigned int dbus_rsp_valid = buf[i*16 +  2] >> 16 & 1;
+           unsigned int pc = buf[i*16 + 12];
+           unsigned int dbus_cmd_addr = buf[i*16 + 11];
+           unsigned int dbus_cmd_data = buf[i*16 + 10];
+           unsigned int dbus_rsp_data = buf[i*16 +  9];
+           unsigned int dbus_cmd_valid = buf[i*16 +  2] >> 19 & 1;
+           unsigned int dbus_cmd_ready = buf[i*16 +  2] >> 18 & 1;
+           unsigned int dbus_cmd_wr = buf[i*16 +  2] >> 17 & 1;
+           unsigned int dbus_rsp_valid = buf[i*16 +  2] >> 16 & 1;
 
 
-        //printf(" \t \t %x %x %x %x\n", buf[i*16], buf[i*16+1], buf[i*16+14], buf[i*16+11]);
-        if (seq == -1) {
-            continue;
+           //printf(" \t \t %x %x %x %x\n", buf[i*16], buf[i*16+1], buf[i*16+14], buf[i*16+11]);
+           if (seq == -1) {
+               continue;
+           }
+            if (dbus_cmd_valid) {
+               fprintf(fw,"[%6d][%10u][%08x][%d] req %d%d wr:%d addr:%08x data:%08x\n",
+                  seq, cycle, pc, state,
+                  dbus_cmd_valid, dbus_cmd_ready,
+                  dbus_cmd_wr,
+                  dbus_cmd_addr,
+                  dbus_cmd_data
+                  );
+            }
+             if (dbus_rsp_valid) {
+                fprintf(fw,"[%6d][%10u][%08x] rsp %d data:%08x\n",
+                   seq, cycle, pc,
+                   dbus_rsp_valid,
+                   dbus_rsp_data
+                   );
+             }
+             if (awvalid) fprintf(fw, "[%6d][%10u][%08x] awvalid %08x %d\n",
+                     seq, cycle, pc, awaddr, awid);
+             if (wvalid) fprintf(fw, "[%6d][%10u][%08x] wvalid %08x \n",
+                     seq, cycle, pc, wdata);
+             if (awready) fprintf(fw, "[%6d][%10u][%08x] awready\n", seq, cycle, pc);
+             if (bvalid) fprintf(fw, "[%6d][%10u][%08x] bvalid %d\n", seq, cycle, pc, bid);
+             //if (bready) fprintf(fw, "[%6d][%10u][%08x] bready\n", seq, cycle, pc);
+             if (wready) fprintf(fw, "[%6d][%10u][%08x] wready\n", seq, cycle, pc);
+             if (arvalid) fprintf(fw, "[%6d][%10u][%08x] arvalid\n", seq, cycle, pc);
         }
-         if (dbus_cmd_valid) {
-            fprintf(fw,"[%6d][%10u][%08x][%d] req %d%d wr:%d addr:%08x data:%08x\n",
-               seq, cycle, pc, state,
-               dbus_cmd_valid, dbus_cmd_ready,
-               dbus_cmd_wr,
-               dbus_cmd_addr,
-               dbus_cmd_data
-               );
-         }
-         if (dbus_rsp_valid) {
-            fprintf(fw,"[%6d][%10u][%08x] rsp %d data:%08x\n",
-               seq, cycle, pc,
-               dbus_rsp_valid,
-               dbus_rsp_data
-               );
-         }
-         if (awvalid) fprintf(fw, "[%6d][%10u][%08x] awvalid %08x %d\n",
-                 seq, cycle, pc, awaddr, awid);
-         if (wvalid) fprintf(fw, "[%6d][%10u][%08x] wvalid %08x \n",
-                 seq, cycle, pc, wdata);
-         if (awready) fprintf(fw, "[%6d][%10u][%08x] awready\n", seq, cycle, pc);
-         if (bvalid) fprintf(fw, "[%6d][%10u][%08x] bvalid %d\n", seq, cycle, pc, bid);
-         //if (bready) fprintf(fw, "[%6d][%10u][%08x] bready\n", seq, cycle, pc);
-         if (wready) fprintf(fw, "[%6d][%10u][%08x] wready\n", seq, cycle, pc);
-         if (arvalid) fprintf(fw, "[%6d][%10u][%08x] arvalid\n", seq, cycle, pc);
-    }
+   }
 
    return 0;
 }
