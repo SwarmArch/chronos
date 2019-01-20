@@ -391,7 +391,6 @@ void WriteOutput(FILE* fp) {
 }
 void WriteOutputColor(FILE* fp) {
    // all offsets are in units of uint32_t. i.e 16 per cache line
-   printf("Here\n");
    int SIZE_DIST =((numV+15)/16)*16;
    int SIZE_EDGE_OFFSET =( (numV+1 +15)/ 16) * 16;
    int SIZE_NEIGHBORS =(( (numE)+ 15)/ 16 ) * 16;
@@ -538,7 +537,7 @@ int main(int argc, char *argv[]) {
       int strStart = 0;
       // strip out filename from path
       for (uint32_t i=0;i<strlen(argv[2]);i++) {
-         if (argv[2][i] == '/') strStart = i;
+         if (argv[2][i] == '/') strStart = i+1;
       }
       sprintf(out_file, "%s.%s", argv[2] +strStart, ext);
    } else if (type == 1) {
@@ -552,7 +551,7 @@ int main(int argc, char *argv[]) {
       int strStart = 0;
       // strip out filename from path
       for (uint32_t i=0;i<strlen(argv[2]);i++) {
-         if (argv[2][i] == '/') strStart = i;
+         if (argv[2][i] == '/') strStart = i+1;
       }
       sprintf(out_file, "%s.%s", argv[2] +strStart, ext);
       sprintf(edgesFile, "%s.edges", argv[2] +strStart);
@@ -562,7 +561,7 @@ int main(int argc, char *argv[]) {
       int strStart = 0;
       // strip out filename from path
       for (uint32_t i=0;i<strlen(argv[2]);i++) {
-         if (argv[2][i] == '/') strStart = i;
+         if (argv[2][i] == '/') strStart = i+1;
       }
       sprintf(out_file, "%s.%s", argv[2] +strStart, ext);
    }
