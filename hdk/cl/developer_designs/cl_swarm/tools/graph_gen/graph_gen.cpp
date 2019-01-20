@@ -75,6 +75,7 @@ uint64_t dist(const Vertex* src, const Vertex* dst) {
 }
 
 void LoadGraphGR(const char* file) {
+   // DIMACS
    std::ifstream f;
    std::string s;
    f.open(file, std::ios::binary);
@@ -532,6 +533,7 @@ int main(int argc, char *argv[]) {
    }
 
    if (type == 0) {
+      // astar type
       LoadGraph(argv[2]);
       int strStart = 0;
       // strip out filename from path
@@ -555,6 +557,7 @@ int main(int argc, char *argv[]) {
       sprintf(out_file, "%s.%s", argv[2] +strStart, ext);
       sprintf(edgesFile, "%s.edges", argv[2] +strStart);
    }  else if (type == 3) {
+      // coloring type : eg: com-youtube
       LoadGraphEdges(argv[2]);
       int strStart = 0;
       // strip out filename from path
