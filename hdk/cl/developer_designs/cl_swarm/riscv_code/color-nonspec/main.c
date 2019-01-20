@@ -79,8 +79,14 @@ void undo_log_write(uint* addr, uint data) {
 void enqueuer_task(uint ts, uint hint, uint enq_start, uint arg1) {
    int n_child = 0;
    uint next_ts;
-   for (int i=0; i<numV; i++) {
-     enq_task_arg0(CALC_IN_DEGREE_TASK, /*unordered*/ 0, i);
+   uint enq_end = enq_start + 10;
+   if (enq_end > numV) enq_end = numV;
+   for (int i=enq_start; i<enq_end; i++) {
+     enq_task_arg0(CALC_IN_DEGREE_TASK, /*unordered*/ 1, i);
+   }
+   if (enq_end < numV) {
+     enq_task_arg1(ENQUEUER_TASK, /*unordered*/ 1, hint, enq_end);
+
    }
 }
 
