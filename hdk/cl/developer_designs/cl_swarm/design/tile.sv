@@ -999,7 +999,8 @@ logic cc_finish_task_valid;
 assign cc_finish_task_valid = finish_task_select_valid & finish_task_select_ready;
 
 conflict_serializer #(
-      .NUM_CORES(N_THREADS + UNDO_LOG_THREADS)
+      .NUM_CORES(N_THREADS + UNDO_LOG_THREADS),
+      .TILE_ID(TILE_ID)
    ) CONFLICT_SERIALIZER (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
@@ -1019,7 +1020,10 @@ conflict_serializer #(
    .m_ready       ( fifo_cc_ready      ),
 
    .almost_full   ( cc_almost_full ),
-   .all_cores_idle( all_cores_idle )
+   .all_cores_idle( all_cores_idle ),
+   
+   .pci_debug(pci_debug[ID_SERIALIZER]),
+   .reg_bus(reg_bus[ID_SERIALIZER])
 );
 
 

@@ -29,8 +29,9 @@ package swarm;
 
    parameter TASK_UNIT_LOGGING = 1;
    parameter COMMIT_QUEUE_LOGGING = 1;
-   parameter SPLITTER_LOGGING = 0;
+   parameter SPLITTER_LOGGING = 1;
    parameter UNDO_LOG_LOGGING = 1;
+   parameter SERIALIZER_LOGGING = 1;
    parameter L2_LOGGING = 1;
    parameter CORE_LOGGING = 1;
    parameter CORE_STATE_STATS = 0;
@@ -41,7 +42,7 @@ package swarm;
    // how many tiles go directly into the axi xbar. has to be a power of two
    parameter XBAR_IN_TILES = 1;
    parameter NO_SPILLING = 0; 
-   parameter NON_SPEC = 0;
+   parameter NON_SPEC = 1 ;
    
    parameter LOG_CQ_SLICE_SIZE = 6;
    parameter LOG_TQ_SIZE = 10;
@@ -94,7 +95,8 @@ package swarm;
    parameter ID_TSB     = N_CORES + 7;
    parameter ID_CQ      = N_CORES + 8;
    parameter ID_CM      = N_CORES + 9;
-   parameter ID_LAST = N_CORES + 10;
+   parameter ID_SERIALIZER    = N_CORES + 10;
+   parameter ID_LAST = N_CORES + 11;
    
    parameter ID_ALL_CORES = 32;
    parameter ID_ALL_APP_CORES = 33;
@@ -362,6 +364,14 @@ package swarm;
    parameter CM_REG_REQUEST   = 8'h24;
    parameter CM_CHILD_PTR_DATA= 8'h28;
    parameter CM_MISC          = 8'h2c;
+
+   parameter SERIALIZER_ARVALID = 8'h20;
+   parameter SERIALIZER_READY_LIST = 8'h24;
+   parameter SERIALIZER_REG_VALID = 8'h28;
+   parameter SERIALIZER_CAN_TAKE_REQ_0 = 8'h30;
+   parameter SERIALIZER_CAN_TAKE_REQ_1 = 8'h34;
+   parameter SERIALIZER_CAN_TAKE_REQ_2 = 8'h38;
+   parameter SERIALIZER_CAN_TAKE_REQ_3 = 8'h3c;
 
    parameter CQ_HINT_DATA_BASE_ADDR = 8'h10;
    

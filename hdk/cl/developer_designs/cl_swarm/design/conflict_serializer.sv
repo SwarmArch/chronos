@@ -1,7 +1,8 @@
 import swarm::*;
 
 module conflict_serializer #( 
-		parameter NUM_CORES = 10  
+		parameter NUM_CORES = 10,
+      parameter TILE_ID = 0
 	) (
 	input clk,
 	input rstn,
@@ -24,7 +25,9 @@ module conflict_serializer #(
 
    output logic almost_full,
 
-   output all_cores_idle  // for termination checking
+   output all_cores_idle,  // for termination checking
+   pci_debug_bus_t.master                 pci_debug,
+   reg_bus_t.master                       reg_bus
 
 );
 
@@ -282,4 +285,113 @@ module conflict_serializer #(
          end
       end
    end
+
+// Debug
+logic [LOG_LOG_DEPTH:0] log_size; 
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         reg_bus.rvalid <= 1'b0;
+         reg_bus.rdata <= 'x;
+      end else
+      if (reg_bus.arvalid) begin
+         reg_bus.rvalid <= 1'b1;
+         casex (reg_bus.araddr) 
+            DEBUG_CAPACITY : reg_bus.rdata <= log_size;
+            SERIALIZER_ARVALID : reg_bus.rdata <= s_arvalid;
+            SERIALIZER_READY_LIST : reg_bus.rdata <= {ready_list_valid, ready_list_conflict};
+            SERIALIZER_REG_VALID : reg_bus.rdata <= {reg_core_id, reg_valid};
+            SERIALIZER_CAN_TAKE_REQ_0 : reg_bus.rdata <=
+               {can_take_request[ 3], can_take_request[ 2], can_take_request[ 1], can_take_request[ 0]};
+            SERIALIZER_CAN_TAKE_REQ_1 : reg_bus.rdata <=
+               {can_take_request[ 7], can_take_request[ 6], can_take_request[ 5], can_take_request[ 4]};
+            SERIALIZER_CAN_TAKE_REQ_2 : reg_bus.rdata <=
+               {can_take_request[11], can_take_request[10], can_take_request[ 9], can_take_request[ 8]};
+            SERIALIZER_CAN_TAKE_REQ_3 : reg_bus.rdata <=
+               {can_take_request[15], can_take_request[14], can_take_request[13], can_take_request[12]};
+            // can_take_request;
+            // ready_list_valid, ready_list_conflict
+            // reg_valid, reg_core_id
+         endcase
+      end else begin
+         reg_bus.rvalid <= 1'b0;
+      end
+   end
+
+if (SERIALIZER_LOGGING[TILE_ID]) begin
+   logic log_valid;
+   typedef struct packed {
+
+      logic [15:0] s_arvalid;
+      logic [15:0] s_rvalid;
+      logic [31:0] s_rdata_hint;
+      logic [31:0] s_rdata_ts;
+
+      // 32
+      logic [5:0] s_cq_slot;
+      logic [3:0] s_rdata_ttype;
+      logic finished_task_valid;
+      logic [4:0] finished_task_core;
+      logic [7:0] ready_list_valid;
+      logic [7:0] ready_list_conflict;
+
+      logic [31:0] m_ts;
+      logic [31:0] m_hint;
+
+      logic [3:0] m_ttype;
+      logic [5:0] m_cq_slot;
+      logic m_valid;
+      logic m_ready;
+      logic [7:0] finished_task_hint_match;
+      logic [11:0] unused_2;
+      
+   
+      
+
+   } cq_log_t;
+   cq_log_t log_word;
+   always_comb begin
+      log_valid = (m_valid & m_ready) | (s_rvalid != 0) | finished_task_valid;
+
+      log_word = '0;
+
+      log_word.s_arvalid = s_arvalid;
+      log_word.s_rvalid = s_rvalid;
+      log_word.s_rdata_hint = s_rdata.hint;
+      log_word.s_rdata_ts = s_rdata.ts;
+      log_word.s_rdata_ttype = s_rdata.ttype;
+      log_word.s_cq_slot = s_cq_slot;
+
+      log_word.finished_task_valid = finished_task_valid;
+      log_word.finished_task_core = finished_task_core;
+
+      log_word.ready_list_valid = ready_list_valid;
+      log_word.ready_list_conflict = ready_list_conflict;
+
+      log_word.m_hint = m_task.hint;
+      log_word.m_ts = m_task.ts;
+      log_word.m_ttype = m_task.ttype;
+      log_word.m_cq_slot = m_cq_slot;
+
+      log_word.finished_task_hint_match = finished_task_hint_match;
+
+      log_word.m_valid = m_valid;
+      log_word.m_ready = m_ready;
+   end
+
+   log #(
+      .WIDTH($bits(log_word)),
+      .LOG_DEPTH(LOG_LOG_DEPTH)
+   ) TASK_UNIT_LOG (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wvalid(log_valid),
+      .wdata(log_word),
+
+      .pci(pci_debug),
+
+      .size(log_size)
+
+   );
+end
 endmodule
