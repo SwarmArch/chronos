@@ -374,7 +374,10 @@ end
 
 genvar i;
 for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
-   assign cq_conflict[i] = cq_valid[i] & (cq_hint[i] == ref_hint) 
+   assign cq_conflict[i] = cq_valid[i] & (cq_hint[i][30:0] == ref_hint[30:0])
+            // if MSB of hint is set, its a read-only hint. No conflicts between
+            // RO tasks
+            &  !( cq_hint[i][31] & ref_hint[31])
             & (cq_state[i] != ABORTED) & (cq_state[i] != UNDO_LOG_WAITING);
    assign cq_next_idle_in[i] = !cq_valid[i] & (i < cq_size) ;
 end
