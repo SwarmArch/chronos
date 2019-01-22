@@ -359,11 +359,11 @@ hint_t ref_hint;
 always_comb begin
    if (state==IDLE) begin
       if (from_tq_abort_valid) begin
-         ref_hint = cq_hint[from_tq_abort_slot];
+         ref_hint = { 1'b0, cq_hint[from_tq_abort_slot][30:0]};
       end else if (resource_abort_start) begin
-         ref_hint = cq_hint[max_vt_pos_fixed];
+         ref_hint = { 1'b0, cq_hint[max_vt_pos_fixed][30:0]};
       end else if (gvt_induced_abort_start) begin
-         ref_hint = cq_hint[core_1_running_task_slot]; 
+         ref_hint = { 1'b0, cq_hint[core_1_running_task_slot][30:0]}; 
       end else begin
          ref_hint = deq_task.hint;
       end      
