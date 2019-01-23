@@ -42,6 +42,8 @@ uint32_t ID_MEM_ARB;
 uint32_t ID_PCI_ARB;
 uint32_t ID_TSB;
 uint32_t ID_CQ;
+uint32_t ID_CM;
+uint32_t ID_SERIALIZER;
 uint32_t ID_LAST;
 uint32_t LOG_TQ_SIZE, LOG_CQ_SIZE;
 uint32_t TQ_STAGES, SPILLQ_STAGES;
@@ -107,7 +109,9 @@ void init_params() {
     ID_PCI_ARB          =       (N_CORES + 6);
     ID_TSB              =       (N_CORES + 7);
     ID_CQ               =       (N_CORES + 8);
-    ID_LAST             =       (N_CORES + 9);
+    ID_CM               =       (N_CORES + 9);
+    ID_SERIALIZER       =       (N_CORES + 10);
+    ID_LAST             =       (N_CORES + 11);
 
     ID_OCL_SLAVE = 0;
 
@@ -424,6 +428,10 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     read_buffer = (unsigned char *)malloc(headers[1]*4);
     //rc =fpga_dma_burst_write(write_fd, write_buffer, file_len, 0);
     dma_write(write_buffer, file_len, 0);
+
+    uint32_t* csr_offset = (uint32_t *) (write_buffer + headers[3]*4);
+    uint32_t* csr_neighbors = (uint32_t *) (write_buffer + headers[4]*4);
+    uint32_t* csr_color = (uint32_t *) (write_buffer + headers[5]*4);
     if(rc!=0){
         printf("unable to write_dma\n");
         exit(0);
@@ -725,8 +733,11 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                // and the pseudo-gvt is not non-decreasing.
                // Hence sample a few times before terminating
 
-               for (int i=0;i<5;i++) {
+               for (int i=0;i<15;i++) {
                    usleep(10);
+                   if (task_unit_logging_on) {
+                       pci_poke(0, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0xd0);
+                   }
                    pci_peek(0, ID_CQ, CQ_GVT_TS, &gvt);
                    if (!(gvt == -1 || gvt == -2)) done = false;
                }
@@ -779,11 +790,12 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                   printf(" \t [core-%d] state:%d pc:%08x n_deq:%8d\n",
                   j, core_state, core_pc, num_deq);
                   }
-                  */
+               */
+
            }
 
            pci_poke(0, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0xd0);
-           usleep(10000);
+           usleep(1000);
            if (iters == 200000) break;
        }
        iters++;
@@ -795,6 +807,20 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
        log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
    }
+
+   {
+    /*
+       pci_peek(0, ID_SERIALIZER, SERIALIZER_READY_LIST , &ocl_data);
+       printf("Serialzer ready %8x\n", ocl_data);
+       pci_peek(0, ID_SERIALIZER, SERIALIZER_ARVALID , &ocl_data);
+       printf("Serialzer arvalid %8x\n", ocl_data);
+       pci_peek(0, ID_SERIALIZER, SERIALIZER_REG_VALID , &ocl_data);
+       printf("Serialzer reg_valid %8x\n", ocl_data);
+       pci_peek(0, ID_SERIALIZER, SERIALIZER_CAN_TAKE_REQ_3 , &ocl_data);
+       printf("Serialzer can_take_req_3 %8x\n", ocl_data);
+    */
+   }
+
    fflush(fwtu);
    fflush(fwcq);
    //log_cache(pci_bar_handle, fd, fwl2);
@@ -952,7 +978,6 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            break;
        case APP_SSSP:
        case APP_ASTAR:
-       case APP_COLOR:
            for (int i=0;i<numV;i++) {
                int ref_ptr_loc = (app != APP_ASTAR) ? 6 : 9;
                unsigned char* ref_ptr = write_buffer + (headers[ref_ptr_loc] +i)*4;
@@ -980,14 +1005,58 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                else {
                    error = (act_dist != ref_dist);
                }
+
                if (error) num_errors++;
                ref_count++;
-               if ( ( error & (num_errors < 10000)) || i==numV-1)
+               if ( ( error & (num_errors < 1000)) || i==numV-1)
                    printf("vid:%3d dist:%5d, ref:%5d, %s, num_errors:%2d\n",
                            i, act_dist, ref_dist,
                            act_dist == ref_dist ? "MATCH" : "FAIL", num_errors);
            }
            printf("Total Errors %d / %d\n", num_errors, ref_count);
+           break;
+       case APP_COLOR:
+
+           for (int i=0;i<numV;i++) {
+               uint64_t addr = 64 + i * 4;
+               if ((addr & 0xffffffff) ==0) {
+                   uint32_t msb = addr >> 32;
+                   printf("setting msb %d\n", msb);
+                   pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB        , msb );
+               }
+               uint32_t act_color;
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB        , (addr & 0xffffffff ));
+               pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &act_color );
+               csr_color[i] = act_color;
+           }
+           // verification
+           FILE* fc = fopen("color_verif", "w");
+           for (int i=0;i<numV;i++) {
+               uint32_t eo_begin =csr_offset[i];
+               uint32_t eo_end =csr_offset[i+1];
+               uint32_t i_deg = eo_end - eo_begin;
+               uint32_t i_color = csr_color[i];
+               fprintf(fc,"i=%d d=%d c=%d\n",i, i_deg, i_color);
+               bool error = (i_color == -1);
+               uint32_t join_cnt = 0;
+               for (int j=eo_begin;j<eo_end;j++) {
+                    uint32_t n = csr_neighbors[j];
+                    uint32_t n_deg = csr_offset[n+1] - csr_offset[n];
+                    uint32_t n_color = csr_color[n];
+                    fprintf(fc,"\tn=%d d=%d c=%d\n",n, n_deg, n_color);
+                    if (i_color == n_color) {
+                        fprintf(fc,"\t ERROR:Neighbor has same color\n");
+                        error = true;
+                    }
+                    if (n_deg > i_deg || ((n_deg == i_deg) & (n<i))) join_cnt++;
+               }
+               fprintf(fc,"\tjoin_cnt=%d\n", join_cnt);
+               if (error) num_errors++;
+               if ( error & (num_errors < 10) )
+                   printf("Error at vid:%3d color:%5d\n",
+                           i, csr_color[i]);
+           }
+           printf("Total Errors %d / %d\n", num_errors, numV);
            break;
 
    }
