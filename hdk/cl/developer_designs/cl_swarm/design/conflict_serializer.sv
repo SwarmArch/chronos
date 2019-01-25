@@ -165,7 +165,15 @@ module conflict_serializer #(
 
    assign m_ready = (m_valid & !ready_list_valid[next_insert_location]);
 
-   // checks if m_task is in conflict with any other task, either in the ready
+   task_t new_enq_task;
+   always_comb begin
+      new_enq_task = m_task;
+      // read-only ness should not be propagated. If allowed to do so
+      // a RO task and a non-RO would not be serialized
+      new_enq_task.hint[31] = 1'b0;
+   end
+
+   // checks if new_enq_task is in conflict with any other task, either in the ready
    // list or the running task list
    logic next_insert_task_conflict;
    logic [READY_LIST_SIZE-1:0] next_insert_task_conflict_ready_list;
@@ -174,11 +182,11 @@ module conflict_serializer #(
    generate 
       for (i=0;i<READY_LIST_SIZE;i++) begin
          assign next_insert_task_conflict_ready_list[i] = ready_list_valid[i] & 
-                     (ready_list[i].hint == m_task.hint);
+                     (ready_list[i].hint == new_enq_task.hint);
       end
       for (i=0;i<NUM_CORES;i++) begin
          assign next_insert_task_conflict_running_tasks[i] = running_task_hint_valid[i] & 
-                     (running_task_hint[i] == m_task.hint) & 
+                     (running_task_hint[i] == new_enq_task.hint) & 
                      !(finished_task_valid & finished_task_core ==i) ;
       end
    endgenerate
@@ -200,7 +208,7 @@ module conflict_serializer #(
             // shift right existing tasks with the incoming task going at the
             // back
             if (m_valid & m_ready & (next_insert_location== i+1)) begin
-               ready_list[i] <= m_task;
+               ready_list[i] <= new_enq_task;
                ready_list_cq_slot[i] <= m_cq_slot;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
@@ -224,7 +232,7 @@ module conflict_serializer #(
          end else begin
             // No dequeue, only enqueue
             if (m_valid & m_ready & (next_insert_location== i)) begin
-               ready_list[i] <= m_task;
+               ready_list[i] <= new_enq_task;
                ready_list_cq_slot[i] <= m_cq_slot;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
@@ -367,9 +375,9 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       log_word.ready_list_valid = ready_list_valid;
       log_word.ready_list_conflict = ready_list_conflict;
 
-      log_word.m_hint = m_task.hint;
-      log_word.m_ts = m_task.ts;
-      log_word.m_ttype = m_task.ttype;
+      log_word.m_hint = new_enq_task.hint;
+      log_word.m_ts = new_enq_task.ts;
+      log_word.m_ttype = new_enq_task.ttype;
       log_word.m_cq_slot = m_cq_slot;
 
       log_word.finished_task_hint_match = finished_task_hint_match;
