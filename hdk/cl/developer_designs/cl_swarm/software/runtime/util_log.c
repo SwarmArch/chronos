@@ -156,7 +156,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size)
         }
 
          if (enq_task.valid & enq_task.ready) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%4x hint:%4d ttype:%1d arg0:%4d arg1:%4d tied:%d epoch:%3d\n",
+            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%4x hint:%4x ttype:%1d arg0:%4d arg1:%4d tied:%d epoch:%3d\n",
  //resp:(ack:%d tile:%2d tsb:%2d)
                seq, cycle,
                gvt_ts, gvt_tb,
@@ -661,24 +661,24 @@ pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_COAL_CHILD           ,&stat_TASK_U
 pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_OVERFLOW             ,&stat_TASK_UNIT_STAT_N_OVERFLOW            );
 
 
-printf("STAT_N_UNTIED_ENQ          %7d\n",stat_TASK_UNIT_STAT_N_UNTIED_ENQ          );
-printf("STAT_N_TIED_ENQ_ACK        %7d\n",stat_TASK_UNIT_STAT_N_TIED_ENQ_ACK        );
-printf("STAT_N_TIED_ENQ_NACK       %7d\n",stat_TASK_UNIT_STAT_N_TIED_ENQ_NACK       );
-printf("STAT_N_DEQ_TASK            %7d\n",stat_TASK_UNIT_STAT_N_DEQ_TASK            );
-printf("STAT_N_SPLITTER_DEQ        %7d\n",stat_TASK_UNIT_STAT_N_SPLITTER_DEQ        );
-printf("STAT_N_DEQ_MISMATCH        %7d\n",stat_TASK_UNIT_STAT_N_DEQ_MISMATCH        );
-printf("STAT_N_CUT_TIES_MATCH      %7d\n",stat_TASK_UNIT_STAT_N_CUT_TIES_MATCH      );
-printf("STAT_N_CUT_TIES_MISMATCH   %7d\n",stat_TASK_UNIT_STAT_N_CUT_TIES_MISMATCH   );
-printf("STAT_N_CUT_TIES_COM_ABO    %7d\n",stat_TASK_UNIT_STAT_N_CUT_TIES_COM_ABO    );
-printf("STAT_N_COMMIT_TIED         %7d\n",stat_TASK_UNIT_STAT_N_COMMIT_TIED         );
-printf("STAT_N_COMMIT_UNTIED       %7d\n",stat_TASK_UNIT_STAT_N_COMMIT_UNTIED       );
-printf("STAT_N_COMMIT_MISMATCH     %7d\n",stat_TASK_UNIT_STAT_N_COMMIT_MISMATCH     );
-printf("STAT_N_ABORT_CHILD_DEQ     %7d\n",stat_TASK_UNIT_STAT_N_ABORT_CHILD_DEQ     );
-printf("STAT_N_ABORT_CHILD_NOT_DEQ %7d\n",stat_TASK_UNIT_STAT_N_ABORT_CHILD_NOT_DEQ );
-printf("STAT_N_ABORT_CHILD_MISMATCH%7d\n",stat_TASK_UNIT_STAT_N_ABORT_CHILD_MISMATCH);
-printf("STAT_N_ABORT_TASK          %7d\n",stat_TASK_UNIT_STAT_N_ABORT_TASK          );
-printf("STAT_N_COAL_CHILD          %7d\n",stat_TASK_UNIT_STAT_N_COAL_CHILD          );
-printf("STAT_N_OVERFLOW            %7d\n",stat_TASK_UNIT_STAT_N_OVERFLOW            );
+printf("STAT_N_UNTIED_ENQ           %9d\n",stat_TASK_UNIT_STAT_N_UNTIED_ENQ          );
+printf("STAT_N_TIED_ENQ_ACK         %9d\n",stat_TASK_UNIT_STAT_N_TIED_ENQ_ACK        );
+printf("STAT_N_TIED_ENQ_NACK        %9d\n",stat_TASK_UNIT_STAT_N_TIED_ENQ_NACK       );
+printf("STAT_N_DEQ_TASK             %9d\n",stat_TASK_UNIT_STAT_N_DEQ_TASK            );
+printf("STAT_N_SPLITTER_DEQ         %9d\n",stat_TASK_UNIT_STAT_N_SPLITTER_DEQ        );
+printf("STAT_N_DEQ_MISMATCH         %9d\n",stat_TASK_UNIT_STAT_N_DEQ_MISMATCH        );
+printf("STAT_N_CUT_TIES_MATCH       %9d\n",stat_TASK_UNIT_STAT_N_CUT_TIES_MATCH      );
+printf("STAT_N_CUT_TIES_MISMATCH    %9d\n",stat_TASK_UNIT_STAT_N_CUT_TIES_MISMATCH   );
+printf("STAT_N_CUT_TIES_COM_ABO     %9d\n",stat_TASK_UNIT_STAT_N_CUT_TIES_COM_ABO    );
+printf("STAT_N_COMMIT_TIED          %9d\n",stat_TASK_UNIT_STAT_N_COMMIT_TIED         );
+printf("STAT_N_COMMIT_UNTIED        %9d\n",stat_TASK_UNIT_STAT_N_COMMIT_UNTIED       );
+printf("STAT_N_COMMIT_MISMATCH      %9d\n",stat_TASK_UNIT_STAT_N_COMMIT_MISMATCH     );
+printf("STAT_N_ABORT_CHILD_DEQ      %9d\n",stat_TASK_UNIT_STAT_N_ABORT_CHILD_DEQ     );
+printf("STAT_N_ABORT_CHILD_NOT_DEQ  %9d\n",stat_TASK_UNIT_STAT_N_ABORT_CHILD_NOT_DEQ );
+printf("STAT_N_ABORT_CHILD_MISMATCH %9d\n",stat_TASK_UNIT_STAT_N_ABORT_CHILD_MISMATCH);
+printf("STAT_N_ABORT_TASK           %9d\n",stat_TASK_UNIT_STAT_N_ABORT_TASK          );
+printf("STAT_N_COAL_CHILD           %9d\n",stat_TASK_UNIT_STAT_N_COAL_CHILD          );
+printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW            );
 
     uint32_t state_stats[8] = {0};
     for (int i=0;i<8;i++) {

@@ -25,6 +25,9 @@ const int ADDR_CORE_ID       = 0xc0000064;
 #define CALC_COLOR_TASK 4
 #define WRITE_COLOR_TASK 5
 
+#define RO_OFFSET (1<<31)
+//#define RO_OFFSET 0
+
 typedef unsigned int uint;
 
 uint* colors;
@@ -81,14 +84,14 @@ void enqueuer_task(uint ts, uint hint, uint enq_start, uint arg1) {
    uint next_ts;
    while(enq_start + n_child < numV) {
      if (n_child == 7) {
-         enq_task_arg2(ENQUEUER_TASK, next_ts, hint, enq_start + 7, 0);
+         enq_task_arg2(ENQUEUER_TASK, next_ts, hint | RO_OFFSET, enq_start + 7, 0);
          break;
      }
      uint nextV = initlist[enq_start + n_child];
      uint degree = edge_offset[nextV+1] - edge_offset[nextV];
      if (degree>255) degree = 255;
      next_ts = (255-degree) << 24 | nextV << 1;
-     enq_task_arg1(ENQ_NEIGHBOR_TASK, next_ts, nextV, 0);
+     enq_task_arg1(ENQ_NEIGHBOR_TASK, next_ts, nextV | RO_OFFSET , 0);
      n_child++;
    }
 }
@@ -97,18 +100,19 @@ void enq_neighbor_task(uint ts, uint vid, uint enq_start, uint arg1) {
    uint eo_begin = edge_offset[vid] + enq_start;
    uint eo_end = edge_offset[vid+1];
    if (eo_end > eo_begin + 6) {
-       enq_task_arg1(ENQ_NEIGHBOR_TASK, ts, vid, enq_start +6);
+       enq_task_arg1(ENQ_NEIGHBOR_TASK, ts, vid | RO_OFFSET, enq_start +6);
        eo_end = eo_begin + 6;
    }
 
    for (int i = eo_begin; i < eo_end; i++) {
       uint neighbor = edge_neighbors[i];
-      enq_task_arg1(READ_COLOR_TASK, ts, neighbor, vid);
+      enq_task_arg1(READ_COLOR_TASK, ts, neighbor | RO_OFFSET , vid);
    }
-   enq_task_arg0(CALC_COLOR_TASK, ts+1, 1 << 24 | vid);
+   enq_task_arg0(CALC_COLOR_TASK, ts+1, 1 << 24 | vid | RO_OFFSET);
 }
 
 void read_color_task(uint ts, uint neighbor, uint vid, uint arg1) {
+   neighbor = neighbor & 0x7fffffff;
    uint color = colors[neighbor];
    if (color != 0xffffffff) {
       enq_task_arg2(UPDATE_COLOR_TASK, ts, 1 << 24 | vid, color, neighbor);
@@ -116,7 +120,7 @@ void read_color_task(uint ts, uint neighbor, uint vid, uint arg1) {
 }
 
 void update_color_task(uint ts, uint vid, uint color, uint neighbor) {
-    vid = vid & 0xffffff;
+   vid = vid & 0xffffff;
    if (color < 32) {
       uint vec = scratch[vid*4];
       undo_log_write(&(scratch[vid*4]), vec);
@@ -135,7 +139,7 @@ void calc_color_task(uint ts, uint vid, uint arg0, uint arg1) {
       vec >>= 1;
       bit++;
    }
-   enq_task_arg1(WRITE_COLOR_TASK, ts, vid ,bit);
+   enq_task_arg1(WRITE_COLOR_TASK, ts, vid  ,bit);
 
 }
 
