@@ -167,6 +167,7 @@ core_tile_inst = """
 
            .undo_log_valid (undo_log_valid[$tid_end:$tid_start]),
            .undo_log_ready (undo_log_ready[$tid_end:$tid_start]),
+           .undo_log_id    (undo_log_id   [$tid_end:$tid_start]),
            .undo_log_addr  (undo_log_addr [$tid_end:$tid_start]),
            .undo_log_data  (undo_log_data [$tid_end:$tid_start]),
            .undo_log_slot  (undo_log_slot [$tid_end:$tid_start]),

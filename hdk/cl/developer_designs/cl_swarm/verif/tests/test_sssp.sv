@@ -68,6 +68,9 @@ initial begin
    if (APP_NAME == "astar") begin 
       fid = $fopen("input_astar", "r");
    end
+   if (APP_NAME == "color") begin 
+      fid = $fopen("input_color", "r");
+   end
    while (!$feof(fid)) begin
       status = $fscanf(fid, "%8x\n", line);
       file[n_lines] = line;
@@ -274,6 +277,28 @@ if (APP_NAME == "sssp" | APP_NAME == "sssp_hls") begin
    tb.poke(.addr(ocl_addr), .data(0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 end      
+if (APP_NAME == "color") begin
+   BASE_END = file[8];
+   // Enq initial task
+   ocl_addr = 0;
+   ocl_addr[23:16] = 0; // tile
+   ocl_addr[15:8] = 0; // Component
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARG_WORD;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
+   tb.poke(.addr(ocl_addr), .data(32'h20000),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0]  = OCL_TASK_ENQ;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+end      
 if (APP_NAME == "astar") begin
    BASE_END = file[10];
    // initial task: queue_vertex 0
@@ -446,7 +471,7 @@ if (APP_NAME == "des") begin
             dist_actual[25:24] == dist_ref[1:0] ? "MATCH" : "FAIL", num_errors); 
    end
 end
-if (APP_NAME == "sssp" | APP_NAME == "sssp_hls") begin
+if (APP_NAME == "sssp" | APP_NAME == "sssp_hls" | APP_NAME == "color" ) begin
    for (int i=0;i<file[1];i++) begin
       dist_actual[ 7: 0] = tb.hm_get_byte( (BASE_END + i)* 4);
       dist_actual[15: 8] = tb.hm_get_byte( (BASE_END + i)* 4+ 1);
@@ -599,7 +624,7 @@ task load_riscv_program;
    logic [31:0] addr, data, mem_ctrl_addr;
    string line; 
    logic [31:0] _main;
-   logic [31:0] boot_code [0:2];
+   logic [31:0] boot_code [0:3];
    offset = 0;
    fid = $fopen("input_code.hex", "r");
    while (!$feof(fid)) begin
@@ -643,8 +668,9 @@ task load_riscv_program;
    assign _main = 32'h80000074; 
    boot_code[0] = {_main[31:12], 5'd1, 7'b0110111};    // lui x1, _main[31:12]
    boot_code[1] = {_main[11:0], 5'd1, 3'b000, 5'd1, 7'b0010011};  // addi x1, x1,  _main[11:0]
-   boot_code[2] = {12'b0, 5'd1, 3'b000, 5'd0, 7'b1100111};  // jalr x1, 0
-   for (integer i=0;i<3; i+=1) begin
+   boot_code[2] = 32'h73000137; // li sp, 0x7e000
+   boot_code[3] = {12'b0, 5'd1, 3'b000, 5'd0, 7'b1100111};  // jalr x1, 0
+   for (integer i=0;i<4; i+=1) begin
       addr = 32'h80000000 + (i*4);
       //$display("addr %x data %x", addr, data);
       mem_ctrl_addr = {addr[31:8], addr[5:0]};

@@ -50,6 +50,7 @@ module riscv_core
    // Undo Log Writes
    output logic            undo_log_valid,
    input                   undo_log_ready,
+   output undo_id_t        undo_log_id,
    output undo_log_addr_t  undo_log_addr,
    output undo_log_data_t  undo_log_data,
    output cq_slice_slot_t  undo_log_slot,
@@ -332,14 +333,14 @@ end
 always_ff @(posedge clk) begin
    if (state == NEXT_TASK) begin
       if (task_arvalid & task_rvalid) begin
-         $display("[%5d][tile-%2d][core-%2d] dequeue_task: ts:%5d  hint:%5d ttype:%2d args:(%4d, %4d) slot:%3d",
+         $display("[%5d][tile-%2d][core-%2d] dequeue_task: ts:%5x  hint:%5x ttype:%2d args:(%4d, %4d) slot:%3d",
             cycle, TILE_ID, CORE_ID, task_rdata.ts, task_rdata.hint, task_rdata.ttype,
             task_rdata.args[63:32], task_rdata.args[31:0], task_rslot);
       end
    end
 
    if (task_wvalid & task_wready) begin
-         $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5d  hint:%5d ttype:%2d args:(%4d, %4d)",
+         $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5x  hint:%5x ttype:%2d args:(%4d, %4d)",
             cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.hint, task_wdata.ttype,
             task_wdata.args[63:32], task_wdata[31:0]);
    end
@@ -473,7 +474,17 @@ always_ff @(posedge clk) begin
          undo_log_valid <= 1'b0;
       end
    end
-
+end
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      undo_log_id <= 0;
+   end else begin
+      if (finish_task_valid) begin
+         undo_log_id <= 0;
+      end else if (undo_log_valid & undo_log_ready) begin
+         undo_log_id <= undo_log_id + 1; 
+      end
+   end
 end
 assign undo_log_slot = cq_slot; 
 

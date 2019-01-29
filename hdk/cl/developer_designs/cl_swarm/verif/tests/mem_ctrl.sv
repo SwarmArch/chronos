@@ -57,7 +57,6 @@ logic[7:0] size_map[8] = { 1, 2, 4, 8, 16, 32, 64, 128};
 always_ff @(posedge clk) begin
    if (!rstn) begin
       aw_taken <= 1'b0;
-      q_size <= 0;
    end else begin
       // take the writes first, since awvalid was originally asserted the
       // previous cycle
@@ -71,7 +70,6 @@ always_ff @(posedge clk) begin
          req_queue.push_back({1'b0, awid, awaddr, 
             axi.wdata, axi.wstrb, size_map[awsize], axi.wlast, cycle+LATENCY});
          awaddr <= awaddr + size_map[awsize];
-         q_size <= q_size + 1;
          if (axi.wlast) begin
             aw_taken <= 1'b0;
          end
@@ -81,7 +79,6 @@ always_ff @(posedge clk) begin
             req_queue.push_back({1'b1, axi.arid, axi.araddr + i * size_map[axi.arsize],
                512'b0, 64'b0, size_map[axi.arsize], (i==axi.arlen), cycle+LATENCY});
          end
-         q_size <= q_size + 1;
       end
    end
 end
@@ -140,7 +137,16 @@ end
 always_ff @(posedge clk) begin
    if (q_pop) begin
       req_queue.pop_front();
-      q_size <= q_size - 1;
+   end
+end
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      q_size <= 0;
+   end else begin
+      q_size <= q_size + (axi.awvalid & axi.awready)  
+                       + (axi.arvalid & axi.arready) 
+                       - q_pop;
    end
 end
 

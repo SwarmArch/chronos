@@ -40,6 +40,7 @@ generate
 
            .undo_log_valid (undo_log_valid[1:1]),
            .undo_log_ready (undo_log_ready[1:1]),
+           .undo_log_id    (undo_log_id   [1:1]),
            .undo_log_addr  (undo_log_addr [1:1]),
            .undo_log_data  (undo_log_data [1:1]),
            .undo_log_slot  (undo_log_slot [1:1]),
@@ -87,6 +88,7 @@ generate
 
            .undo_log_valid (undo_log_valid[2:2]),
            .undo_log_ready (undo_log_ready[2:2]),
+           .undo_log_id    (undo_log_id   [2:2]),
            .undo_log_addr  (undo_log_addr [2:2]),
            .undo_log_data  (undo_log_data [2:2]),
            .undo_log_slot  (undo_log_slot [2:2]),
@@ -134,6 +136,7 @@ generate
 
            .undo_log_valid (undo_log_valid[3:3]),
            .undo_log_ready (undo_log_ready[3:3]),
+           .undo_log_id    (undo_log_id   [3:3]),
            .undo_log_addr  (undo_log_addr [3:3]),
            .undo_log_data  (undo_log_data [3:3]),
            .undo_log_slot  (undo_log_slot [3:3]),
@@ -181,6 +184,7 @@ generate
 
            .undo_log_valid (undo_log_valid[4:4]),
            .undo_log_ready (undo_log_ready[4:4]),
+           .undo_log_id    (undo_log_id   [4:4]),
            .undo_log_addr  (undo_log_addr [4:4]),
            .undo_log_data  (undo_log_data [4:4]),
            .undo_log_slot  (undo_log_slot [4:4]),
@@ -228,6 +232,7 @@ generate
 
            .undo_log_valid (undo_log_valid[5:5]),
            .undo_log_ready (undo_log_ready[5:5]),
+           .undo_log_id    (undo_log_id   [5:5]),
            .undo_log_addr  (undo_log_addr [5:5]),
            .undo_log_data  (undo_log_data [5:5]),
            .undo_log_slot  (undo_log_slot [5:5]),
@@ -275,6 +280,7 @@ generate
 
            .undo_log_valid (undo_log_valid[6:6]),
            .undo_log_ready (undo_log_ready[6:6]),
+           .undo_log_id    (undo_log_id   [6:6]),
            .undo_log_addr  (undo_log_addr [6:6]),
            .undo_log_data  (undo_log_data [6:6]),
            .undo_log_slot  (undo_log_slot [6:6]),
@@ -322,6 +328,7 @@ generate
 
            .undo_log_valid (undo_log_valid[7:7]),
            .undo_log_ready (undo_log_ready[7:7]),
+           .undo_log_id    (undo_log_id   [7:7]),
            .undo_log_addr  (undo_log_addr [7:7]),
            .undo_log_data  (undo_log_data [7:7]),
            .undo_log_slot  (undo_log_slot [7:7]),
@@ -369,6 +376,7 @@ generate
 
            .undo_log_valid (undo_log_valid[8:8]),
            .undo_log_ready (undo_log_ready[8:8]),
+           .undo_log_id    (undo_log_id   [8:8]),
            .undo_log_addr  (undo_log_addr [8:8]),
            .undo_log_data  (undo_log_data [8:8]),
            .undo_log_slot  (undo_log_slot [8:8]),

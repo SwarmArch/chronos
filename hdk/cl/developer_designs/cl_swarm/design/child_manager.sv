@@ -525,6 +525,18 @@ end else begin : gen
    assign child_ptr_rd_data = ( child_wr_en & (child_write_addr == child_read_addr_q)) 
                            ? child_wr_data: child_rd_data ;
 
+   // try to workaround some weird simulator behaviour where
+   // s_enq_untied[] observes its value one cycle ahead when read 
+   // in an always_ff block
+   logic task_enq_tied_next;
+   always_comb begin
+      if (s_enq_untied[write_select]) begin
+         task_enq_tied_next = 1'b0;
+      end else begin
+         task_enq_tied_next = 1'b1;
+      end
+   end
+
    always_ff @(posedge clk) begin
       if (!rstn) begin
       end else begin
@@ -540,11 +552,7 @@ end else begin : gen
             task_retry_abort <= nacked_task_is_aborted; 
          end else if (children_array_process_new_enq) begin
             // tied_vector cannot be unset when the task is still running
-            if (s_enq_untied[write_select]) begin
-               task_enq_tied <= 1'b0;
-            end else begin
-               task_enq_tied <= 1'b1;
-            end
+            task_enq_tied <= task_enq_tied_next;
             task_enq_data <= s_wdata[write_select];
             task_enq_resp_cq_slot <= s_cq_slot[write_select];
             task_enq_resp_child_id <= s_child_id[write_select];

@@ -75,6 +75,7 @@ cq_slice_slot_t         gvt_task_slot;
 
 logic [N_THREADS-1:0]     undo_log_valid ;
 logic [N_THREADS-1:0]     undo_log_ready ;
+undo_id_t       [N_THREADS-1:0] undo_log_id;
 undo_log_addr_t [N_THREADS-1:0] undo_log_addr;
 undo_log_data_t [N_THREADS-1:0] undo_log_data;
 cq_slice_slot_t [N_THREADS-1:0] undo_log_slot  ;
@@ -541,6 +542,7 @@ undo_log
 
    .undo_log_valid (undo_log_valid),
    .undo_log_ready (undo_log_ready),
+   .undo_log_id    (undo_log_id   ),
    .undo_log_addr  (undo_log_addr ),
    .undo_log_data  (undo_log_data ),
    .undo_log_slot  (undo_log_slot ),

@@ -52,6 +52,7 @@ module queue_vertex
    // Undo Log Writes
    output logic            [THREADS-1:0] undo_log_valid,
    input                   [THREADS-1:0] undo_log_ready,
+   output undo_id_t        [THREADS-1:0] undo_log_id,
    output undo_log_addr_t  [THREADS-1:0] undo_log_addr,
    output undo_log_data_t  [THREADS-1:0] undo_log_data,
    output cq_slice_slot_t  [THREADS-1:0] undo_log_slot,

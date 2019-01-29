@@ -50,6 +50,7 @@ module core
    // Undo Log Writes
    output logic            undo_log_valid,
    input                   undo_log_ready,
+   output undo_id_t        undo_log_id,
    output undo_log_addr_t  undo_log_addr,
    output undo_log_data_t  undo_log_data,
    output cq_slice_slot_t  undo_log_slot,
@@ -396,8 +397,19 @@ always_ff @(posedge clk) begin
          undo_log_valid <= 1'b0;
       end
    end
-
 end
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      undo_log_id <= 0;
+   end else begin
+      if (finish_task_valid) begin
+         undo_log_id <= 0;
+      end else if (undo_log_valid & undo_log_ready) begin
+         undo_log_id <= undo_log_id + 1; 
+      end
+   end
+end
+
 assign undo_log_slot = cq_slot; 
 assign l1.awaddr[63:32] = 0;
 assign l1.araddr[63:32] = 0;

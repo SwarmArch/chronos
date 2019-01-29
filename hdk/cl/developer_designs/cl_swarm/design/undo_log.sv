@@ -12,6 +12,7 @@ module undo_log
    // Log interface
    input                   [N_THREADS-1:0] undo_log_valid,
    output logic            [N_THREADS-1:0] undo_log_ready,
+   input undo_id_t         [N_THREADS-1:0] undo_log_id,
    input undo_log_addr_t   [N_THREADS-1:0] undo_log_addr,
    input undo_log_data_t   [N_THREADS-1:0] undo_log_data,
    input cq_slice_slot_t   [N_THREADS-1:0] undo_log_slot,
@@ -33,6 +34,8 @@ module undo_log
    reg_bus_t.master                       reg_bus
 
 );
+
+localparam ENTRIES_PER_TASK = 2**LOG_UNDO_LOG_ENTRIES_PER_TASK;
 
 logic [$clog2(N_THREADS)-1:0] undo_log_select_core;
 
@@ -60,9 +63,12 @@ generate
 endgenerate
 assign undo_log_select_ready = undo_log_select_valid;
 cq_slice_slot_t next_cq_slot;
+undo_id_t       next_id;
 
-undo_log_addr_t addr_log [0:2**LOG_CQ_SLICE_SIZE-1];
-undo_log_data_t data_log [0:2**LOG_CQ_SLICE_SIZE-1];
+undo_log_addr_t addr_log [0: 2**ENTRIES_PER_TASK * 2**LOG_CQ_SLICE_SIZE-1];
+undo_log_data_t data_log [0: 2**ENTRIES_PER_TASK * 2**LOG_CQ_SLICE_SIZE-1];
+
+undo_id_t last_word_id[0: 2**LOG_CQ_SLICE_SIZE - 1];
 
 undo_log_addr_t addr_read;
 undo_log_data_t data_read;
@@ -70,17 +76,23 @@ undo_log_data_t data_read;
 
 always_ff @(posedge clk) begin
    if (undo_log_select_valid & undo_log_select_ready) begin
-      addr_log[undo_log_select_cq_slot] <= undo_log_addr[undo_log_select_core];
+      addr_log[undo_log_select_cq_slot * ENTRIES_PER_TASK + undo_log_id[undo_log_select_core]]
+         <= undo_log_addr[undo_log_select_core];
    end
-   addr_read <= addr_log[next_cq_slot];
+   addr_read <= addr_log[next_cq_slot * ENTRIES_PER_TASK + next_id];
 end
 always_ff @(posedge clk) begin
    if (undo_log_select_valid & undo_log_select_ready) begin
-      data_log[undo_log_select_cq_slot] <= undo_log_data[undo_log_select_core];
+      data_log[undo_log_select_cq_slot * ENTRIES_PER_TASK + undo_log_id[undo_log_select_core]]
+        <= undo_log_data[undo_log_select_core];
    end
-   data_read <= data_log[next_cq_slot];
+   data_read <= data_log[next_cq_slot * ENTRIES_PER_TASK + next_id];
 end
-
+always_ff @(posedge clk) begin
+   if (undo_log_select_valid & undo_log_select_ready) begin
+      last_word_id[undo_log_select_cq_slot] <= undo_log_id[undo_log_select_core];
+   end
+end
 
 
 // -- RESTORE LOGIC
@@ -89,7 +101,7 @@ logic [UNDO_LOG_THREADS-1:0] thread_in_use;
 cq_slice_slot_t [UNDO_LOG_THREADS-1:0] thread_cq_slot;
 
 typedef logic [$clog2(UNDO_LOG_THREADS)-1:0] undo_log_thread_id;
-undo_log_thread_id arthread, rthread, reg_rthread;
+undo_log_thread_id arthread, rthread, reg_rthread, bthread;
 
 lowbit #(
    .OUT_WIDTH($clog2(UNDO_LOG_THREADS)),
@@ -132,6 +144,8 @@ always_ff @(posedge clk) begin
    rthread <= arthread;
 end
 
+id_t [UNDO_LOG_THREADS-1:0] restore_bvalid_remaining;
+
 endgenerate
 always_ff @(posedge clk) begin
    if (!rstn) begin
@@ -142,6 +156,8 @@ always_ff @(posedge clk) begin
             if (restore_rvalid[rthread]) begin
                restore_state <= RESTORE_READ_LOG;
                next_cq_slot <= restore_cq_slot;
+               next_id <= 0;
+               restore_bvalid_remaining[rthread] <= last_word_id[restore_cq_slot] + 1;
                reg_rthread <= rthread;
                thread_cq_slot[rthread] <= restore_cq_slot;
             end
@@ -151,12 +167,19 @@ always_ff @(posedge clk) begin
          end
          RESTORE_WRITE_MEM: begin
             if (l2.awready & l2.wready) begin
-               restore_state <= RESTORE_IDLE;
+               if (next_id < last_word_id[next_cq_slot]) begin
+                  restore_state <= RESTORE_READ_LOG;
+                  next_id <= next_id + 1;
+               end else begin
+                  restore_state <= RESTORE_IDLE;
+               end
             end
          end
       endcase
    end
 end
+
+assign bthread = l2.bid[UNDO_LOG_THREADS-1:0];
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
@@ -165,8 +188,13 @@ always_ff @(posedge clk) begin
       case (restore_ack_state) 
          RESTORE_ACK_IDLE : begin
             if (l2.bvalid) begin
-               restore_ack_state <= RESTORE_ACK_RECEIVED;
-               restore_ack_thread <= l2.bid[UNDO_LOG_THREADS-1:0];
+               restore_bvalid_remaining[bthread] <= 
+                                 restore_bvalid_remaining[bthread] - 1;
+
+               if (restore_bvalid_remaining[bthread] == 1) begin
+                  restore_ack_state <= RESTORE_ACK_RECEIVED;
+                  restore_ack_thread <= l2.bid[UNDO_LOG_THREADS-1:0];
+               end
             end
          end
          RESTORE_ACK_RECEIVED: begin

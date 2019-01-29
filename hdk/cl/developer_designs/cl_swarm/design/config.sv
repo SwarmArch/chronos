@@ -42,7 +42,7 @@ package swarm;
    // how many tiles go directly into the axi xbar. has to be a power of two
    parameter XBAR_IN_TILES = 1;
    parameter NO_SPILLING = 0; 
-   parameter NON_SPEC = 1 ;
+   parameter NON_SPEC = 0 ;
    
    parameter LOG_CQ_SLICE_SIZE = 6;
    parameter LOG_TQ_SIZE = 10;
@@ -58,6 +58,7 @@ package swarm;
    parameter EPOCH_WIDTH = 8;
    parameter LOG_TSB_SIZE = 4;
    parameter LOG_CHILDREN_PER_TASK = 3;
+   parameter LOG_UNDO_LOG_ENTRIES_PER_TASK = 2;
 
    parameter TB_WIDTH = 32; // tiebreaker width;
    parameter LOG_GVT_PERIOD = 4; // 16 cycles
@@ -226,6 +227,7 @@ package swarm;
    typedef logic [LOG_N_TILES-1:0] tile_id_t;
    typedef logic [LOG_TSB_SIZE-1:0] tsb_entry_id_t;
    typedef logic [LOG_CHILDREN_PER_TASK:0] child_id_t; 
+   typedef logic [LOG_UNDO_LOG_ENTRIES_PER_TASK-1:0] undo_id_t; 
 
    typedef logic [LOG_TQ_SIZE-1:0] tq_slot_t;
    typedef logic [LOG_CQ_SLICE_SIZE-1:0] cq_slice_slot_t;
