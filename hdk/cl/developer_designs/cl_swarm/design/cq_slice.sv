@@ -370,14 +370,14 @@ assign resource_abort_start = (state == IDLE)
             & deq_task_valid & ((deq_task.ts < max_vt_fixed.ts) |
                   // do not start resource abort if max_vt task just changed
                   // tq asserted force signal based on its previous value
-                                    (deq_task_force & !(lvt_cycle == (LOG_CQ_TS_BANKS+1)))  )
+                                 (deq_task_force & !(lvt_cycle == (LOG_CQ_TS_BANKS+1)))  )
             & (cq_next_idle_in ==0) 
             & (     (cq_state[max_vt_pos_fixed] == RUNNING) 
                   | (cq_state[max_vt_pos_fixed] == FINISHED)); 
 assign gvt_induced_abort_start = (state == IDLE) & can_abort_core_1_task & gvt_task_slot_valid & 
                            (cq_state[gvt_task_slot] == DEQUEUED) & no_idle_cores & 
                            (cq_state[core_1_running_task_slot] == RUNNING) & 
-                           tsb_almost_full;
+                           tsb_almost_full & !(IS_MAXFLOW & maxflow_relabel_pending);
 
 
 
