@@ -118,6 +118,9 @@ typedef enum logic {RESTORE_ACK_IDLE, RESTORE_ACK_RECEIVED} restore_ack_state_t;
 undo_log_thread_id restore_ack_thread;
 restore_ack_state_t restore_ack_state;
 
+id_t [UNDO_LOG_THREADS-1:0] restore_bvalid_remaining;
+assign bthread = l2.bid[UNDO_LOG_THREADS-1:0];
+
 generate;
 for (i=0;i<UNDO_LOG_THREADS;i++) begin
    assign restore_arvalid[i] = (arthread == i) & !thread_in_use[i] 
@@ -139,12 +142,18 @@ for (i=0;i<UNDO_LOG_THREADS;i++) begin
          end
       end
    end
+   always_ff @(posedge clk) begin
+      if ((restore_state == RESTORE_IDLE) & (i==rthread) & restore_rvalid[i]) begin
+         restore_bvalid_remaining[i] <= last_word_id[restore_cq_slot] + 1;
+      end else if ((restore_ack_state == RESTORE_ACK_IDLE) & l2.bvalid & (i==bthread)) begin
+        restore_bvalid_remaining[i] <=  restore_bvalid_remaining[i] - 1;
+     end
+   end
 end
 always_ff @(posedge clk) begin
    rthread <= arthread;
 end
 
-id_t [UNDO_LOG_THREADS-1:0] restore_bvalid_remaining;
 
 endgenerate
 always_ff @(posedge clk) begin
@@ -157,7 +166,6 @@ always_ff @(posedge clk) begin
                restore_state <= RESTORE_READ_LOG;
                next_cq_slot <= restore_cq_slot;
                next_id <= 0;
-               restore_bvalid_remaining[rthread] <= last_word_id[restore_cq_slot] + 1;
                reg_rthread <= rthread;
                thread_cq_slot[rthread] <= restore_cq_slot;
             end
@@ -179,7 +187,6 @@ always_ff @(posedge clk) begin
    end
 end
 
-assign bthread = l2.bid[UNDO_LOG_THREADS-1:0];
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
@@ -188,8 +195,6 @@ always_ff @(posedge clk) begin
       case (restore_ack_state) 
          RESTORE_ACK_IDLE : begin
             if (l2.bvalid) begin
-               restore_bvalid_remaining[bthread] <= 
-                                 restore_bvalid_remaining[bthread] - 1;
 
                if (restore_bvalid_remaining[bthread] == 1) begin
                   restore_ack_state <= RESTORE_ACK_RECEIVED;
