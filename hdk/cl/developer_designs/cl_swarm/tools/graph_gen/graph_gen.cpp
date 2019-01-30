@@ -16,6 +16,8 @@
 #include <map>
 #include <unordered_set>
 #include <queue>
+#include <random>
+#include <numeric>
 
 struct Node {
    uint32_t vid;
@@ -38,14 +40,17 @@ struct degree_sort {
    }
 };
 
-int do_color = 0; // else sssp
+#define APP_SSSP 0
+#define APP_COLOR 1
+#define APP_MAXFLOW 2
 const double EarthRadius_cm = 637100000.0;
 
 struct Vertex;
 
 struct Adj {
    uint32_t n;
-   uint32_t d_cm;
+   uint32_t d_cm; // edge weight
+   uint32_t index; // index of the reverse edge
 };
 
 struct Vertex {
@@ -225,6 +230,60 @@ void GenerateGridGraph(uint32_t n) {
    }
 }
 
+// code copied from suvinay's maxflow graph generator
+void choose_k(int to, std::vector<int>* vec, int k, int seed) {
+    std::vector<int> numbers;
+    numbers.resize(to);
+    std::iota(numbers.begin(), numbers.end(), 0);   // Populate numbers from 0 to (to-1)
+    //std::shuffle(numbers.begin(), numbers.end(), std::mt19937{std::random_device{}()}); // Shuffle them
+    std::shuffle(numbers.begin(), numbers.end(), std::default_random_engine(seed));
+    std::copy_n(numbers.begin(), k, vec->begin()); // Copy the first k in the shuffled array to vec
+    return;
+}
+void addEdge(uint32_t from, uint32_t to, uint32_t cap) {
+    // Push edge to _graph[node]
+    Adj adj_from = {to, cap, graph[to].adj.size()};
+    graph[from].adj.push_back(adj_from);
+
+    // Insert the reverse edge (residual graph)
+    Adj adj_to = {from, 0, graph[from].adj.size()-1};
+    graph[to].adj.push_back(adj_to);
+}
+
+void GenerateGridGraphMaxflow(uint32_t n) {
+   srand(42);
+   numV = n*n + 2;
+   const int num_connections = 3;
+   const int MAX_CAPACITY = 10;
+   const int MIN_CAPACITY = 1;
+   graph = new Vertex[numV];
+   uint32_t i, j;
+   for (i = 0; i < n - 1; ++i) {
+      for (j = 0; j < n; ++j) {
+         std::vector<int> connections;
+         connections.resize(num_connections);
+         choose_k(n, &connections, num_connections, rand());
+         for (auto &x : connections) {
+            uint32_t capacity = static_cast<uint32_t>(
+                  rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
+            addEdge(i*n+j, (i+1)*n+x, capacity);
+            //printf("a %d %d %d\n", i * n + j, (i + 1) * n + x, capacity);
+         }
+      }
+   }
+   for (i = 0; i < n; ++i) {
+      uint32_t capacity = static_cast<uint32_t>
+         (rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
+      addEdge(n*n, i, capacity);
+   }
+
+   for (i = 0; i < n; ++i) {
+      uint32_t capacity = static_cast<uint32_t>
+         (rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
+      addEdge((n - 1) * n + i, n*n + 1, capacity);
+   }
+}
+
 std::set<uint32_t>* edges;
 void makeUndirectional() {
 
@@ -232,7 +291,7 @@ void makeUndirectional() {
    for (uint32_t i = 0; i < numV; i++) {
       for (uint32_t a=0;a<graph[i].adj.size();a++){
          int n = graph[i].adj[a].n;
-//         printf("%d %d\n",i,n);
+         //         printf("%d %d\n",i,n);
          edges[i].insert(n);
          edges[n].insert(i);
       }
@@ -485,6 +544,74 @@ void WriteOutputColor(FILE* fp) {
 
 }
 
+void WriteOutputMaxflow(FILE* fp) {
+   // all offsets are in units of uint32_t. i.e 16 per cache line
+   // dist = {height, excess, counter, active, visited, flow[11]}
+   int SIZE_DIST = size_of_field(numV, 64);
+   int SIZE_EDGE_OFFSET = size_of_field(numV+1, 4);
+   int SIZE_NEIGHBORS = size_of_field(numE, 12) ;
+   int SIZE_GROUND_TRUTH =size_of_field(numV, 4); // redundant
+
+   int BASE_DIST = 16;
+   int BASE_EDGE_OFFSET = BASE_DIST + SIZE_DIST;
+   int BASE_NEIGHBORS = BASE_EDGE_OFFSET + SIZE_EDGE_OFFSET;
+   int BASE_GROUND_TRUTH = BASE_NEIGHBORS + SIZE_NEIGHBORS;
+   int BASE_END = BASE_GROUND_TRUTH + SIZE_GROUND_TRUTH;
+
+   uint32_t* data = (uint32_t*) calloc(BASE_END, sizeof(uint32_t));
+
+   startNode = numV-2;
+   uint32_t endNode = numV-1;
+
+   data[0] = MAGIC_OP;
+   data[1] = numV;
+   data[2] = numE;
+   data[3] = BASE_EDGE_OFFSET;
+   data[4] = BASE_NEIGHBORS;
+   data[5] = BASE_DIST;
+   data[6] = BASE_GROUND_TRUTH;
+   data[7] = startNode;
+   data[8] = BASE_END;
+   data[9] = endNode;
+
+   for (int i=0;i<10;i++) {
+      printf("header %d: %d\n", i, data[i]);
+   }
+   //todo ground truth
+
+   uint32_t max_int = 0xFFFFFFFF;
+   for (uint32_t i=0;i<numV;i++) {
+      data[BASE_EDGE_OFFSET +i] = csr_offset[i];
+      data[BASE_GROUND_TRUTH +i] = csr_dist[i];
+      for (int j=0;j<16;j++) {
+         data[BASE_DIST +i * 4 + j] = 0;
+      }
+   }
+   data[BASE_EDGE_OFFSET +numV] = csr_offset[numV];
+
+   data[BASE_DIST + startNode*16 ] = numV;
+   // startNode excess
+   uint32_t startNodeExcess= 0;
+   for (Adj e : graph[startNode].adj) {
+      startNodeExcess += e.d_cm;
+   }
+   data[BASE_DIST + startNode*16 +2 ] = startNodeExcess;
+   printf("StartNodeExcess %d\n", startNodeExcess);
+
+   for (uint32_t i=0;i<numE;i++) {
+      data[ BASE_NEIGHBORS +i*3 ] = csr_neighbors[i].n;
+      data[ BASE_NEIGHBORS +i*3+1 ] = csr_neighbors[i].d_cm;
+      data[ BASE_NEIGHBORS +i*3+2 ] = csr_neighbors[i].index;
+   }
+   printf("Writing file \n");
+   for (int i=0;i<BASE_END;i++) {
+      fprintf(fp, "%08x\n", data[i]);
+   }
+   fclose(fp);
+
+   free(data);
+
+}
 
 void WriteDimacs(FILE* fp) {
    // all offsets are in units of uint32_t. i.e 16 per cache line
@@ -515,7 +642,7 @@ int main(int argc, char *argv[]) {
    int type = 0;
    // 0 - load from file .bin format
    // 1 - grid graph
-
+   int app = APP_SSSP;
    char out_file[50];
    char dimacs_file[50];
    char edgesFile[50];
@@ -526,8 +653,12 @@ int main(int argc, char *argv[]) {
    sprintf(ext, "%s", "sssp");
    if (argc > 3) {
       if (strcmp(argv[3], "color") ==0) {
-         do_color = 1;
+         app = APP_COLOR;
          sprintf(ext, "%s", "color");
+      }
+      if (strcmp(argv[3], "flow") ==0) {
+         app = APP_MAXFLOW;
+         sprintf(ext, "%s", "flow");
       }
    }
 
@@ -543,7 +674,11 @@ int main(int argc, char *argv[]) {
    } else if (type == 1) {
       int n = 4;
       if (argc>2) n = atoi(argv[2]);
-      GenerateGridGraph(n);
+      if (app==APP_MAXFLOW) {
+         GenerateGridGraphMaxflow(n);
+      } else {
+         GenerateGridGraph(n);
+      }
       sprintf(out_file, "grid_%dx%d.%s", n,n, ext);
       sprintf(dimacs_file, "grid_%dx%d.dimacs", n,n);
    }  else if (type == 2) {
@@ -565,14 +700,14 @@ int main(int argc, char *argv[]) {
       }
       sprintf(out_file, "%s.%s", argv[2] +strStart, ext);
    }
-   if (do_color) {
+   if (app == APP_COLOR) {
       makeUndirectional();
    }
 
    ConvertToCSR();
 
    startNode = 0;
-   if (!do_color) {
+   if (app == APP_SSSP) {
       ComputeReference();
    }
 
@@ -585,11 +720,12 @@ int main(int argc, char *argv[]) {
    //fpd = fopen(edgesFile, "w");
    //WriteEdgesFile(fpd);
    //fclose(fpd);
-   if (do_color) {
-      WriteOutputColor(fp);
-   } else {
+   if (app == APP_SSSP) {
       WriteOutput(fp);
-
+   } else if (app == APP_COLOR) {
+      WriteOutputColor(fp);
+   } else if (app == APP_MAXFLOW) {
+      WriteOutputMaxflow(fp);
    }
    return 0;
 }
