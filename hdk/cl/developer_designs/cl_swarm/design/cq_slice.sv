@@ -241,7 +241,7 @@ logic resource_abort_start;
 logic gvt_induced_abort_start;
 
 localparam MAXFLOW_UPDATE_TTYPE = 0;
-localparam MAXFLOW_RELABEL_TTYPE = 32'h10000000;
+localparam MAXFLOW_RELABEL_TTYPE = 10;
 logic [31:0] maxflow_update_counter; 
 logic [31:0] maxflow_update_threshold;
 logic maxflow_relabel_pending;
@@ -261,7 +261,7 @@ if (CQ_CONFIG) begin
          //cq_size <= 2**LOG_CQ_SLICE_SIZE;
          lookup_entry <= 'x;
          lookup_mode <= 1'b0;
-         maxflow_update_threshold <= 16;
+         maxflow_update_threshold <= 32'hffffffff;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
