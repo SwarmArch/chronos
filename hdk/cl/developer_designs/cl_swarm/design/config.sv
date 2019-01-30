@@ -43,6 +43,8 @@ package swarm;
    parameter XBAR_IN_TILES = 1;
    parameter NO_SPILLING = 0; 
    parameter NON_SPEC = 0 ;
+
+   parameter IS_MAXFLOW = 1;
    
    parameter LOG_CQ_SLICE_SIZE = 6;
    parameter LOG_TQ_SIZE = 10;
@@ -348,6 +350,8 @@ package swarm;
    parameter CQ_LOOKUP_TS              = 8'h90;
    parameter CQ_LOOKUP_TB              = 8'h94;
    parameter CQ_N_GVT_GOING_BACK       = 8'h98;
+   
+   parameter CQ_MAXFLOW_THRESHOLD      = 8'ha0;
 
    
    parameter DEQ_FIFO_FULL_THRESHOLD   = 8'h10;
