@@ -479,7 +479,7 @@ always_ff @(posedge clk) begin
    if (!rstn) begin
       undo_log_id <= 0;
    end else begin
-      if (finish_task_valid) begin
+      if (task_rvalid) begin
          undo_log_id <= 0;
       end else if (undo_log_valid & undo_log_ready) begin
          undo_log_id <= undo_log_id + 1; 
