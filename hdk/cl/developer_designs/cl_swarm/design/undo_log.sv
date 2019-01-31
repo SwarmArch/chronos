@@ -247,14 +247,28 @@ if (UNDO_LOG_LOGGING[TILE_ID]) begin
    logic log_valid;
    typedef struct packed {
 
+      logic [31:0] undo_log_addr;
+      logic [31:0] undo_log_data;
+
+      logic [3:0] undo_log_id;
+      logic [5:0] undo_log_cq_slot;
+      logic undo_log_select_valid;
+      logic [20:0] unused_1;
+      
+
+      logic [31:0] awaddr;
+      logic [31:0] wdata;
+
+
+      // 32
       logic [3:0] restore_arvalid;
       logic [3:0] restore_rvalid;
       logic [7:0] restore_cq_slot;
-
       logic awvalid;
       logic awready; 
       logic [13:0] awid;
 
+      // 32
       logic [15:0] bid;
       logic bvalid;
       logic bready;
@@ -267,6 +281,15 @@ if (UNDO_LOG_LOGGING[TILE_ID]) begin
    always_comb begin
 
       log_word = '0;
+
+      log_word.undo_log_addr = undo_log_addr[undo_log_select_core];
+      log_word.undo_log_data = undo_log_data[undo_log_select_core];
+      log_word.undo_log_id   = undo_log_id  [undo_log_select_core];
+      log_word.undo_log_cq_slot   = undo_log_slot[undo_log_select_core];
+      log_word.undo_log_select_valid = undo_log_select_valid;
+
+      log_word.awaddr = l2.awaddr;
+      log_word.wdata = l2.wdata;
 
       log_word.bid = l2.bid;
       log_word.bvalid = l2.bvalid;
@@ -283,7 +306,7 @@ if (UNDO_LOG_LOGGING[TILE_ID]) begin
       log_word.awready = l2.awready;
       log_word.awid = l2.awid;
    
-      log_valid = (l2.bvalid | (restore_done_valid != 0) | restore_arvalid[3] | (restore_rvalid !=0) | l2.awvalid );
+      log_valid = (l2.bvalid | (restore_done_valid != 0) | restore_arvalid[3] | (restore_rvalid !=0) | l2.awvalid | undo_log_select_valid );
    end
 
    log #(

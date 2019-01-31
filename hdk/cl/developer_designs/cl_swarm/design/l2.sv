@@ -96,6 +96,8 @@ module l2
    assign l1.rresp = 0;
 
    typedef struct packed {
+     logic [63:0] wstrb; 
+     logic [4:0] unused;
      id_t id;
      mem_addr_t addr;
      pipe_op_t op;
@@ -108,6 +110,7 @@ module l2
    } l2_log_t;
 
    l2_log_t log_word;
+   assign log_word.wstrb = p12_wstrb;
    assign log_word.id = p12_cid;
    assign log_word.addr = p12_addr;
    assign log_word.op = p12_op;
