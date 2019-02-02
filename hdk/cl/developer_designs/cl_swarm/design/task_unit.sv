@@ -1323,7 +1323,8 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.enq_task_coal_child.ready = task_enq_ready;
         log_word.enq_task_coal_child.slot  = next_free_tq_slot;
         log_word.enq_task_coal_child.epoch_1 = epoch[next_free_tq_slot];
-        if (alt_log_word) begin
+        if (alt_log_word & ARG_WIDTH == 64) begin
+		
            log_word.deq_hint = task_enq_data.args[31:0] ;
            log_word.deq_ts   = task_enq_data.args[63:32];
         end
