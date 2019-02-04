@@ -546,7 +546,8 @@ void WriteOutputColor(FILE* fp) {
 
 void WriteOutputMaxflow(FILE* fp) {
    // all offsets are in units of uint32_t. i.e 16 per cache line
-   // dist = {height, excess, counter, active, visited, flow[11]}
+   // dist = {height, excess, counter, active, visited, min_neighbor_height,
+   // flow[10]}
    int SIZE_DIST = size_of_field(numV, 64);
    int SIZE_EDGE_OFFSET = size_of_field(numV+1, 4);
    int SIZE_NEIGHBORS = size_of_field(numE, 12) ;
@@ -562,6 +563,8 @@ void WriteOutputMaxflow(FILE* fp) {
 
    startNode = numV-2;
    uint32_t endNode = numV-1;
+   uint32_t log_global_relabel_interval = (int) (round(log2(numV))); // closest_power_of_2(numV)
+   if (log_global_relabel_interval < 5) log_global_relabel_interval = 5;
 
    data[0] = MAGIC_OP;
    data[1] = numV;
@@ -573,8 +576,10 @@ void WriteOutputMaxflow(FILE* fp) {
    data[7] = startNode;
    data[8] = BASE_END;
    data[9] = endNode;
+   data[10] = log_global_relabel_interval;
 
-   for (int i=0;i<10;i++) {
+
+   for (int i=0;i<11;i++) {
       printf("header %d: %d\n", i, data[i]);
    }
    //todo ground truth

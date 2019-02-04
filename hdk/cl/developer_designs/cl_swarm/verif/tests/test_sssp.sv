@@ -71,6 +71,9 @@ initial begin
    if (APP_NAME == "color") begin 
       fid = $fopen("input_color", "r");
    end
+   if (APP_NAME == "maxflow") begin 
+      fid = $fopen("input_maxflow", "r");
+   end
    while (!$feof(fid)) begin
       status = $fscanf(fid, "%8x\n", line);
       file[n_lines] = line;
@@ -194,7 +197,25 @@ initial begin
       tb.poke(.addr(ocl_addr), .data(ocl_data),
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 
+      if (APP_NAME == "maxflow") begin
+         ocl_addr[15:8] = ID_TASK_UNIT;
+         ocl_addr[7:0] = TASK_UNIT_IS_TRANSACTIONAL;
+         tb.poke(.addr(ocl_addr), .data(1),
+            .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 
+         // eg: valid transactional ids if INTERVAL = 10
+         // 0..1023, 1040..2047, 2064:3071 etc..
+         // GR is trigerred at every multiple of GLOBAL_RELABEL_INTERVAL 
+         ocl_addr[7:0] = TASK_UNIT_GLOBAL_RELABEL_START_MASK;
+         ocl_data = (1<< file[10]) - 1;
+         tb.poke(.addr(ocl_addr), .data(ocl_data),
+            .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+         
+         ocl_addr[7:0] = TASK_UNIT_GLOBAL_RELABEL_START_INC;
+         tb.poke(.addr(ocl_addr), .data(32'h10),
+            .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+
+      end
 
 /*
       ocl_addr[15:8] = ID_TASK_UNIT;
@@ -327,6 +348,26 @@ if (APP_NAME == "astar") begin
    tb.poke(.addr(ocl_addr), .data(0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 
+end
+if (APP_NAME == "maxflow") begin
+   ocl_addr = 0;
+   ocl_addr[23:16] = 0; // tile
+   ocl_addr[15:8] = 0; // Component
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
+   tb.poke(.addr(ocl_addr), .data(file[7]),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0]  = OCL_TASK_ENQ;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARG_WORD;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 end
 
    for (i=0;i<N_TILES;i++) begin 

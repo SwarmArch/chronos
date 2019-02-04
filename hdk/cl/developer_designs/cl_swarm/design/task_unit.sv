@@ -353,6 +353,36 @@ module task_unit
    logic tq_stall;
    logic tq_started;
 
+   logic is_transactional;
+   logic [23:0] transaction_id;
+   logic [23:0] maxflow_global_relabel_trigger_mask;
+   logic [23:0] maxflow_global_relabel_trigger_inc;
+
+   ts_t modified_task_enq_ts;
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+        transaction_id <= 1; 
+     end else begin
+        if (is_transactional & task_enq_valid & task_enq_ready & task_enq_data.ttype == 0) begin
+            if ((transaction_id & maxflow_global_relabel_trigger_mask) == 0) begin
+               transaction_id <= transaction_id + maxflow_global_relabel_trigger_inc;
+            end else begin
+               transaction_id <= transaction_id + 1;
+            end
+        end
+     end
+   end
+   
+   logic [3:0] four_bit_tile_id;
+   assign four_bit_tile_id = TILE_ID;
+   always_comb begin
+      if (is_transactional & task_enq_valid & (task_enq_data.ttype == 0)) begin
+         modified_task_enq_ts = {transaction_id, four_bit_tile_id, 4'b0};
+      end else begin
+         modified_task_enq_ts = task_enq_data.ts;
+      end
+   end
+
    logic task_deq_valid_reg;
    ts_t task_unit_throttle_margin;
    ts_t task_unit_throttle_ts;
@@ -769,13 +799,14 @@ module task_unit
       end else if (task_enq_ready) begin
          if (task_enq_ack) begin
             next_insert_elem_set = 1'b1;
-            next_insert_elem.ts = task_enq_data.ts; 
+            next_insert_elem.ts = modified_task_enq_ts; 
             next_insert_elem.epoch = epoch[next_free_tq_slot];
             next_insert_elem.slot = next_free_tq_slot;
             next_insert_elem.splitter = (task_enq_data.ttype == TASK_TYPE_SPLITTER);
             next_free_tq_slot_deque = 1'b1;
             tq_write_valid = 1'b1;
             tq_write_data = task_enq_data;
+            tq_write_data.ts = modified_task_enq_ts;
             tq_write_addr = next_free_tq_slot;
          end
       end else if (abort_task_ready) begin
@@ -985,7 +1016,7 @@ module task_unit
          if (task_enq_valid & task_enq_ready) begin
             $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_enqueue slot:%4d ts:%4d hint:%4d tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, next_free_tq_slot, 
-               task_enq_data.ts, task_enq_data.hint, task_enq_tied, task_enq_ack,
+               modified_task_enq_ts, task_enq_data.hint, task_enq_tied, task_enq_ack,
                task_enq_resp_tile, task_enq_resp_tsb_id
             ) ;
          end
@@ -1176,6 +1207,10 @@ endgenerate
          tq_stall <= 0;
          tq_started <= 0;
          alt_log_word <= 0;
+
+         is_transactional <= 1'b0;
+         maxflow_global_relabel_trigger_mask <= '1;
+         maxflow_global_relabel_trigger_inc <= 1;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
@@ -1187,6 +1222,10 @@ endgenerate
                TASK_UNIT_STALL : tq_stall <= reg_bus.wdata;
                TASK_UNIT_START : tq_started <= reg_bus.wdata;
                TASK_UNIT_ALT_LOG : alt_log_word <= reg_bus.wdata;
+
+               TASK_UNIT_IS_TRANSACTIONAL: is_transactional <= reg_bus.wdata;
+               TASK_UNIT_GLOBAL_RELABEL_START_MASK : maxflow_global_relabel_trigger_mask <= reg_bus.wdata;
+               TASK_UNIT_GLOBAL_RELABEL_START_INC : maxflow_global_relabel_trigger_inc <= reg_bus.wdata;
             endcase
          end
       end 
@@ -1317,7 +1356,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.enq_task_n_coal_child = 1'b1;
         log_word.enq_ttype = task_enq_data.ttype;
         log_word.enq_hint  = task_enq_data.hint;
-        log_word.enq_ts    = task_enq_data.ts;
+        log_word.enq_ts    = modified_task_enq_ts;
         log_word.enq_task_coal_child.tied  = task_enq_tied;
         log_word.enq_task_coal_child.valid = task_enq_valid;
         log_word.enq_task_coal_child.ready = task_enq_ready;

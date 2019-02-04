@@ -44,7 +44,7 @@ package swarm;
    parameter NO_SPILLING = 0; 
    parameter NON_SPEC = 0 ;
 
-   parameter IS_MAXFLOW = 1;
+   parameter IS_MAXFLOW = 0; // TODO: remove
    
    parameter LOG_CQ_SLICE_SIZE = 6;
    parameter LOG_TQ_SIZE = 10;
@@ -298,7 +298,13 @@ package swarm;
    parameter TASK_UNIT_SPILL_SIZE      = 8'h38;
    parameter TASK_UNIT_THROTTLE_MARGIN = 8'h3c;
    parameter TASK_UNIT_TIED_CAPACITY   = 8'h40;
-   parameter TASK_UNIT_LVT             = 8'h50;
+   parameter TASK_UNIT_LVT             = 8'h44;
+   
+   parameter TASK_UNIT_IS_TRANSACTIONAL           = 8'h50;
+   // if start_mask == 0, increment tx id by start_inc
+   parameter TASK_UNIT_GLOBAL_RELABEL_START_MASK = 8'h54;
+   parameter TASK_UNIT_GLOBAL_RELABEL_START_INC  = 8'h58;
+   parameter TX_ID_OFFSET_BITS = 8;
 
    parameter TASK_UNIT_STAT_N_UNTIED_ENQ           = 8'h60;
    parameter TASK_UNIT_STAT_N_TIED_ENQ_ACK         = 8'h64;
