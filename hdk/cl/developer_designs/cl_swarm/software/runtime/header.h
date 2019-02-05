@@ -93,7 +93,13 @@
 #define TASK_UNIT_SPILL_SIZE       0x38
 #define TASK_UNIT_THROTTLE_MARGIN  0x3c
 #define TASK_UNIT_TIED_CAPACITY    0x40
-#define TASK_UNIT_LVT              0x50
+#define TASK_UNIT_LVT              0x44
+
+// if start_mask == 0, increment tx id by start_inc
+#define TASK_UNIT_IS_TRANSACTIONAL          0x50
+#define TASK_UNIT_GLOBAL_RELABEL_START_MASK 0x54
+#define TASK_UNIT_GLOBAL_RELABEL_START_INC  0x58
+#define TX_ID_OFFSET_BITS  8
 
 #define TASK_UNIT_STAT_N_UNTIED_ENQ           0x60
 #define TASK_UNIT_STAT_N_TIED_ENQ_ACK         0x64
@@ -142,6 +148,8 @@
 #define CQ_LOOKUP_TS              0x90
 #define CQ_LOOKUP_TB              0x94
 #define CQ_N_GVT_GOING_BACK       0x98
+
+#define CQ_MAXFLOW_THRESHOLD      0xa0
 
 #define SERIALIZER_ARVALID 0x20
 #define SERIALIZER_READY_LIST 0x24
@@ -207,4 +215,6 @@ extern uint16_t pci_device_id; /* PCI Device ID preassigned by Amazon for F1 app
 #define APP_DES 2
 #define APP_ASTAR 3
 #define APP_COLOR 4
+#define APP_MAXFLOW 5
+#define APP_LAST 6
 #endif

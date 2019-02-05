@@ -187,7 +187,6 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
          node_prop[vid].min_neighbor_height = neighbor_height;
       }
    }
-   enq_task_arg2(8, ts, vid, counter, node_prop[vid].excess);
    if (counter == 0) {
       // relabel
       // set height here itself; no need enqueing another task for it if
@@ -201,6 +200,7 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
          enq_task_arg1(DISCHARGE_START_TASK, ts, vid | RO_OFFSET, 0);
 
       }
+   enq_task_arg2(8, ts, vid, node_prop[vid].excess, node_prop[vid].height);
 
    }
 }

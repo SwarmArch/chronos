@@ -168,7 +168,14 @@ int main(int argc, char **argv) {
             fail_on((rc = (fg == 0)? 1:0), out, "unable to open input_graph. ");
             test_sssp(slot_id, FPGA_APP_PF, APP_PF_BAR0, fg, APP_ASTAR);
             break;
-        case 5:
+        case APP_MAXFLOW:
+            // astar
+            if (argc >=3) fg=fopen(argv[2], "r");
+            else fg=fopen("input_maxflow", "r");
+            fail_on((rc = (fg == 0)? 1:0), out, "unable to open input_graph. ");
+            test_sssp(slot_id, FPGA_APP_PF, APP_PF_BAR0, fg, APP_MAXFLOW);
+            break;
+        case APP_LAST:
             test_task_unit(slot_id, FPGA_APP_PF, APP_PF_BAR0);
             break;
     }
@@ -500,6 +507,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     //FILE* fws4 = fopen("sssp_core_4_log", "w");
     //FILE* fws5 = fopen("sssp_core_5_log", "w");
     FILE* fwl2 = fopen("l2_log", "w");
+    FILE* fwul = fopen("undo_log_log", "w");
     // OCL Initialization
 
     // Checking PCI latency;
@@ -557,6 +565,13 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         //pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 5);
         //pci_poke(i, ID_COALESCER, CORE_START, 0xffffffff);
         //pci_poke(i, ID_CQ, CQ_SIZE, 48);
+        pci_poke(i, ID_CQ, CQ_MAXFLOW_THRESHOLD, 0xffffffff);
+
+        if (app == APP_MAXFLOW) {
+            pci_poke(i, ID_TASK_UNIT, TASK_UNIT_IS_TRANSACTIONAL, 1);
+            pci_poke(i, ID_TASK_UNIT, TASK_UNIT_GLOBAL_RELABEL_START_MASK, (1<<headers[10]) - 1);
+            pci_poke(i, ID_TASK_UNIT, TASK_UNIT_GLOBAL_RELABEL_START_INC, 16);
+        }
     }
     usleep(20);
     pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &startCycle);
@@ -656,6 +671,16 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0);
 
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
+        case APP_MAXFLOW:
+            printf("APP_MAXFLOW\n");
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT , headers[7] );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 1 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0);
+
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
             break;
 
     }
@@ -748,7 +773,8 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            usleep(400);
            log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
            //log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
-           //log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
+           log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
+           log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
            //log_splitter(pci_bar_handle, read_fd, fwsp, ID_SPLITTER);
            if (!NON_SPEC) log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
            usleep(400);

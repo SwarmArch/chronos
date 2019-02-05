@@ -282,12 +282,16 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t ID_L2)
             unsigned int index = (addr >> 6) & 0x3ff;
             unsigned int tag = (addr >> 16);
 
-            fprintf(fw, "[%6d][%12u][%2d:%2d] %s %s %1d %2d %8llx (tag:%5x index:%3x)  %6x \n",
+            unsigned int wstrb_l = buf[i*16+5];
+            unsigned int wstrb_h = buf[i*16+6];
+
+            fprintf(fw, "[%6d][%12u][%2d:%2d] %s %s %1d %2d %8llx (tag:%5x index:%3x)  %6x wstrb:%8x_%8x \n",
                     seq, cycle, id >> 4, id & 0xf,  ops[op],
                     hit ? "H": "M",
                     retry, repl_way,
                     addr, tag, index,
-                    repl_tag
+                    repl_tag,
+                    wstrb_h, wstrb_l
                 );
        }
    }
@@ -512,12 +516,58 @@ int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
         unsigned int seq = buf[i*16 + 0];
         unsigned int cycle = buf[i*16 + 1];
 
-        unsigned int word = buf[i*16 + 2];
-        unsigned int word_2 = buf[i*16 + 3];
-            fprintf(fw,"[%6d][%10u] %08x %08x\n",
-               seq, cycle, word, word_2
-               );
+        unsigned int awaddr = buf[i*16 + 4];
+        unsigned int wdata = buf[i*16 + 5];
 
+        unsigned int undo_log_addr = buf[i*16+8];
+        unsigned int undo_log_data = buf[i*16+7];
+        unsigned int undo_log_id = buf[i*16+6] >> 28;
+        unsigned int undo_log_cq_slot = (buf[i*16+6] >> 22) & 0x3f;
+        unsigned int undo_log_valid = (buf[i*16+6] >> 21) & 0x1;
+
+        unsigned int restore_arvalid = (buf[i*16+3] >> 28) & 0xf;
+        unsigned int restore_rvalid = (buf[i*16+3] >> 24) & 0xf;
+        unsigned int restore_cq_slot = (buf[i*16+3] >> 16) & 0x3f;
+
+        unsigned int awvalid = (buf[i*16+3] >> 15) & 0x1;
+        unsigned int awready = (buf[i*16+3] >> 14) & 0x1;
+        unsigned int awid = (buf[i*16+3]) & 0x3fff;
+
+        unsigned int bid = (buf[i*16+2] >> 16) & 0xffff;
+        unsigned int bvalid = (buf[i*16+2] >> 15) & 0x1;
+        unsigned int bready = (buf[i*16+2] >> 14) & 0x1;
+        unsigned int restore_ack_thread = (buf[i*16+2] >> 8) & 0x3f;
+        unsigned int restore_done_valid = (buf[i*16+2] >> 4) & 0xf;
+        unsigned int restore_done_ready = (buf[i*16+2] ) & 0xf;
+
+        if (undo_log_valid) {
+            fprintf(fw,"[%6d][%10u] undo_log_valid addr:%8x data:%8x id:%x cq_slot:%d\n",
+               seq, cycle, undo_log_addr, undo_log_data, undo_log_id, undo_log_cq_slot
+               );
+        }
+
+        if (bvalid & bready) {
+            fprintf(fw,"[%6d][%10u] bvalid id:%4x\n",
+               seq, cycle, bid
+               );
+        }
+
+        if (restore_rvalid > 0) {
+            fprintf(fw,"[%6d][%10u] restore rvalid:%x slot:%4d\n",
+               seq, cycle, restore_rvalid , restore_cq_slot
+               );
+        }
+        if (restore_done_valid > 0) {
+            fprintf(fw,"[%6d][%10u] restore_ack valid:%x ready:%x thread:%4x\n",
+               seq, cycle, restore_rvalid , restore_cq_slot, restore_ack_thread
+               );
+        }
+        if (awvalid) {
+            fprintf(fw,"[%6d][%10u] awvalid %d%d addr:%8x data:%8x\n",
+               seq, cycle, awvalid, awready,
+               awaddr, wdata
+               );
+        }
 
     }
 
