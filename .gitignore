@@ -89,3 +89,4 @@ a
 *.sssp
 *.edges
 *.bin
+*.flow

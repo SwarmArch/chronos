@@ -359,13 +359,13 @@ if (APP_NAME == "maxflow") begin
    ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
    tb.poke(.addr(ocl_addr), .data(0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0]  = OCL_TASK_ENQ;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    ocl_addr[ 7:0] = OCL_TASK_ENQ_ARG_WORD;
    tb.poke(.addr(ocl_addr), .data(0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
+   tb.poke(.addr(ocl_addr), .data(0),
+      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[ 7:0]  = OCL_TASK_ENQ;
    tb.poke(.addr(ocl_addr), .data(0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 end

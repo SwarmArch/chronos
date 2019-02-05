@@ -550,7 +550,7 @@ void WriteOutputMaxflow(FILE* fp) {
    // flow[10]}
    int SIZE_DIST = size_of_field(numV, 64);
    int SIZE_EDGE_OFFSET = size_of_field(numV+1, 4);
-   int SIZE_NEIGHBORS = size_of_field(numE, 12) ;
+   int SIZE_NEIGHBORS = size_of_field(numE, 16) ;
    int SIZE_GROUND_TRUTH =size_of_field(numV, 4); // redundant
 
    int BASE_DIST = 16;
@@ -600,13 +600,14 @@ void WriteOutputMaxflow(FILE* fp) {
    for (Adj e : graph[startNode].adj) {
       startNodeExcess += e.d_cm;
    }
-   data[BASE_DIST + startNode*16 +2 ] = startNodeExcess;
+   data[BASE_DIST + startNode*16 +1 ] = startNodeExcess;
+   data[BASE_DIST + startNode*16 +2 ] = 2*numV;
    printf("StartNodeExcess %d\n", startNodeExcess);
 
    for (uint32_t i=0;i<numE;i++) {
-      data[ BASE_NEIGHBORS +i*3 ] = csr_neighbors[i].n;
-      data[ BASE_NEIGHBORS +i*3+1 ] = csr_neighbors[i].d_cm;
-      data[ BASE_NEIGHBORS +i*3+2 ] = csr_neighbors[i].index;
+      data[ BASE_NEIGHBORS +i*4 ] = csr_neighbors[i].n;
+      data[ BASE_NEIGHBORS +i*4+1 ] = csr_neighbors[i].d_cm;
+      data[ BASE_NEIGHBORS +i*4+2 ] = csr_neighbors[i].index;
    }
    printf("Writing file \n");
    for (int i=0;i<BASE_END;i++) {

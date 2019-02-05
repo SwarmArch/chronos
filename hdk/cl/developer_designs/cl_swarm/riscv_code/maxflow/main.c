@@ -60,6 +60,7 @@ typedef struct {
    uint dest;
    uint capacity;
    uint reverse_index; // in the destination's edge list
+   uint __aligned__;
 } edge_prop_t;
 edge_prop_t* edge_neighbors;
 
@@ -111,8 +112,8 @@ void discharge_start_task(uint ts, uint vid, uint enq_start, uint arg1) {
       uint sink = *(uint *)(ADDR_SINK_NODE);
       uint src  = *(uint *)(ADDR_SRC_NODE);
       enq_task_arg1(GLOBAL_RELABEL_VISIT_TASK, ts, sink, 0);
-      enq_task_arg0(GLOBAL_RELABEL_VISIT_TASK, ts + (1<<bfs_src_ts_bit), src);
-      enq_task_arg1(DISCHARGE_START_TASK, 0, vid, 0);
+      enq_task_arg0(GLOBAL_RELABEL_VISIT_TASK, ts | (1<<bfs_src_ts_bit), src);
+      enq_task_arg1(DISCHARGE_START_TASK, ts, vid, 0);
    }
    uint eo_begin = edge_offset[vid];
    uint eo_end = edge_offset[vid+1];
@@ -131,9 +132,11 @@ void discharge_start_task(uint ts, uint vid, uint enq_start, uint arg1) {
        eo_end = eo_begin + 6;
    }
 
+   uint child_cnt = 0;
    for (int i = eo_begin; i < eo_end; i++) {
       uint neighbor = edge_neighbors[i].dest;
-      enq_task_arg1(GET_HEIGHT_TASK, ts + i + enq_start, neighbor | RO_OFFSET , vid);
+      enq_task_arg1(GET_HEIGHT_TASK, ts + child_cnt + enq_start, neighbor | RO_OFFSET , vid);
+      child_cnt++;
    }
 }
 
@@ -144,20 +147,21 @@ void get_height_task(uint ts, uint vid, uint src, uint arg1) {
 
 void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
    // extract sender node index from timestamp
-   uint push_to_index = ts * 0xff;
+   uint push_to_index = ts & 0xff;
    uint h = node_prop[vid].height;
    // update counter
    uint counter = node_prop[vid].counter;
-   undo_log_write(&(node_prop[vid].active), counter);
-   node_prop[vid].counter = counter--;
+   undo_log_write(&(node_prop[vid].counter), counter);
+   node_prop[vid].counter = --counter;
 
    int consider_for_relabelling = 1;
-   if (h == neighbor_height+1) {
+   if (h == neighbor_height+1 || (vid == 16)) {
       // do push
       uint eo_begin = edge_offset[vid];
       uint edge_capacity = edge_neighbors[eo_begin + push_to_index].capacity;
       int edge_flow = node_prop[vid].flow[push_to_index];
       uint excess = node_prop[vid].excess;
+      //enq_task_arg2(9, ts, excess, edge_capacity, edge_flow);
 
       uint amt = excess;
       // min(excess, (cap-flow))
@@ -172,7 +176,7 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
          enq_task_arg2(PUSH_TO_TASK, ts, edge_neighbors[eo_begin+push_to_index].dest, reverse_index, amt);
       }
 
-      consider_for_relabelling = (edge_capacity == edge_flow)? 1 : 0;
+      consider_for_relabelling = (edge_capacity > edge_flow)? 1 : 0;
    }
    uint current_min_neighbor_height;
    if (consider_for_relabelling) {
@@ -183,6 +187,7 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
          node_prop[vid].min_neighbor_height = neighbor_height;
       }
    }
+   enq_task_arg2(8, ts, vid, counter, node_prop[vid].excess);
    if (counter == 0) {
       // relabel
       // set height here itself; no need enqueing another task for it if
@@ -193,7 +198,7 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
          }
          undo_log_write(&(node_prop[vid].height), h);
          node_prop[vid].height = current_min_neighbor_height;
-         enq_task_arg1(DISCHARGE_START_TASK, 0, vid | RO_OFFSET, 0);
+         enq_task_arg1(DISCHARGE_START_TASK, ts, vid | RO_OFFSET, 0);
 
       }
 
@@ -214,7 +219,7 @@ void push_to_task(uint ts, uint vid, uint reverse_index, uint amt) {
       undo_log_write(&(node_prop[vid].active), 0);
       node_prop[vid].active = 1;
       // Task unit should modify ts to a unique number
-      enq_task_arg1(DISCHARGE_START_TASK, 0, vid | RO_OFFSET, 0);
+      enq_task_arg1(DISCHARGE_START_TASK, ts, vid | RO_OFFSET, 0);
    }
 }
 
@@ -271,7 +276,7 @@ void main() {
    // if more than 1 tile, host should adjust this field before sending it over
    // to the FPGA
    log_global_relabel_bits = *(uint *)(ADDR_LOG_GLOBAL_RELABEL_INTERVAL) ;
-   global_relabel_mask = (1<<(log_global_relabel_bits) - 1 ) << (TX_ID_OFFSET_BITS - 4);
+   global_relabel_mask = ((1<<(log_global_relabel_bits+4)) - 1 ) << (TX_ID_OFFSET_BITS-4);
 
    while (1) {
       uint ts = *(volatile uint *)(ADDR_DEQ_TASK);
