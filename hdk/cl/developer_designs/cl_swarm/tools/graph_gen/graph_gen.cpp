@@ -253,7 +253,7 @@ void addEdge(uint32_t from, uint32_t to, uint32_t cap) {
 void GenerateGridGraphMaxflow(uint32_t n) {
    srand(42);
    numV = n*n + 2;
-   const int num_connections = 3;
+   const int num_connections = 2;
    const int MAX_CAPACITY = 10;
    const int MIN_CAPACITY = 1;
    graph = new Vertex[numV];
@@ -594,14 +594,15 @@ void WriteOutputMaxflow(FILE* fp) {
    }
    data[BASE_EDGE_OFFSET +numV] = csr_offset[numV];
 
-   data[BASE_DIST + startNode*16 ] = numV;
    // startNode excess
    uint32_t startNodeExcess= 0;
    for (Adj e : graph[startNode].adj) {
       startNodeExcess += e.d_cm;
    }
+   data[BASE_DIST + startNode*16 +0 ] = numV; // height
    data[BASE_DIST + startNode*16 +1 ] = startNodeExcess;
-   data[BASE_DIST + startNode*16 +2 ] = 2*numV;
+   data[BASE_DIST + startNode*16 +3 ] = 1;
+   data[BASE_DIST + endNode*16 +3 ] = 1;
    printf("StartNodeExcess %d\n", startNodeExcess);
 
    for (uint32_t i=0;i<numE;i++) {
