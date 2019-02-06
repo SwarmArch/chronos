@@ -1085,14 +1085,15 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            printf("Total Errors %d / %d\n", num_errors, numV);
            break;
       case APP_MAXFLOW:
-           {
-               uint32_t endNode = headers[9];
-               uint32_t endNode_excess_addr = (headers[5] + endNode *16 + 1) * 4;
-               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB        , 0);
-               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB        , endNode_excess_addr);
-               uint32_t maximum_flow;
-               pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &maximum_flow);
-               printf("End node:%d flow:%d\n", endNode, maximum_flow);
+           for (int i=0;i <numV;i++) {
+               uint32_t node_addr = (headers[5] + i *16) * 4;
+               uint32_t excess, height;
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB , 0);
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr);
+               pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &height);
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr+ 4);
+               pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &excess);
+               printf("node:%3d excess:%3d height:%3d\n", i, excess, height);
            }
            break;
 

@@ -250,6 +250,8 @@ void global_relabel_visit_task(uint ts, uint vid, uint enq_start, uint reverse_e
          node_prop[vid].visited = iteration_no;
          undo_log_write(&(node_prop[vid].height), node_prop[vid].height);
          node_prop[vid].height = ts_height_bits + (is_src_bfs ? numV : 0) ;
+      } else {
+          return;
       }
    }
 
