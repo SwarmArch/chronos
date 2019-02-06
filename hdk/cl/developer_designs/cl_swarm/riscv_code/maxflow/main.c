@@ -113,13 +113,14 @@ void discharge_start_task(uint ts, uint vid, uint enq_start, uint arg1) {
       uint src  = *(uint *)(ADDR_SRC_NODE);
       enq_task_arg1(GLOBAL_RELABEL_VISIT_TASK, ts, sink, 0);
       enq_task_arg0(GLOBAL_RELABEL_VISIT_TASK, ts | (1<<bfs_src_ts_bit), src);
+      // reenqueue the original task
       enq_task_arg1(DISCHARGE_START_TASK, ts, vid, 0);
    }
    uint eo_begin = edge_offset[vid];
    uint eo_end = edge_offset[vid+1];
-   if (enq_start == 0) {
+   if (enq_start == 0 && (ts != 0x100) ) {
       undo_log_write(&(node_prop[vid].active), node_prop[vid].active);
-      undo_log_write(&(node_prop[vid].active), node_prop[vid].counter);
+      undo_log_write(&(node_prop[vid].counter), node_prop[vid].counter);
       undo_log_write(&(node_prop[vid].min_neighbor_height), node_prop[vid].min_neighbor_height);
       node_prop[vid].active = 0;
       node_prop[vid].counter = eo_end - eo_begin;
@@ -155,7 +156,8 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
    node_prop[vid].counter = --counter;
 
    int consider_for_relabelling = 1;
-   if (h == neighbor_height+1 || (vid == 16)) {
+   int is_init_task = ((ts >> 4) == 0x10) ;
+   if (h == neighbor_height+1 || is_init_task) {
       // do push
       uint eo_begin = edge_offset[vid];
       uint edge_capacity = edge_neighbors[eo_begin + push_to_index].capacity;
@@ -185,6 +187,7 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
       if (neighbor_height < current_min_neighbor_height) {
          undo_log_write(&(node_prop[vid].min_neighbor_height), current_min_neighbor_height);
          node_prop[vid].min_neighbor_height = neighbor_height;
+         current_min_neighbor_height = neighbor_height;
       }
    }
    if (counter == 0) {
@@ -196,8 +199,8 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
             current_min_neighbor_height = node_prop[vid].min_neighbor_height;
          }
          undo_log_write(&(node_prop[vid].height), h);
-         node_prop[vid].height = current_min_neighbor_height;
-         enq_task_arg1(DISCHARGE_START_TASK, ts, vid | RO_OFFSET, 0);
+         node_prop[vid].height = current_min_neighbor_height + 1;
+         enq_task_arg2(DISCHARGE_START_TASK, ts, vid, 0, ts);
 
       }
    enq_task_arg2(8, ts, vid, node_prop[vid].excess, node_prop[vid].height);
@@ -215,11 +218,11 @@ void push_to_task(uint ts, uint vid, uint reverse_index, uint amt) {
    node_prop[vid].excess = excess + amt;
    excess += amt;
 
-   if (!node_prop[vid].active && excess > 0) {
+   if ((node_prop[vid].active == 0) && excess > 0) {
       undo_log_write(&(node_prop[vid].active), 0);
       node_prop[vid].active = 1;
       // Task unit should modify ts to a unique number
-      enq_task_arg1(DISCHARGE_START_TASK, ts, vid | RO_OFFSET, 0);
+      enq_task_arg2(DISCHARGE_START_TASK, ts, vid, 0, ts);
    }
 }
 

@@ -491,7 +491,7 @@ int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
    uint32_t gvt;
    fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
    fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
-   printf("CQ log size %d gvt %d\n", log_size, gvt);
+   printf("Undo log size %d gvt %d\n", log_size, gvt);
    if (log_size > 17000) return 1;
    // if (log_size > 100) log_size -= 100;
    //unsigned char* log_buffer;

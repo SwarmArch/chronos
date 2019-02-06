@@ -832,6 +832,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
        log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
        log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
+       log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
    }
 
    {
@@ -1042,7 +1043,6 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            printf("Total Errors %d / %d\n", num_errors, ref_count);
            break;
        case APP_COLOR:
-
            for (int i=0;i<numV;i++) {
                uint64_t addr = 64 + i * 4;
                if ((addr & 0xffffffff) ==0) {
@@ -1083,6 +1083,17 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                            i, csr_color[i]);
            }
            printf("Total Errors %d / %d\n", num_errors, numV);
+           break;
+      case APP_MAXFLOW:
+           {
+               uint32_t endNode = headers[9];
+               uint32_t endNode_excess_addr = (headers[5] + endNode *16 + 1) * 4;
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB        , 0);
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB        , endNode_excess_addr);
+               uint32_t maximum_flow;
+               pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &maximum_flow);
+               printf("End node:%d flow:%d\n", endNode, maximum_flow);
+           }
            break;
 
    }
