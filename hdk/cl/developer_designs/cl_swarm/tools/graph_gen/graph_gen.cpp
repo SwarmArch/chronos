@@ -601,6 +601,7 @@ void WriteOutputMaxflow(FILE* fp) {
    }
    data[BASE_DIST + startNode*16 +0 ] = numV; // height
    data[BASE_DIST + startNode*16 +1 ] = startNodeExcess;
+   data[BASE_DIST + startNode*16 +2 ] = csr_offset[startNode+1] - csr_offset[startNode];
    data[BASE_DIST + startNode*16 +3 ] = 1;
    data[BASE_DIST + endNode*16 +3 ] = 1;
    printf("StartNodeExcess %d\n", startNodeExcess);
