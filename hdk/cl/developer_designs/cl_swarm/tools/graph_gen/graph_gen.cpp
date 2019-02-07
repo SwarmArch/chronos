@@ -253,7 +253,7 @@ void addEdge(uint32_t from, uint32_t to, uint32_t cap) {
 void GenerateGridGraphMaxflow(uint32_t n) {
    srand(42);
    numV = n*n + 2;
-   const int num_connections = 2;
+   const int num_connections = 4;
    const int MAX_CAPACITY = 10;
    const int MIN_CAPACITY = 1;
    graph = new Vertex[numV];

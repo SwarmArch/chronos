@@ -524,7 +524,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     uint32_t log_active_tiles = 0;
 
     bool task_unit_logging_on = false;
-    //task_unit_logging_on = true;
+    task_unit_logging_on = true;
 
     assert(spill_threshold > (tied_cap + (1<<LOG_CQ_SIZE) + spill_size));
     assert((spill_size % 8) == 0);
