@@ -1085,7 +1085,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            printf("Total Errors %d / %d\n", num_errors, numV);
            break;
       case APP_MAXFLOW:
-           for (int i=0;i <numV;i++) {
+           for (int i=numV-2;i <numV;i++) {
                uint32_t node_addr = (headers[5] + i *16) * 4;
                uint32_t excess, height;
                pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB , 0);

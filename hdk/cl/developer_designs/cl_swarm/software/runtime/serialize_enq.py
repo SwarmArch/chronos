@@ -24,6 +24,12 @@ for line in f:
     ts = 0
     if (line.find('log') >= 0):
         continue
+    if (line.find('mismatch') >= 0):
+        print(line)
+        continue
+    if (line.find('going') >=0):
+        print(line)
+        continue
     seq = int(line[1:7])
     slot_loc = line.find('slot:')
     ts_loc = line.find('ts:')
