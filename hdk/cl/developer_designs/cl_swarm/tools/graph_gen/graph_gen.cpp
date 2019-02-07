@@ -62,11 +62,24 @@ Vertex* graph;
 uint32_t numV;
 uint32_t numE;
 uint32_t startNode;
+uint32_t endNode;
+
+int app = APP_SSSP;
 
 uint32_t* csr_offset;
 Adj* csr_neighbors;
 uint32_t* csr_dist;
 
+void addEdge(uint32_t from, uint32_t to, uint32_t cap) {
+    // Push edge to _graph[node]
+    Adj adj_from = {to, cap, (uint32_t) graph[to].adj.size()};
+    graph[from].adj.push_back(adj_from);
+
+    // Insert the reverse edge (residual graph)
+    Adj adj_to = {from, 0, (uint32_t) graph[from].adj.size()-1};
+    graph[to].adj.push_back(adj_to);
+    //printf("Edge %d %d %d\n", from, to, cap);
+}
 
 uint64_t dist(const Vertex* src, const Vertex* dst) {
    // Use the haversine formula to compute the great-angle radians
@@ -92,6 +105,13 @@ void LoadGraphGR(const char* file) {
    while(!f.eof()) {
       std::getline(f, s);
       if (s.c_str()[0]=='c') continue;
+      if (s.c_str()[0]=='n') {
+         char st;
+         uint32_t r;
+         sscanf(s.c_str(), "%*s %d %c\n", &r, &st);
+         if (st=='s') startNode = r-1;
+         if (st=='t') endNode = r-1;
+      }
       if (s.c_str()[0]=='p') {
          sscanf(s.c_str(), "%*s %*s %d %d\n", &numV, &numE);
          graph = new Vertex[numV];
@@ -99,8 +119,12 @@ void LoadGraphGR(const char* file) {
       if (s.c_str()[0]=='a') {
          uint32_t src, dest, w;
          sscanf(s.c_str(), "%*s %d %d %d\n", &src, &dest, &w);
-         Adj a = {dest-1,w};
-         graph[src-1].adj.push_back(a);
+         if (app == APP_MAXFLOW) {
+            addEdge(src-1, dest-1, w);
+         } else {
+            Adj a = {dest-1,w};
+            graph[src-1].adj.push_back(a);
+         }
       }
 
       n++;
@@ -240,16 +264,6 @@ void choose_k(int to, std::vector<int>* vec, int k, int seed) {
     std::copy_n(numbers.begin(), k, vec->begin()); // Copy the first k in the shuffled array to vec
     return;
 }
-void addEdge(uint32_t from, uint32_t to, uint32_t cap) {
-    // Push edge to _graph[node]
-    Adj adj_from = {to, cap, (uint32_t) graph[to].adj.size()};
-    graph[from].adj.push_back(adj_from);
-
-    // Insert the reverse edge (residual graph)
-    Adj adj_to = {from, 0, (uint32_t) graph[from].adj.size()-1};
-    graph[to].adj.push_back(adj_to);
-    //printf("Edge %d %d %d\n", from, to, cap);
-}
 
 void GenerateGridGraphMaxflow(uint32_t n, uint32_t num_connections) {
    srand(42);
@@ -282,6 +296,8 @@ void GenerateGridGraphMaxflow(uint32_t n, uint32_t num_connections) {
          (rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
       addEdge((n - 1) * n + i, n*n + 1, capacity);
    }
+   startNode = numV-2;
+   endNode = numV-1;
 }
 
 std::set<uint32_t>* edges;
@@ -561,8 +577,6 @@ void WriteOutputMaxflow(FILE* fp) {
 
    uint32_t* data = (uint32_t*) calloc(BASE_END, sizeof(uint32_t));
 
-   startNode = numV-2;
-   uint32_t endNode = numV-1;
    uint32_t log_global_relabel_interval = (int) (round(log2(numV))); // closest_power_of_2(numV)
    if (log_global_relabel_interval < 5) log_global_relabel_interval = 5;
 
@@ -651,7 +665,6 @@ int main(int argc, char *argv[]) {
 
    // 0 - load from file .bin format
    // 1 - grid graph
-   int app = APP_SSSP;
    char out_file[50];
    char dimacs_file[50];
    char edgesFile[50];
