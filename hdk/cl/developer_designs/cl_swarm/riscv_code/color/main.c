@@ -113,6 +113,7 @@ void notify_neighbors_task(uint ts, uint vid, uint color, uint enq_start) {
    }
    uint eo_begin = edge_offset[vid] + enq_start;
    uint eo_end = edge_offset[vid+1];
+   uint degree = eo_end - eo_begin;
    if (eo_end > eo_begin + 6) {
        enq_task_arg1(NOTIFY_NEIGHBORS_TASK, ts, (1<<24) | vid, enq_start +6);
        eo_end = eo_begin + 6;
@@ -120,7 +121,10 @@ void notify_neighbors_task(uint ts, uint vid, uint color, uint enq_start) {
 
    for (int i = eo_begin; i < eo_end; i++) {
       uint neighbor = edge_neighbors[i];
-      enq_task_arg2(RECEIVE_COLOR_TASK, ts, neighbor, color, vid);
+      uint n_deg = edge_offset[neighbor+1] - edge_offset[neighbor];
+      if ( (n_deg < degree) || ((n_deg == degree) & neighbor > vid)) {
+          enq_task_arg2(RECEIVE_COLOR_TASK, ts, neighbor, color, vid);
+      }
    }
 }
 

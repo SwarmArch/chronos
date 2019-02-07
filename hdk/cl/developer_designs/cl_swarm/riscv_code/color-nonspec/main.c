@@ -81,12 +81,11 @@ void enqueuer_task(uint ts, uint hint, uint enq_start, uint arg1) {
    uint next_ts;
    uint enq_end = enq_start + 10;
    if (enq_end > numV) enq_end = numV;
-   for (int i=enq_start; i<enq_end; i++) {
-     enq_task_arg0(CALC_IN_DEGREE_TASK, /*unordered*/ 1, i);
-   }
    if (enq_end < numV) {
-     enq_task_arg1(ENQUEUER_TASK, /*unordered*/ 1, hint, enq_end);
-
+     enq_task_arg1(ENQUEUER_TASK, /*unordered*/ 10, enq_start << 16, enq_end);
+   }
+   for (int i=enq_start; i<enq_end; i++) {
+     enq_task_arg0(CALC_IN_DEGREE_TASK, /*unordered*/ 9, i);
    }
 }
 
@@ -110,27 +109,37 @@ void calc_in_degree_task(uint ts, uint vid, uint arg0, uint arg1) {
    join_counter[vid] += in_degree;
    //enq_task_arg2(6, 0, vid, in_degree, in_degree);
    if (join_counter[vid] == 0) {
-      enq_task_arg0(CALC_COLOR_TASK, 0, vid);
+      enq_task_arg1(CALC_COLOR_TASK, 8, vid, 0);
    }
 }
-void calc_color_task(uint ts, uint vid, uint arg0, uint arg1) {
+void calc_color_task(uint ts, uint vid, uint enq_start, uint arg1) {
    // find first unset bit;
    uint bit = 0;
-   uint vec = scratch[vid*4];
-   while (vec & 1) {
-      vec >>= 1;
-      bit++;
+   if (enq_start == 0) {
+       uint vec = scratch[vid*4];
+       while (vec & 1) {
+          vec >>= 1;
+          bit++;
+       }
+       colors[vid] = bit;
+   } else {
+       bit = colors[vid];
    }
-   colors[vid] = bit;
    uint eo_begin = edge_offset[vid];
    uint eo_end = edge_offset[vid+1];
    uint deg = eo_end - eo_begin;
 
-   for (int i = eo_begin; i < eo_end; i++) {
+   uint enq_end = enq_start + 7;
+   if (enq_end > deg) enq_end = deg;
+   if (enq_end < deg) {
+     enq_task_arg1(CALC_COLOR_TASK, 8, vid, enq_end);
+   }
+
+   for (int i = eo_begin + enq_start; i < eo_begin + enq_end; i++) {
       uint neighbor = edge_neighbors[i];
       uint neighbor_deg = edge_offset[neighbor+1] - edge_offset[neighbor];
       if ( (neighbor_deg < deg) || ((neighbor_deg == deg) & neighbor > vid)) {
-         enq_task_arg2(RECEIVE_COLOR_TASK, ts, neighbor, bit, vid);
+         enq_task_arg2(RECEIVE_COLOR_TASK, 7, neighbor, bit, vid);
       }
    }
 
@@ -150,9 +159,8 @@ void receive_color_task(uint ts, uint vid, uint color, uint neighbor) {
    //}
    join_counter[vid]--;
    if (join_counter[vid] ==0) {
-      enq_task_arg0(CALC_COLOR_TASK, 0, vid);
+      enq_task_arg1(CALC_COLOR_TASK, 8, vid, 0);
    }
-   //enq_task_arg2(8, ts, vid, join_counter[vid], vec);
 }
 
 
