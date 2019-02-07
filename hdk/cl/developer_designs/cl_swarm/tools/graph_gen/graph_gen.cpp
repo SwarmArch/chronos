@@ -242,18 +242,18 @@ void choose_k(int to, std::vector<int>* vec, int k, int seed) {
 }
 void addEdge(uint32_t from, uint32_t to, uint32_t cap) {
     // Push edge to _graph[node]
-    Adj adj_from = {to, cap, graph[to].adj.size()};
+    Adj adj_from = {to, cap, (uint32_t) graph[to].adj.size()};
     graph[from].adj.push_back(adj_from);
 
     // Insert the reverse edge (residual graph)
-    Adj adj_to = {from, 0, graph[from].adj.size()-1};
+    Adj adj_to = {from, 0, (uint32_t) graph[from].adj.size()-1};
     graph[to].adj.push_back(adj_to);
+    //printf("Edge %d %d %d\n", from, to, cap);
 }
 
-void GenerateGridGraphMaxflow(uint32_t n) {
+void GenerateGridGraphMaxflow(uint32_t n, uint32_t num_connections) {
    srand(42);
    numV = n*n + 2;
-   const int num_connections = 4;
    const int MAX_CAPACITY = 10;
    const int MIN_CAPACITY = 1;
    graph = new Vertex[numV];
@@ -520,7 +520,7 @@ void WriteOutputColor(FILE* fp) {
       for (uint32_t j=csr_offset[vid]; j< csr_offset[vid+1]; j++) {
          uint32_t neighbor = csr_neighbors[j].n;
          //printf("\t%d neighbor %x\n", neighbor, csr_dist[neighbor]);
-         if (csr_dist[neighbor] != ~0) {
+         if (csr_dist[neighbor] != 0xFFFFFFFF) {
             vec = vec | ( 1<<csr_dist[neighbor]);
          }
       }
@@ -584,7 +584,6 @@ void WriteOutputMaxflow(FILE* fp) {
    }
    //todo ground truth
 
-   uint32_t max_int = 0xFFFFFFFF;
    for (uint32_t i=0;i<numV;i++) {
       data[BASE_EDGE_OFFSET +i] = csr_offset[i];
       data[BASE_GROUND_TRUTH +i] = csr_dist[i];
@@ -650,66 +649,64 @@ void WriteEdgesFile(FILE *fp) {
 
 int main(int argc, char *argv[]) {
 
-   int type = 0;
    // 0 - load from file .bin format
    // 1 - grid graph
    int app = APP_SSSP;
    char out_file[50];
    char dimacs_file[50];
    char edgesFile[50];
-   if (argc > 1) {
-      type = atoi(argv[1]);
-   }
+   int  type = atoi(argv[2]);
    char ext[50];
-   sprintf(ext, "%s", "sssp");
-   if (argc > 3) {
-      if (strcmp(argv[3], "color") ==0) {
-         app = APP_COLOR;
-         sprintf(ext, "%s", "color");
-      }
-      if (strcmp(argv[3], "flow") ==0) {
-         app = APP_MAXFLOW;
-         sprintf(ext, "%s", "flow");
-      }
+   if (strcmp(argv[1], "sssp") ==0) {
+      app = APP_SSSP;
+      sprintf(ext, "%s", "sssp");
+   }
+   if (strcmp(argv[1], "color") ==0) {
+      app = APP_COLOR;
+      sprintf(ext, "%s", "color");
+   }
+   if (strcmp(argv[1], "flow") ==0) {
+      app = APP_MAXFLOW;
+      sprintf(ext, "%s", "flow");
    }
 
    if (type == 0) {
       // astar type
-      LoadGraph(argv[2]);
+      LoadGraph(argv[3]);
       int strStart = 0;
       // strip out filename from path
       for (uint32_t i=0;i<strlen(argv[2]);i++) {
-         if (argv[2][i] == '/') strStart = i+1;
+         if (argv[3][i] == '/') strStart = i+1;
       }
-      sprintf(out_file, "%s.%s", argv[2] +strStart, ext);
+      sprintf(out_file, "%s.%s", argv[3] +strStart, ext);
    } else if (type == 1) {
-      int n = 4;
-      if (argc>2) n = atoi(argv[2]);
+      int n = atoi(argv[3]);
       if (app==APP_MAXFLOW) {
-         GenerateGridGraphMaxflow(n);
+         int n_connections = atoi(argv[4]);
+         GenerateGridGraphMaxflow(n, n_connections);
       } else {
          GenerateGridGraph(n);
       }
       sprintf(out_file, "grid_%dx%d.%s", n,n, ext);
       sprintf(dimacs_file, "grid_%dx%d.dimacs", n,n);
    }  else if (type == 2) {
-      LoadGraphGR(argv[2]);
+      LoadGraphGR(argv[3]);
       int strStart = 0;
       // strip out filename from path
-      for (uint32_t i=0;i<strlen(argv[2]);i++) {
-         if (argv[2][i] == '/') strStart = i+1;
+      for (uint32_t i=0;i<strlen(argv[3]);i++) {
+         if (argv[3][i] == '/') strStart = i+1;
       }
-      sprintf(out_file, "%s.%s", argv[2] +strStart, ext);
-      sprintf(edgesFile, "%s.edges", argv[2] +strStart);
+      sprintf(out_file, "%s.%s", argv[3] +strStart, ext);
+      sprintf(edgesFile, "%s.edges", argv[3] +strStart);
    }  else if (type == 3) {
       // coloring type : eg: com-youtube
-      LoadGraphEdges(argv[2]);
+      LoadGraphEdges(argv[3]);
       int strStart = 0;
       // strip out filename from path
-      for (uint32_t i=0;i<strlen(argv[2]);i++) {
-         if (argv[2][i] == '/') strStart = i+1;
+      for (uint32_t i=0;i<strlen(argv[3]);i++) {
+         if (argv[3][i] == '/') strStart = i+1;
       }
-      sprintf(out_file, "%s.%s", argv[2] +strStart, ext);
+      sprintf(out_file, "%s.%s", argv[3] +strStart, ext);
    }
    if (app == APP_COLOR) {
       makeUndirectional();
@@ -723,7 +720,6 @@ int main(int argc, char *argv[]) {
    }
 
    FILE* fp;
-   FILE* fpd;
    fp = fopen(out_file, "w");
    printf("Writing file %s %p\n", out_file, fp);
    //fpd = fopen(dimacs_file, "w");
