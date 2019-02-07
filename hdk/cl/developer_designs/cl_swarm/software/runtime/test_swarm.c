@@ -427,6 +427,11 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         n+=4;
 
     }
+    if (app == APP_MAXFLOW) {
+        // global relabel interval
+        //headers[10] += -2;
+        //write_buffer[10*4] = headers[10];
+    }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
     printf("File Len %d\n", n);
@@ -620,6 +625,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
     pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
     printf("app %d\n",app);
+    int init_task_tile = 0;
     switch (app) {
         case APP_DES:
             printf("APP_DES\n");
@@ -673,6 +679,12 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
         case APP_MAXFLOW:
             printf("APP_MAXFLOW\n");
+            switch (log_active_tiles) {
+                case 0 : init_task_tile = 0; break;
+                case 1 : init_task_tile = (headers[7] >> 4) & 1; break;
+                case 2 : init_task_tile = (headers[7] >> 4) & 3; break;
+                case 3 : init_task_tile = (headers[7] >> 4) & 7; break;
+            }
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT , headers[7] );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
@@ -744,7 +756,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    while(true) {
        //log_splitter(pci_bar_handle, fd, fwsp, ID_SPLITTER);
        uint32_t gvt;
+       uint32_t gvt_tb;
        pci_peek(0, ID_CQ, CQ_GVT_TS, &gvt);
+       //printf(" gvt %d\n", gvt);
        if (gvt == -1 || gvt == -2) {
            // -2 to ignore some non-spec bugs
            pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_MSB, &endCycle);
@@ -764,6 +778,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                        pci_poke(0, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0xd0);
                    }
                    pci_peek(0, ID_CQ, CQ_GVT_TS, &gvt);
+
                    if (!(gvt == -1 || gvt == -2)) done = false;
                }
            }
@@ -787,6 +802,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            uint32_t cycle;
            for (int i=0;i<(1<<log_active_tiles);i++) {
                pci_peek(i, ID_CQ, CQ_GVT_TS, &gvt);
+               pci_peek(i, ID_CQ, CQ_GVT_TB, &gvt_tb);
                pci_peek(i, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB       , &cycle);
                pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TASKS, &n_tasks);
                pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TIED_TASKS, &n_tied_tasks);
@@ -797,8 +813,8 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                pci_peek(i, ID_CQ, CQ_STATE, &cq_state );
                pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug );
                //pci_peek(0, ID_TSB, TSB_ENTRY_VALID, &stack_ptr );
-               printf(" [%4d][%1d][%8u] gvt:%9d (%4d %4d %4d) %6d %4x stack_ptr:%4d\n",
-                       iters, i, cycle, gvt,
+               printf(" [%4d][%1d][%8u] gvt:(%9x %9d) (%4d %4d %4d) %6d %4x stack_ptr:%4d\n",
+                       iters, i, cycle, gvt, gvt_tb,
                        n_tasks, n_tied_tasks, heap_capacity,
                        cq_state, tq_debug, stack_ptr);
                fprintf(fwtu, "log [%4d][%1d][%8u] gvt:%9d (%4d %4d %4d) %6d %4x stack_ptr:%4d\n",

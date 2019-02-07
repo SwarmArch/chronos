@@ -205,7 +205,7 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
          enq_task_arg2(DISCHARGE_START_TASK, ts, vid, 0, ts);
 
       }
-   enq_task_arg2(8, ts, vid, node_prop[vid].excess, node_prop[vid].height);
+   //enq_task_arg2(8, ts, vid, node_prop[vid].excess, node_prop[vid].height);
 
    }
 }
