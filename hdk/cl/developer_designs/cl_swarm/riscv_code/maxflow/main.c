@@ -22,6 +22,7 @@ const int ADDR_CORE_ID       = 0xc0000064;
 const int TX_ID_OFFSET_BITS = 8;
 
 #define DISCHARGE_START_TASK  0
+#define DISCHARGE_START_TASK_CONT  5
 #define GET_HEIGHT_TASK 1
 #define PUSH_FROM_TASK 2
 #define PUSH_TO_TASK 3
@@ -112,9 +113,10 @@ void discharge_start_task(uint ts, uint vid, uint enq_start, uint arg1) {
       uint sink = *(uint *)(ADDR_SINK_NODE);
       uint src  = *(uint *)(ADDR_SRC_NODE);
       enq_task_arg1(GLOBAL_RELABEL_VISIT_TASK, ts, sink, 0);
-      enq_task_arg0(GLOBAL_RELABEL_VISIT_TASK, ts | (1<<bfs_src_ts_bit), src);
+      enq_task_arg1(GLOBAL_RELABEL_VISIT_TASK, ts | (1<<bfs_src_ts_bit), src, 0);
       // reenqueue the original task
       enq_task_arg1(DISCHARGE_START_TASK, ts, vid, 0);
+      return;
    }
    uint eo_begin = edge_offset[vid];
    uint eo_end = edge_offset[vid+1];
@@ -128,9 +130,9 @@ void discharge_start_task(uint ts, uint vid, uint enq_start, uint arg1) {
    }
 
    eo_begin += enq_start;
-   if (eo_end > eo_begin + 6) {
-       enq_task_arg1(DISCHARGE_START_TASK, ts, vid, enq_start +6);
-       eo_end = eo_begin + 6;
+   if (eo_end > eo_begin + 7) {
+       enq_task_arg1(DISCHARGE_START_TASK_CONT, ts, vid, enq_start +7);
+       eo_end = eo_begin + 7;
    }
 
    uint child_cnt = 0;
@@ -245,7 +247,6 @@ void global_relabel_visit_task(uint ts, uint vid, uint enq_start, uint reverse_e
             if (cap <= flow) return;
          }
 
-
          undo_log_write(&(node_prop[vid].visited), visited);
          node_prop[vid].visited = iteration_no;
          undo_log_write(&(node_prop[vid].height), node_prop[vid].height);
@@ -259,9 +260,9 @@ void global_relabel_visit_task(uint ts, uint vid, uint enq_start, uint reverse_e
    uint eo_end = edge_offset[vid+1];
 
    eo_begin += enq_start;
-   if (eo_end > eo_begin + 6) {
-       enq_task_arg2(GLOBAL_RELABEL_VISIT_TASK, ts, vid, enq_start +6, reverse_edge_id);
-       eo_end = eo_begin + 6;
+   if (eo_end > eo_begin + 7) {
+       enq_task_arg2(GLOBAL_RELABEL_VISIT_TASK, ts, vid, enq_start +7, reverse_edge_id);
+       eo_end = eo_begin + 7;
    }
 
    for (int i = eo_begin; i < eo_end; i++) {
@@ -291,6 +292,7 @@ void main() {
       uint arg1 = *(volatile uint *)(ADDR_DEQ_TASK_ARG1);
       switch(ttype) {
         case DISCHARGE_START_TASK:
+        case DISCHARGE_START_TASK_CONT:
            discharge_start_task(ts, hint, arg0, arg1);
            break;
         case GET_HEIGHT_TASK:
