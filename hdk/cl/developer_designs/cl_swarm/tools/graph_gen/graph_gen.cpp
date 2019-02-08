@@ -683,6 +683,7 @@ int main(int argc, char *argv[]) {
       sprintf(ext, "%s", "flow");
    }
 
+   startNode = 0;
    if (type == 0) {
       // astar type
       LoadGraph(argv[3]);
@@ -727,7 +728,6 @@ int main(int argc, char *argv[]) {
 
    ConvertToCSR();
 
-   startNode = 0;
    if (app == APP_SSSP) {
       ComputeReference();
    }

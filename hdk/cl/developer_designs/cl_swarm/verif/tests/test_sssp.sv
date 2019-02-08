@@ -352,6 +352,13 @@ end
 if (APP_NAME == "maxflow") begin
    ocl_addr = 0;
    ocl_addr[23:16] = 0; // tile
+   if (N_TILES == 2) begin
+      ocl_addr[23:16] = file[7][4]; // Component
+   end else if (N_TILES == 4) begin
+      ocl_addr[23:16] = file[7][5:4]; // Component
+   end else if (N_TILES == 8) begin
+      ocl_addr[23:16] = file[7][6:4]; // Component
+   end
    ocl_addr[15:8] = 0; // Component
    ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
    tb.poke(.addr(ocl_addr), .data(file[7]),

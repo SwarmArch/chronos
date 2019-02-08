@@ -367,7 +367,12 @@ module task_unit
             if ((transaction_id & maxflow_global_relabel_trigger_mask) == 0) begin
                transaction_id <= transaction_id + maxflow_global_relabel_trigger_inc;
             end else begin
-               transaction_id <= transaction_id + 1;
+               // increasing timestamps
+               if (task_enq_data.ts[31:4] > {transaction_id, four_bit_tile_id}) begin
+                  transaction_id <= modified_task_enq_ts[31:8] + 1;
+               end else begin
+                  transaction_id <= transaction_id + 1;
+               end
             end
         end
      end
@@ -377,7 +382,11 @@ module task_unit
    assign four_bit_tile_id = TILE_ID;
    always_comb begin
       if (is_transactional & task_enq_valid & (task_enq_data.ttype == 0)) begin
-         modified_task_enq_ts = {transaction_id, four_bit_tile_id, 4'b0};
+         if (task_enq_data.ts[31:4] > {transaction_id, four_bit_tile_id}) begin
+            modified_task_enq_ts = {task_enq_data.ts[31:8] + 1'b1, four_bit_tile_id, 4'b0};
+         end else begin
+            modified_task_enq_ts = {transaction_id, four_bit_tile_id, 4'b0};
+         end
       end else begin
          modified_task_enq_ts = task_enq_data.ts;
       end
