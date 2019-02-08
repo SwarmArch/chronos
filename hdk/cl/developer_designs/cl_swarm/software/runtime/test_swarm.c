@@ -685,14 +685,15 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                 case 2 : init_task_tile = (headers[7] >> 4) & 3; break;
                 case 3 : init_task_tile = (headers[7] >> 4) & 7; break;
             }
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT , headers[7] );
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 1 );
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0);
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT,
+                        headers[7] );
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 1 );
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0);
 
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
             break;
 
     }

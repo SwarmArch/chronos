@@ -150,7 +150,7 @@ void get_height_task(uint ts, uint vid, uint src, uint arg1) {
 
 void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
    // extract sender node index from timestamp
-   uint push_to_index = ts & 0xff;
+   uint push_to_index = ts & 0xf;
    uint h = node_prop[vid].height;
    // update counter
    uint counter = node_prop[vid].counter;
