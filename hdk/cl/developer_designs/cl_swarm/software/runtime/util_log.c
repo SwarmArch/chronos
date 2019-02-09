@@ -156,7 +156,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size)
         }
 
          if (enq_task.valid & enq_task.ready) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%4x hint:%4x ttype:%1d arg0:%4d arg1:%4d tied:%d epoch:%3d\n",
+            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%8x hint:%4x ttype:%1d arg0:%4d arg1:%4d tied:%d epoch:%3d\n",
  //resp:(ack:%d tile:%2d tsb:%2d)
                seq, cycle,
                gvt_ts, gvt_tb,

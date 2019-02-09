@@ -96,6 +96,7 @@ void init_params() {
 
     printf("%d tiles, %d cores each\n", N_TILES, N_SSSP_CORES);
     printf("Non spec %d\n", NON_SPEC);
+    printf("TQ Size %d CQ Size %d\n", LOG_TQ_SIZE, LOG_CQ_SIZE);
 
     N_CORES             =       (N_SSSP_CORES + 1);
 
@@ -429,8 +430,8 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     }
     if (app == APP_MAXFLOW) {
         // global relabel interval
-        //headers[10] += -2;
-        //write_buffer[10*4] = headers[10];
+        headers[10] += 0;
+        write_buffer[10*4] = headers[10];
     }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
@@ -506,6 +507,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     unsigned char* log_buffer = (unsigned char *)malloc(20000*64);
     FILE* fwtu = fopen("task_unit_log", "w");
+    FILE* fwtu1 = fopen("task_unit_log_1", "w");
     FILE* fwcq = fopen("cq_log", "w");
     //FILE* fwsp = fopen("splitter_log", "w");
     FILE* fws1 = fopen("core_1_log", "w");
@@ -524,7 +526,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     uint32_t tied_cap = 1<<(LOG_TQ_SIZE -2);
     uint32_t clean_threshold = 40;
-    uint32_t spill_threshold = 1000;
+    uint32_t spill_threshold = (1<<LOG_TQ_SIZE) - 20;
     uint32_t spill_size = 64;
     uint32_t log_active_tiles = 0;
 
@@ -787,12 +789,19 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        }
        if (task_unit_logging_on) {
            usleep(400);
-           log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
+           if (iters < 10000 & iters > 0) {
+               log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer,
+                       ID_TASK_UNIT);
+               if (log_active_tiles > 0) {
+                   log_task_unit(pci_bar_handle, read_fd, fwtu1, log_buffer,
+                       ID_TASK_UNIT | (1<<8));
+               }
+           }
            //log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
-           log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
-           log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
+           //log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
+           //log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
            //log_splitter(pci_bar_handle, read_fd, fwsp, ID_SPLITTER);
-           if (!NON_SPEC) log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
+           //if (!NON_SPEC) log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
            usleep(400);
 
            uint32_t n_tasks, n_tied_tasks, heap_capacity;
@@ -834,12 +843,44 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                   j, core_state, core_pc, num_deq);
                   }
                */
+                pci_poke(i, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0xd0);
 
            }
 
-           pci_poke(0, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0xd0);
            usleep(1000);
-           if (iters == 200000) break;
+           if (iters == 500) break;
+           if (iters % 1000 == 0) {
+               char fname [40];
+               sprintf(fname, "state_%d", iters);
+               FILE* fpa = fopen(fname, "w");
+
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB , 0);
+               pci_poke(1, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB , 0);
+               for (int i=0;i <numV;i++) {
+                   uint32_t node_addr = (headers[5] + i *16) * 4;
+                   uint32_t node_tile = (i>>4)&1;
+                   int32_t excess, height;
+                   pci_poke(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr);
+                   pci_peek(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM, &height);
+                   pci_poke(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr+ 4);
+                   pci_peek(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM, &excess);
+                   fprintf(fpa, "node:%3d excess:%3d height:%3d %s\n",
+                           i, excess, height, excess != 0 ? "inflow" : "");
+                   uint32_t eo_begin =csr_offset[i];
+                   uint32_t eo_end =csr_offset[i+1];
+                   for (int j=eo_begin;j<eo_end;j++) {
+                        uint32_t n = csr_neighbors[j*4];
+                        uint32_t cap = csr_neighbors[j*4+1];
+                        int flow;
+                        pci_poke(node_tile, ID_OCL_SLAVE,
+                                OCL_ACCESS_MEM_SET_LSB ,
+                            node_addr+ (6 + (j-eo_begin))*4);
+                        pci_peek(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM, &flow);
+                        fprintf(fpa, "\t%5d cap:%8d flow:%8d\n %s",
+                                n, cap, flow, cap<flow ? "overflow":"");
+                   }
+               }
+           }
        }
        iters++;
 
@@ -847,6 +888,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    usleep(2800);
    if (task_unit_logging_on) {
        log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
+       if (log_active_tiles > 0)
+          log_task_unit(pci_bar_handle, read_fd, fwtu1, log_buffer,
+                  ID_TASK_UNIT | (1<<8));
        log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
        log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
        log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
@@ -979,6 +1023,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 #if 1
    pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB        , 0 );
    uint32_t ref_count=0;
+   FILE* mf_state = fopen("maxflow_state", "w");
    switch (app) {
        case APP_DES:
            for (int i=0;i<headers[12];i++) {  // numOutputs
@@ -1102,16 +1147,39 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            printf("Total Errors %d / %d\n", num_errors, numV);
            break;
       case APP_MAXFLOW:
-           for (int i=numV-2;i <numV;i++) {
+           pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB , 0);
+           for (int i=0;i <numV;i++) {
                uint32_t node_addr = (headers[5] + i *16) * 4;
                uint32_t excess, height;
-               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB , 0);
                pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr);
                pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &height);
                pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr+ 4);
                pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &excess);
-               printf("node:%3d excess:%3d height:%3d\n", i, excess, height);
+               fprintf(mf_state, "node:%3d excess:%3d height:%3d %s\n",
+                       i, excess, height, (excess>0)?"inflow" : "");
+               uint32_t eo_begin =csr_offset[i];
+               uint32_t eo_end =csr_offset[i+1];
+               int32_t sum_flow =0;
+               for (int j=eo_begin;j<eo_end;j++) {
+                    uint32_t n = csr_neighbors[j*4];
+                    int32_t cap = csr_neighbors[j*4+1];
+                    int32_t flow;
+                    pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr+ (6 + (j-eo_begin))*4);
+                    pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &flow);
+                    fprintf(mf_state, "\t%5d cap:%8d flow:%8d %s\n",
+                            n, cap, flow, cap<flow?"overflow":"");
+                    sum_flow += flow;
+               }
+               fprintf(mf_state, "\tsum_flow:%d %s\n",
+                       sum_flow, sum_flow != 0 ? "WHAT?" : "");
            }
+           uint32_t node_addr = (headers[5] + (headers[9]) *16) * 4;
+           uint32_t excess, height;
+           pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr);
+           pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &height);
+           pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr+ 4);
+           pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &excess);
+           printf("node:%3d excess:%3d height:%3d\n", headers[9], excess, height);
            break;
 
    }
