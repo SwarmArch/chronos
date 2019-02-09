@@ -7,7 +7,7 @@ slot_lines = [None]*4096
 slot_ts = [None]*4096
 slot_seq= [None]*4096
 enqs = []
-fw = open("a", "w")
+#fw = open("a", "w")
 n_tied_enq = 0
 n_cut_tie = 0
 n_commit = 0
@@ -38,16 +38,18 @@ for line in f:
 
     if (line.find('task_enqueue')>0):
         slot_lines[slot] = line
-        ts = int(line[ts_loc+3:ts_loc+7], 16)
+        ts = int(line[ts_loc+3:ts_loc+11], 16)
         slot_ts[slot] = ts
         slot_seq[slot] = seq
      
     if (line.find('commit')>0):
         enqs.append([ slot_ts[slot], slot_seq[slot], slot_lines[slot]]) 
+    if (line.find('overflow')>0):
+        enqs.append([ slot_ts[slot], slot_seq[slot], slot_lines[slot]]) 
 
-enqs.sort(key=lambda tup: tup[0]*1000000 + tup[1])
+enqs.sort(key=lambda tup: tup[0]*100000000 + tup[1])
 for (ts, seq, line) in enqs:
-    if (line[95] == ' '):
-        line = line[0:94] + "     " + line[95:]
+    if (line[99+1] == ' '):
+        line = line[0:99] + "     " + line[100:]
     print("%s" % line[:-1])
     

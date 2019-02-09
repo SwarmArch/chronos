@@ -39,6 +39,8 @@ uint* edge_offset;
 uint log_global_relabel_bits;
 uint global_relabel_mask;
 
+uint src_node;
+
 // if this bit is set in the ts, it corresponds to bfs starting from src
 const int bfs_src_ts_bit = 11;
 
@@ -112,15 +114,18 @@ void discharge_start_task(uint ts, uint vid, uint enq_start, uint arg1) {
    if ((ts & global_relabel_mask) == 0) {
       uint sink = *(uint *)(ADDR_SINK_NODE);
       uint src  = *(uint *)(ADDR_SRC_NODE);
-      enq_task_arg1(GLOBAL_RELABEL_VISIT_TASK, ts, sink, 0);
-      enq_task_arg1(GLOBAL_RELABEL_VISIT_TASK, ts | (1<<bfs_src_ts_bit), src, 0);
+      if ( ((ts >> 4) & 0xf) == 0) {
+          // TILE_ID == 0
+          enq_task_arg1(GLOBAL_RELABEL_VISIT_TASK, ts, sink, 0);
+          enq_task_arg1(GLOBAL_RELABEL_VISIT_TASK, ts | (1<<bfs_src_ts_bit), src, 0);
+      }
       // reenqueue the original task
       enq_task_arg1(DISCHARGE_START_TASK, ts, vid, 0);
       return;
    }
    uint eo_begin = edge_offset[vid];
    uint eo_end = edge_offset[vid+1];
-   if (enq_start == 0 && (ts != 0x100) ) {
+   if (enq_start == 0 && (vid != src_node) ) {
       undo_log_write(&(node_prop[vid].active), node_prop[vid].active);
       undo_log_write(&(node_prop[vid].counter), node_prop[vid].counter);
       undo_log_write(&(node_prop[vid].min_neighbor_height), node_prop[vid].min_neighbor_height);
@@ -158,14 +163,14 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
    node_prop[vid].counter = --counter;
 
    int consider_for_relabelling = 1;
-   int is_init_task = ((ts >> 4) == 0x10) ;
+   int is_init_task = (vid == src_node);// ((ts >> 4) == 0x10) ;
+   uint eo_begin = edge_offset[vid];
+   int edge_capacity = edge_neighbors[eo_begin + push_to_index].capacity;
+   int edge_flow = node_prop[vid].flow[push_to_index];
    if (h == neighbor_height+1 || is_init_task) {
       // do push
-      uint eo_begin = edge_offset[vid];
-      uint edge_capacity = edge_neighbors[eo_begin + push_to_index].capacity;
-      int edge_flow = node_prop[vid].flow[push_to_index];
       uint excess = node_prop[vid].excess;
-      //enq_task_arg2(9, ts, excess, edge_capacity, edge_flow);
+      //enq_task_arg2(7, ts, vid, edge_capacity, edge_flow);
 
       uint amt = excess;
       // min(excess, (cap-flow))
@@ -180,8 +185,8 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
          enq_task_arg2(PUSH_TO_TASK, ts, edge_neighbors[eo_begin+push_to_index].dest, reverse_index, amt);
       }
 
-      consider_for_relabelling = (edge_capacity > edge_flow)? 1 : 0;
    }
+   consider_for_relabelling = (edge_capacity > edge_flow)? 1 : 0;
    uint current_min_neighbor_height;
    if (consider_for_relabelling) {
       // updater min neighbor height
@@ -201,11 +206,15 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
             current_min_neighbor_height = node_prop[vid].min_neighbor_height;
          }
          undo_log_write(&(node_prop[vid].height), h);
+         if (current_min_neighbor_height + 1 < h) {
+
+            //enq_task_arg2(9, ts, vid, current_min_neighbor_height + 1, h);
+         }
          node_prop[vid].height = current_min_neighbor_height + 1;
          enq_task_arg2(DISCHARGE_START_TASK, ts, vid, 0, ts);
 
       }
-   //enq_task_arg2(8, ts, vid, node_prop[vid].excess, node_prop[vid].height);
+      //enq_task_arg2(8, ts, vid, node_prop[vid].excess, node_prop[vid].height);
 
    }
 }
@@ -249,8 +258,15 @@ void global_relabel_visit_task(uint ts, uint vid, uint enq_start, uint reverse_e
 
          undo_log_write(&(node_prop[vid].visited), visited);
          node_prop[vid].visited = iteration_no;
-         undo_log_write(&(node_prop[vid].height), node_prop[vid].height);
-         node_prop[vid].height = ts_height_bits + (is_src_bfs ? numV : 0) ;
+         uint old_height = node_prop[vid].height;
+         undo_log_write(&(node_prop[vid].height), old_height);
+         uint new_height = ts_height_bits + (is_src_bfs ? numV : 0);
+         if (new_height < old_height) {
+
+            //enq_task_arg2(10, ts, vid, new_height, old_height);
+         }
+
+         node_prop[vid].height = new_height ;
       } else {
           return;
       }
@@ -279,10 +295,11 @@ void main() {
    edge_offset  =(uint*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
    edge_neighbors  =(edge_prop_t*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
    numV  = *(uint *)(ADDR_NUMV) ;
+   src_node  = *(uint *)(ADDR_SRC_NODE) ;
    // if more than 1 tile, host should adjust this field before sending it over
    // to the FPGA
    log_global_relabel_bits = *(uint *)(ADDR_LOG_GLOBAL_RELABEL_INTERVAL) ;
-   global_relabel_mask = ((1<<(log_global_relabel_bits+4)) - 1 ) << (TX_ID_OFFSET_BITS-4);
+   global_relabel_mask = ((1<<(log_global_relabel_bits)) - 1 ) << (TX_ID_OFFSET_BITS);
 
    while (1) {
       uint ts = *(volatile uint *)(ADDR_DEQ_TASK);
