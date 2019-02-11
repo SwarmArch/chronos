@@ -71,6 +71,18 @@ Adj* csr_neighbors;
 uint32_t* csr_dist;
 
 void addEdge(uint32_t from, uint32_t to, uint32_t cap) {
+    bool combine_edges = true;
+    if (combine_edges) {
+      for (Adj& a : graph[from].adj) {
+         if (a.n == to) {
+            a.d_cm = cap;
+            graph[to].adj[a.index].d_cm = cap;
+            return;
+         }
+      }
+
+    }
+
     // Push edge to _graph[node]
     Adj adj_from = {to, cap, (uint32_t) graph[to].adj.size()};
     graph[from].adj.push_back(adj_from);
