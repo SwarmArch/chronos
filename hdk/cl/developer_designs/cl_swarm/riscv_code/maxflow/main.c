@@ -251,9 +251,9 @@ void global_relabel_visit_task(uint ts, uint vid, uint enq_start, uint reverse_e
          // exit if reverse edge is not residual but not if this is the first
          // node in the bfs
          if ( ts_height_bits > 0) {
-            int cap = edge_neighbors[edge_offset[vid] + reverse_edge_id].capacity;
-            int flow = node_prop[vid].flow[reverse_edge_id];
-            if (cap <= flow) return;
+            //int cap = edge_neighbors[edge_offset[vid] + reverse_edge_id].capacity;
+            //int flow = node_prop[vid].flow[reverse_edge_id];
+            //if (cap <= flow) return;
          }
 
          undo_log_write(&(node_prop[vid].visited), visited);
@@ -283,7 +283,13 @@ void global_relabel_visit_task(uint ts, uint vid, uint enq_start, uint reverse_e
 
    for (int i = eo_begin; i < eo_end; i++) {
       uint neighbor = edge_neighbors[i].dest;
-      enq_task_arg2(GLOBAL_RELABEL_VISIT_TASK, ts + 1, neighbor, 0, edge_neighbors[i].reverse_index);
+      uint reverse_index = edge_neighbors[i].reverse_index;
+      int cap = edge_neighbors[edge_offset[neighbor] + reverse_index].capacity;
+      int flow = - (node_prop[vid].flow[i-eo_begin]);
+      if (cap > flow) {
+         enq_task_arg2(GLOBAL_RELABEL_VISIT_TASK, ts + 1,
+                 neighbor, 0, edge_neighbors[i].reverse_index);
+      }
    }
 
 }
