@@ -248,21 +248,23 @@ module task_unit
 
    logic heap_clean_enq;
    logic heap_clean_deq;
+
+   logic unused_bit;
    
    min_heap #(
       .N_STAGES(TQ_STAGES),
-      .PRIORITY_WIDTH(TS_WIDTH),
+      .PRIORITY_WIDTH(TS_WIDTH+1),
       .DATA_WIDTH(LOG_TQ_SIZE+ EPOCH_WIDTH +1)
    ) HEAP (
       .clk(clk),
       .rstn(rstn),
 
-      .in_ts(reg_next_insert_elem.ts),
+      .in_ts({reg_next_insert_elem.ts, reg_next_insert_elem.splitter}),
       .in_data( {reg_next_insert_elem.slot, reg_next_insert_elem.splitter, reg_next_insert_elem.epoch} ),
       .in_op(heap_in_op),
       .ready(heap_ready),
 
-      .out_ts(next_deque_elem.ts), // unused 
+      .out_ts({next_deque_elem.ts, unused_bit}),  
       .out_data( {next_deque_elem.slot, next_deque_elem.splitter, next_deque_elem.epoch} ),
       .out_valid(heap_out_valid),
    
