@@ -60,7 +60,7 @@ package swarm;
    parameter EPOCH_WIDTH = 8;
    parameter LOG_TSB_SIZE = 4;
    parameter LOG_CHILDREN_PER_TASK = 3;
-   parameter LOG_UNDO_LOG_ENTRIES_PER_TASK = 2;
+   parameter LOG_UNDO_LOG_ENTRIES_PER_TASK = 3;
 
    parameter TB_WIDTH = 32; // tiebreaker width;
    parameter LOG_GVT_PERIOD = 4; // 16 cycles

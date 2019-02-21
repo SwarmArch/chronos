@@ -592,6 +592,9 @@ void WriteOutputMaxflow(FILE* fp) {
    uint32_t log_global_relabel_interval = (int) (round(log2(numV))); // closest_power_of_2(numV)
    if (log_global_relabel_interval < 5) log_global_relabel_interval = 5;
 
+   uint32_t global_relabel_mask = ((1<<log_global_relabel_interval) -1 ) << 8;
+   uint32_t iteration_no_mask = ~((1<< (log_global_relabel_interval + 8))-1);
+
    data[0] = MAGIC_OP;
    data[1] = numV;
    data[2] = numE;
@@ -603,19 +606,19 @@ void WriteOutputMaxflow(FILE* fp) {
    data[8] = BASE_END;
    data[9] = endNode;
    data[10] = log_global_relabel_interval;
+   data[11] = global_relabel_mask;
+   data[12] = iteration_no_mask;
 
 
-   for (int i=0;i<11;i++) {
-      printf("header %d: %d\n", i, data[i]);
+   for (int i=0;i<13;i++) {
+      printf("header %d: %x\n", i, data[i]);
    }
    //todo ground truth
 
    for (uint32_t i=0;i<numV;i++) {
       data[BASE_EDGE_OFFSET +i] = csr_offset[i];
       data[BASE_GROUND_TRUTH +i] = csr_dist[i];
-      if (csr_offset[i+1] - csr_offset[i] > 10) {
-        printf("Node %d n_edges %d\n", i, csr_offset[i+1]-csr_offset[i]);
-      }
+      printf("Node %d n_edges %d %d\n", i, csr_offset[i], csr_offset[i+1]-csr_offset[i]);
       for (int j=0;j<16;j++) {
          data[BASE_DIST +i * 4 + j] = 0;
       }
@@ -627,17 +630,19 @@ void WriteOutputMaxflow(FILE* fp) {
    for (Adj e : graph[startNode].adj) {
       startNodeExcess += e.d_cm;
    }
-   data[BASE_DIST + startNode*16 +0 ] = numV; // height
-   data[BASE_DIST + startNode*16 +1 ] = startNodeExcess;
+   data[BASE_DIST + startNode*16 +0 ] = startNodeExcess;
+   data[BASE_DIST + startNode*16 +1 ] = 1;
    data[BASE_DIST + startNode*16 +2 ] = csr_offset[startNode+1] - csr_offset[startNode];
-   data[BASE_DIST + startNode*16 +3 ] = 1;
-   data[BASE_DIST + endNode*16 +3 ] = 1;
+   data[BASE_DIST + startNode*16 +4 ] = numV; // height
+   data[BASE_DIST + endNode*16 +1 ] = 1;
    printf("StartNodeExcess %d\n", startNodeExcess);
 
    for (uint32_t i=0;i<numE;i++) {
       data[ BASE_NEIGHBORS +i*4 ] = csr_neighbors[i].n;
       data[ BASE_NEIGHBORS +i*4+1 ] = csr_neighbors[i].d_cm;
       data[ BASE_NEIGHBORS +i*4+2 ] = csr_neighbors[i].index;
+      printf("edge %d: %d %d %d \t%x\n",i, csr_neighbors[i].n, csr_neighbors[i].d_cm,
+               csr_neighbors[i].index, (BASE_NEIGHBORS +i*4)*4);
    }
    printf("Writing file \n");
    for (int i=0;i<BASE_END;i++) {
@@ -701,7 +706,7 @@ int main(int argc, char *argv[]) {
       LoadGraph(argv[3]);
       int strStart = 0;
       // strip out filename from path
-      for (uint32_t i=0;i<strlen(argv[2]);i++) {
+      for (uint32_t i=0;i<strlen(argv[3]);i++) {
          if (argv[3][i] == '/') strStart = i+1;
       }
       sprintf(out_file, "%s.%s", argv[3] +strStart, ext);

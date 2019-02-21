@@ -411,7 +411,7 @@ end
       ocl_addr[15:8] = ID_ALL_CORES;
       ocl_addr [7:0] = CORE_START;
       ocl_data = '1;
-      //ocl_data = 32'h183;
+      //ocl_data = 32'h203;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
       #1us;
@@ -544,6 +544,20 @@ if (APP_NAME == "astar") begin
             dist_actual == dist_ref ? "MATCH" : "FAIL", num_errors); 
    end
 end
+if (APP_NAME == "maxflow") begin
+   ocl_addr[31:8] = 0;
+   ocl_addr[7:0] = OCL_ACCESS_MEM_SET_MSB;
+   tb.poke(.addr(ocl_addr), .data(0),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[7:0] = OCL_ACCESS_MEM_SET_LSB;
+   ocl_data = (file[5]+ file[9]*16)*4;      
+   tb.poke(.addr(ocl_addr), .data(ocl_data),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   ocl_addr[7:0] = OCL_ACCESS_MEM;
+   tb.peek(.addr(ocl_addr), .data(ocl_data),
+          .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   $display("vid:%3d flow:%d", file[9], ocl_data);
+end
 /* 
    for (int tile=0;tile<N_TILES;tile++) begin
       $display("Tile %d", tile);
@@ -610,7 +624,7 @@ end
 
    end
 
-   $display("Target Node %4d, dist:%4d", target_node, file[ file[6] + target_node] ); 
+   //$display("Target Node %4d, dist:%4d", target_node, file[ file[6] + target_node] ); 
 
    $finish;
 end

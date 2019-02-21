@@ -30,7 +30,8 @@ for line in f:
     if (line.find('going') >=0):
         print(line)
         continue
-    seq = int(line[1:7])
+    #seq = int(line[1:7])
+    seq = i
     slot_loc = line.find('slot:')
     ts_loc = line.find('ts:')
     if (slot_loc >0):

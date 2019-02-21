@@ -2,7 +2,8 @@ const int ADDR_BASE_DATA         = 5 << 2;
 const int ADDR_BASE_EDGE_OFFSET  = 3 << 2;
 const int ADDR_BASE_NEIGHBORS    = 4 << 2;
 const int ADDR_NUMV              = 1 << 2;
-const int ADDR_LOG_GLOBAL_RELABEL_INTERVAL = 10 << 2;
+const int ADDR_GLOBAL_RELABEL_MASK = 10 << 2;
+const int ADDR_ITERATION_MASK = 11 << 2;
 const int ADDR_SRC_NODE = 7 << 2;
 const int ADDR_SINK_NODE = 9 << 2;
 
@@ -36,8 +37,8 @@ typedef unsigned int uint;
 
 uint* edge_offset;
 
-uint log_global_relabel_bits;
 uint global_relabel_mask;
+uint iteration_mask;
 
 uint src_node;
 
@@ -47,14 +48,14 @@ const int bfs_src_ts_bit = 11;
 uint numV;
 
 typedef struct {
-   uint height;
    uint excess;
-   uint counter;
    uint active;
-   uint visited;
+   uint counter;
    uint min_neighbor_height;
+   uint height;
+   uint visited;
    // flows of outgoing neighbors. This is in node_prop because
-   // it is odified by tasks that access src node
+   // it is modified by tasks that access src node
    int flow[10];
 } node_prop_t;
 node_prop_t* node_prop;
@@ -176,13 +177,13 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
       // min(excess, (cap-flow))
       if (amt > (edge_capacity - edge_flow)) amt = (edge_capacity - edge_flow);
       if (amt > 0) {
+         uint reverse_index = edge_neighbors[eo_begin + push_to_index].reverse_index;
+         enq_task_arg2(PUSH_TO_TASK, ts, edge_neighbors[eo_begin+push_to_index].dest, reverse_index, amt);
          undo_log_write(&(node_prop[vid].flow[push_to_index]), edge_flow);
          edge_flow += amt;
          node_prop[vid].flow[push_to_index] = edge_flow;
          undo_log_write(&(node_prop[vid].excess), excess);
          node_prop[vid].excess = excess - amt;
-         uint reverse_index = edge_neighbors[eo_begin + push_to_index].reverse_index;
-         enq_task_arg2(PUSH_TO_TASK, ts, edge_neighbors[eo_begin+push_to_index].dest, reverse_index, amt);
       }
 
    }
@@ -240,7 +241,7 @@ void push_to_task(uint ts, uint vid, uint reverse_index, uint amt) {
 void global_relabel_visit_task(uint ts, uint vid, uint enq_start, uint reverse_edge_id) {
 
    uint visited = node_prop[vid].visited;
-   uint iteration_no = ts >> (TX_ID_OFFSET_BITS + log_global_relabel_bits);
+   uint iteration_no = ts & iteration_mask;
    uint is_src_bfs = (ts >> (bfs_src_ts_bit) & 1);
    uint ts_height_bits = ts & (( 1<< bfs_src_ts_bit )-1);
 
@@ -304,8 +305,8 @@ void main() {
    src_node  = *(uint *)(ADDR_SRC_NODE) ;
    // if more than 1 tile, host should adjust this field before sending it over
    // to the FPGA
-   log_global_relabel_bits = *(uint *)(ADDR_LOG_GLOBAL_RELABEL_INTERVAL) ;
-   global_relabel_mask = ((1<<(log_global_relabel_bits)) - 1 ) << (TX_ID_OFFSET_BITS);
+   global_relabel_mask = *(uint *)(ADDR_GLOBAL_RELABEL_MASK) ;
+   iteration_mask = *(uint *)(ADDR_ITERATION_MASK) ;
 
    while (1) {
       uint ts = *(volatile uint *)(ADDR_DEQ_TASK);

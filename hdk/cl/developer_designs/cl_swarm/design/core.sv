@@ -86,6 +86,7 @@ logic        task_out_ready;
 logic [TQ_WIDTH-1:0] task_out_data;
 
 logic        app_undo_log_valid;
+logic        app_undo_log_ready;
 logic [63:0] app_undo_log_data;
 
 core_state_t state, state_next;
@@ -97,9 +98,6 @@ logic abort_running_task_q;
 
 child_id_t child_id;
 assign finish_task_num_children = child_id;
-
-assign ap_done = 1'b0;
-assign ap_idle = 1'b0;
 
 cq_slice_slot_t cq_slot;
 always_ff @(posedge clk) begin
@@ -252,14 +250,16 @@ end
 always_ff @(posedge clk) begin
    if (state == NEXT_TASK) begin
       if (task_arvalid & task_rvalid) begin
-         $display("[%5d][tile-%2d][core-%2d] dequeue_task: ts:%5d  vid:%5d  args:%4x  slot:%3d",
-            cycle, TILE_ID, CORE_ID, task_rdata.ts, task_rdata.hint, task_rdata.args, task_rslot);
+         $display("[%5d][tile-%2d][core-%2d] dequeue_task: ts:%5x  hint:%5x ttype:%2d args:(%4d, %4d) slot:%3d",
+            cycle, TILE_ID, CORE_ID, task_rdata.ts, task_rdata.hint, task_rdata.ttype,
+            task_rdata.args[63:32], task_rdata.args[31:0], task_rslot);
       end
    end
 
    if (task_wvalid & task_wready) begin
-         $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5d  vid:%5d  args:%4x",
-            cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.hint, task_wdata.args);
+         $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5x  hint:%5x ttype:%2d args:(%4d, %4d)",
+            cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.hint, task_wdata.ttype,
+            task_wdata.args[63:32], task_wdata[31:0]);
    end
    if (abort_running_task & !abort_running_task_q) begin
          $display("[%5d][tile-%2d][core-%2d] \tabort running task", 
@@ -390,7 +390,7 @@ always_ff @(posedge clk) begin
       undo_log_addr <= 'x;
       undo_log_data <= 'x;
    end else begin
-      if (app_undo_log_valid) begin
+      if (app_undo_log_valid & app_undo_log_ready) begin
          undo_log_valid <= 1'b1;
          {undo_log_data, undo_log_addr} <= app_undo_log_data;
       end else if (undo_log_ready) begin
@@ -398,6 +398,7 @@ always_ff @(posedge clk) begin
       end
    end
 end
+assign app_undo_log_ready = !undo_log_valid;
 always_ff @(posedge clk) begin
    if (!rstn) begin
       undo_log_id <= 0;

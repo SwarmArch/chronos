@@ -1025,29 +1025,32 @@ module task_unit
 
       always_ff @(posedge clk) begin
          if (task_enq_valid & task_enq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_enqueue slot:%4d ts:%4d hint:%4d tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_enqueue slot:%4d ts:%8x hint:%8x ttype:%1x args:(%4d %4d) tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, next_free_tq_slot, 
-               modified_task_enq_ts, task_enq_data.hint, task_enq_tied, task_enq_ack,
+               modified_task_enq_ts, task_enq_data.hint, 
+               task_enq_data.ttype,
+               task_enq_data.args[63:32], task_enq_data[31:0],
+               task_enq_tied, task_enq_ack,
                task_enq_resp_tile, task_enq_resp_tsb_id
             ) ;
          end
          if (coal_child_valid & coal_child_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) coal_child   slot:%4d ts:%4d hint:%4d \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) coal_child   slot:%4d ts:%8x hint:%8x \n",
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, next_free_tq_slot,
                coal_child_data.ts, coal_child_data.hint) ;
          end
          if (overflow_valid & overflow_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) overflow     slot:%4d ts:%4d hint:%4d \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) overflow     slot:%4d ts:%8x hint:%8x \n",
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, add_free_tq_slot,
                overflow_data.ts, overflow_data.hint) ;
          end
          if (task_deq_valid & task_deq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_deq     slot:%4d ts:%4d hint:%4d cq_slot:%2d\n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_deq     slot:%4d ts:%8x hint:%8x cq_slot:%2d\n",
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, task_deq_tq_slot,
                task_deq_data.ts, task_deq_data.hint, task_deq_cq_slot) ;
          end
          if (splitter_deq_valid & splitter_deq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) splitter_deq slot:%4d ts:%4d hint:%4d \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) splitter_deq slot:%4d ts:%8x hint:%8x \n",
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, splitter_deq_slot,
                splitter_deq_task.ts, splitter_deq_task.hint ) ;
          end
