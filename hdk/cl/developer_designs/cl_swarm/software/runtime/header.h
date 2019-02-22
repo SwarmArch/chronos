@@ -176,7 +176,7 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t);
 int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t);
 int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
-void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size);
+void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size, uint32_t tile_id);
 
 void init_params();
 void pci_poke(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t data);
@@ -217,4 +217,23 @@ extern uint16_t pci_device_id; /* PCI Device ID preassigned by Amazon for F1 app
 #define APP_COLOR 4
 #define APP_MAXFLOW 5
 #define APP_LAST 6
+
+typedef struct {
+   uint excess;
+   uint active;
+   uint counter;
+   uint min_neighbor_height;
+   uint height;
+   uint visited;
+   // flows of outgoing neighbors. This is in node_prop because
+   // it is odified by tasks that access src node
+   int flow[10];
+} maxflow_node_prop_t;
+
+typedef struct {
+   uint dest;
+   uint capacity;
+   uint reverse_index; // in the destination's edge list
+   uint __aligned__;
+} maxflow_edge_prop_t;
 #endif

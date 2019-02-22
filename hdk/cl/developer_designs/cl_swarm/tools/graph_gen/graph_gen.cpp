@@ -618,7 +618,7 @@ void WriteOutputMaxflow(FILE* fp) {
    for (uint32_t i=0;i<numV;i++) {
       data[BASE_EDGE_OFFSET +i] = csr_offset[i];
       data[BASE_GROUND_TRUTH +i] = csr_dist[i];
-      printf("Node %d n_edges %d %d\n", i, csr_offset[i], csr_offset[i+1]-csr_offset[i]);
+      //printf("Node %d n_edges %d %d\n", i, csr_offset[i], csr_offset[i+1]-csr_offset[i]);
       for (int j=0;j<16;j++) {
          data[BASE_DIST +i * 4 + j] = 0;
       }
@@ -641,8 +641,8 @@ void WriteOutputMaxflow(FILE* fp) {
       data[ BASE_NEIGHBORS +i*4 ] = csr_neighbors[i].n;
       data[ BASE_NEIGHBORS +i*4+1 ] = csr_neighbors[i].d_cm;
       data[ BASE_NEIGHBORS +i*4+2 ] = csr_neighbors[i].index;
-      printf("edge %d: %d %d %d \t%x\n",i, csr_neighbors[i].n, csr_neighbors[i].d_cm,
-               csr_neighbors[i].index, (BASE_NEIGHBORS +i*4)*4);
+      //printf("edge %d: %d %d %d \t%x\n",i, csr_neighbors[i].n, csr_neighbors[i].d_cm,
+      //         csr_neighbors[i].index, (BASE_NEIGHBORS +i*4)*4);
    }
    printf("Writing file \n");
    for (int i=0;i<BASE_END;i++) {

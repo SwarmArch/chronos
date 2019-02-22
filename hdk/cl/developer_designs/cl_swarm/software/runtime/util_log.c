@@ -42,8 +42,8 @@ int log_sssp_core(pci_bar_handle_t pci_bar_handle, int fd, int cid, FILE* fw) {
    return 0;
 }
 
-uint32_t last_gvt_ts = 0;
-uint32_t last_gvt_tb = 0;
+uint32_t last_gvt_ts[] = {0, 0, 0, 0};
+uint32_t last_gvt_tb[] = {0, 0, 0, 0};
 
 int log_task_unit(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID_TASK_UNIT) {
 
@@ -69,7 +69,7 @@ int log_task_unit(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned ch
             (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
             cl_addr);
       read_offset += rc;
-      write_task_unit_log(log_buffer, fw, rc/64);
+      write_task_unit_log(log_buffer, fw, rc/64, ID_TASK_UNIT >> 8);
    }
 
    //write_task_unit_log(log_buffer, fw, log_size);
@@ -94,7 +94,7 @@ void fill_msg_type(struct msg_type_t * msg, unsigned int data) {
    msg->epoch_2 = (data >> 0) & 0xff;
 }
 
-void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size) {
+void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size, uint32_t tile_id) {
    unsigned int* buf = (unsigned int*) log_buffer;
    struct msg_type_t commit_task, abort_child, abort_task, cut_ties;
    struct msg_type_t deq_task, overflow_task, enq_task, coal_child;
@@ -129,12 +129,12 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size)
 
         unsigned int gvt_ts = buf[i*16+14];
         unsigned int gvt_tb = buf[i*16+15];
-        if ( (gvt_ts < last_gvt_ts) ||
-                ((gvt_ts == last_gvt_ts) & (gvt_tb < last_gvt_tb))) {
+        if ( (gvt_ts < last_gvt_ts[tile_id]) ||
+                ((gvt_ts == last_gvt_ts[tile_id]) & (gvt_tb < last_gvt_tb[tile_id]))) {
             fprintf (fw,"GVT going back\n");
         }
-        last_gvt_ts = gvt_ts;
-        last_gvt_tb = gvt_tb;
+        last_gvt_ts[tile_id] = gvt_ts;
+        last_gvt_tb[tile_id] = gvt_tb;
 
         enq_task.valid = 0;
         coal_child.valid = 0;
@@ -168,7 +168,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size)
          }
 
          if (coal_child.valid & coal_child.ready) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) coal_child   slot:%4d ts:%4x hint:%4d \n",
+            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) coal_child   slot:%4d ts:%4x hint:%4x \n",
                seq, cycle,
                gvt_ts, gvt_tb,
                n_tasks, n_tied_tasks, heap_capacity,
@@ -189,7 +189,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size)
                deq_task.slot, deq_ts, deq_hint, deq_task.epoch_1, deq_task.epoch_2) ;
          }
          if (splitter_deq_valid & splitter_deq_ready) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) splitter_deq slot:%4d hint:%4d cq_slot %2d, epoch:%3d \n",
+            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) splitter_deq slot:%4d hint:%4x cq_slot %2d, epoch:%3d \n",
                seq, cycle,
                gvt_ts, gvt_tb,
                n_tasks, n_tied_tasks, heap_capacity,
@@ -295,48 +295,46 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t ID_L2)
                 );
        }
    }
+   free(log_buffer);
    return 0;
 }
 
 int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t ID_SPLITTER) {
 
-   uint32_t log_size;
-   fpga_pci_peek(pci_bar_handle, (ID_SPLITTER << 8) + (DEBUG_CAPACITY), &log_size );
-   printf("Splitter log size %d\n", log_size);
-   if (log_size > 17000) return 1;
+    uint32_t log_size;
+    fpga_pci_peek(pci_bar_handle, (ID_SPLITTER << 8) + (DEBUG_CAPACITY), &log_size );
+    printf("Splitter log size %d\n", log_size);
+    if (log_size > 17000) return 1;
 
-   unsigned char* log_buffer;
-   log_buffer = (unsigned char *)malloc(log_size*64);
+    unsigned char* log_buffer;
+    log_buffer = (unsigned char *)malloc(log_size*64);
 
-   unsigned int read_offset = 0;
-   unsigned int read_len = log_size * 64;
-   unsigned int rc;
-   uint64_t cl_addr = (1L<<36) + (ID_SPLITTER << 20);
-   while (read_offset < read_len) {
-      if (read_offset != 0) {
-         printf("Partial read by driver, trying again with remainder of buffer (%u bytes)\n",
-               read_len - read_offset);
-      }
-      rc = pread(fd,
-            log_buffer + read_offset,
-            (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
-            cl_addr);
-      read_offset += rc;
-   }
-   unsigned int* buf = (unsigned int*) log_buffer;
-   for (int i=0;i<log_size;i++) {
-        unsigned int seq = buf[i*16 + 0];
-        unsigned int cycle = buf[i*16 + 1];
-        unsigned int scratchpad_entry = buf[i*16+2] & 0xffff;
-        unsigned int coal_id = buf[i*16+2]>>16;
-        unsigned int num_deq = buf[i*16+3];
+    unsigned int read_offset = 0;
+    unsigned int read_len = log_size * 64;
+    unsigned int rc;
+    uint64_t cl_addr = (1L<<36) + (ID_SPLITTER << 20);
+    while (read_offset < read_len) {
+        rc = pread(fd,
+                log_buffer,// + read_offset,
+                (read_len - read_offset) > 512 ? 512 : (read_len-read_offset),
+                cl_addr);
+        read_offset += rc;
+        unsigned int* buf = (unsigned int*) log_buffer;
+        for (int i=0;i<rc/64;i++) {
+            unsigned int seq = buf[i*16 + 0];
+            unsigned int cycle = buf[i*16 + 1];
+            unsigned int scratchpad_entry = buf[i*16+2] & 0xffff;
+            unsigned int coal_id = buf[i*16+2]>>16;
+            unsigned int num_deq = buf[i*16+3];
 
-        fprintf(fw, "[%6d][%12u][%6d] coal_id:%4d entry:%8x \n",
-                seq, cycle,
-                num_deq, coal_id,  scratchpad_entry
-            );
-   }
-   return 0;
+            fprintf(fw, "[%6d][%12u][%6d] coal_id:%4x entry:%8x \n",
+                    seq, cycle,
+                    num_deq, coal_id,  scratchpad_entry
+                   );
+        }
+    }
+    free(log_buffer);
+    return 0;
 }
 
 int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID_CQ) {

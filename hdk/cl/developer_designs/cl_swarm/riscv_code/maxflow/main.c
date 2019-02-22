@@ -2,8 +2,8 @@ const int ADDR_BASE_DATA         = 5 << 2;
 const int ADDR_BASE_EDGE_OFFSET  = 3 << 2;
 const int ADDR_BASE_NEIGHBORS    = 4 << 2;
 const int ADDR_NUMV              = 1 << 2;
-const int ADDR_GLOBAL_RELABEL_MASK = 10 << 2;
-const int ADDR_ITERATION_MASK = 11 << 2;
+const int ADDR_GLOBAL_RELABEL_MASK = 11 << 2;
+const int ADDR_ITERATION_MASK = 12 << 2;
 const int ADDR_SRC_NODE = 7 << 2;
 const int ADDR_SINK_NODE = 9 << 2;
 
