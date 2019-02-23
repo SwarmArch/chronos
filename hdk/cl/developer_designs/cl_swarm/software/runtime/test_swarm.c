@@ -181,30 +181,6 @@ int main(int argc, char **argv) {
             break;
     }
     return 0;
-    printf("===== Starting with peek_poke_example =====\n");
-    rc = test_task_unit(slot_id, FPGA_APP_PF, APP_PF_BAR0);
-    //rc = peek_poke_example(slot_id, FPGA_APP_PF, APP_PF_BAR0);
-    fail_on(rc, out, "peek-poke example failed");
-
-
-    printf("Developers are encourged to modify the Virtual DIP Switch by calling the linux shell command to demonstrate how AWS FPGA Virtual DIP switches can be used to change a CustomLogic functionality:\n");
-    printf("$ fpga-set-virtual-dip-switch -S (slot-id) -D (16 digit setting)\n\n");
-    printf("In this example, setting a virtual DIP switch to zero clears the corresponding LED, even if the peek-poke example would set it to 1.\nFor instance:\n");
-
-    printf(
-            "# fpga-set-virtual-dip-switch -S 0 -D 1111111111111111\n"
-            "# fpga-get-virtual-led  -S 0\n"
-            "FPGA slot id 0 have the following Virtual LED:\n"
-            "1010-1101-1101-1110\n"
-            "# fpga-set-virtual-dip-switch -S 0 -D 0000000000000000\n"
-            "# fpga-get-virtual-led  -S 0\n"
-            "FPGA slot id 0 have the following Virtual LED:\n"
-            "0000-0000-0000-0000\n"
-          );
-
-
-    return rc;
-
 
 out:
     return 1;
@@ -525,7 +501,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     uint32_t log_active_tiles = 0;
 
     bool task_unit_logging_on = false;
-    task_unit_logging_on = true;
+    //task_unit_logging_on = true;
 
     assert(spill_threshold > (tied_cap + (1<<LOG_CQ_SIZE) + spill_size));
     assert((spill_size % 8) == 0);
@@ -783,7 +759,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        }
        if (task_unit_logging_on) {
            usleep(200);
-           if (iters < 100000 & iters >= 0) {
+           if (iters < 100000 && iters >= 0) {
                log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer,
                        ID_TASK_UNIT);
                if (log_active_tiles > 0) {
@@ -862,9 +838,10 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                for (int i=0;i <numV;i++) {
                    uint32_t node_addr = (headers[5] + i *16) * 4;
                    uint32_t node_tile = (i>>4)&((1<<log_active_tiles) -1) ;
-                   int32_t excess, height;
+                   int32_t excess;
+                   uint32_t height;
                    pci_poke(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr);
-                   pci_peek(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM, &excess);
+                   pci_peek(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM,(uint32_t*) &excess);
                    pci_poke(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB , node_addr+ 16);
                    pci_peek(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM, &height);
                    fprintf(fpa, "node:%3d excess:%3d height:%3d %s\n",
@@ -874,11 +851,11 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                    for (int j=eo_begin;j<eo_end;j++) {
                         uint32_t n = csr_neighbors[j*4];
                         uint32_t cap = csr_neighbors[j*4+1];
-                        int flow;
+                        int32_t flow;
                         pci_poke(node_tile, ID_OCL_SLAVE,
                                 OCL_ACCESS_MEM_SET_LSB ,
                             node_addr+ (6 + (j-eo_begin))*4);
-                        pci_peek(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM, &flow);
+                        pci_peek(node_tile, ID_OCL_SLAVE, OCL_ACCESS_MEM,(uint32_t*) &flow);
                         fprintf(fpa, "\t%5d cap:%8d flow:%8d\n %s",
                                 n, cap, flow, cap<flow ? "overflow":"");
                    }
@@ -1166,11 +1143,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB ,
                        (headers[5] +j)*4);
                pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM,
-                       write_buffer + (headers[5]+j)*4);
+                       (uint32_t*)(write_buffer + (headers[5]+j)*4));
            }
            for (int i=0;i <numV;i++) {
-               uint32_t node_addr = (headers[5] + i *16) * 4;
-               uint32_t excess, height;
                fprintf(mf_state, "node:%3d excess:%3d height:%3d %s\n",
                        i, nodes[i].excess, nodes[i].height,
                        (nodes[i].excess>0)?"inflow" : "");
@@ -1270,7 +1245,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 int dma_example(int slot_id) {
     int write_fd, read_fd, rc;
     char device_file_name[256];
-    char *write_buffer, *read_buffer;
+    uint8_t *write_buffer, *read_buffer;
     static const size_t buffer_size = 128;
     int channel=0;
 
@@ -1293,14 +1268,14 @@ int dma_example(int slot_id) {
             /*channel*/ 0, /*is_read*/ false);
     fail_on((rc = (write_fd < 0) ? -1 : 0), out, "unable to open write dma queue");
 
-    write_buffer = (char *)malloc(buffer_size);
-    read_buffer = (char *)malloc(buffer_size);
+    write_buffer = (uint8_t *)malloc(buffer_size);
+    read_buffer = (uint8_t *)malloc(buffer_size);
     if (write_buffer == NULL || read_buffer == NULL) {
         rc = ENOMEM;
         goto out;
     }
 
-    rand_string(write_buffer, buffer_size);
+    rand_string((char*) write_buffer, buffer_size);
     rc = fpga_dma_burst_write(write_fd, write_buffer, buffer_size,
             0);
 
@@ -1311,7 +1286,7 @@ int dma_example(int slot_id) {
      */
 
 
-    rc = fpga_dma_burst_read(read_fd, read_buffer, buffer_size,0);
+    rc = fpga_dma_burst_read(read_fd, read_buffer, buffer_size, 0);
 
     if (memcmp(write_buffer, read_buffer, buffer_size) == 0) {
         printf("DRAM DMA read the same string as it wrote on channel %d (it worked correctly!)\n", channel);
