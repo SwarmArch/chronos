@@ -384,6 +384,7 @@ package swarm;
    parameter SERIALIZER_CAN_TAKE_REQ_1 = 8'h34;
    parameter SERIALIZER_CAN_TAKE_REQ_2 = 8'h38;
    parameter SERIALIZER_CAN_TAKE_REQ_3 = 8'h3c;
+   parameter SERIALIZER_SIZE_CONTROL = 8'h40;
 
    parameter CQ_HINT_DATA_BASE_ADDR = 8'h10;
    

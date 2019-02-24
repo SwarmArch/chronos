@@ -43,12 +43,15 @@ module conflict_serializer #(
    
    localparam LOG_N_CORES = $clog2(NUM_CORES);
 
-   localparam LOG_READY_LIST_SIZE = 3;
+   localparam LOG_READY_LIST_SIZE = 5;
    localparam READY_LIST_SIZE = 2**LOG_READY_LIST_SIZE;
 
    logic [LOG_N_CORES-1:0] reg_core_id;
    logic reg_valid;
    logic [LOG_READY_LIST_SIZE-1:0] reg_task_select, task_select;
+
+   // runtime configurable parameter on ready list
+   logic [LOG_READY_LIST_SIZE-1:0] ready_list_size_control;
 
    hint_t [NUM_CORES-1:0] running_task_hint; // Hint of the current task running on each core.
                                     // Packed array because all entries are
@@ -265,7 +268,7 @@ module conflict_serializer #(
          ready_list_size <= ready_list_size + ready_list_size_inc - ready_list_size_dec;
       end
    end
-   assign almost_full = (ready_list_size >= READY_LIST_SIZE - 4);
+   assign almost_full = (ready_list_size >= ready_list_size_control);
    
    
    generate
@@ -316,12 +319,21 @@ logic [LOG_LOG_DEPTH:0] log_size;
                {can_take_request[11], can_take_request[10], can_take_request[ 9], can_take_request[ 8]};
             SERIALIZER_CAN_TAKE_REQ_3 : reg_bus.rdata <=
                {can_take_request[15], can_take_request[14], can_take_request[13], can_take_request[12]};
-            // can_take_request;
-            // ready_list_valid, ready_list_conflict
-            // reg_valid, reg_core_id
+            SERIALIZER_SIZE_CONTROL : reg_bus.rdata <= ready_list_size;
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;
+      end
+   end
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         ready_list_size_control <= READY_LIST_SIZE - 8;
+      end else begin
+         if (reg_bus.wvalid) begin
+            case (reg_bus.waddr) 
+               SERIALIZER_SIZE_CONTROL : ready_list_size_control <= reg_bus.wdata;
+            endcase
+         end
       end
    end
 
@@ -339,8 +351,9 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       logic [3:0] s_rdata_ttype;
       logic finished_task_valid;
       logic [4:0] finished_task_core;
-      logic [7:0] ready_list_valid;
-      logic [7:0] ready_list_conflict;
+      logic [15:0] unused_1;
+      logic [31:0] ready_list_valid;
+      logic [31:0] ready_list_conflict;
 
       logic [31:0] m_ts;
       logic [31:0] m_hint;
@@ -349,8 +362,8 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       logic [5:0] m_cq_slot;
       logic m_valid;
       logic m_ready;
-      logic [7:0] finished_task_hint_match;
-      logic [11:0] unused_2;
+      logic [15:0] finished_task_hint_match;
+      logic [3:0] unused_2;
       
    
       
@@ -389,7 +402,7 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
    log #(
       .WIDTH($bits(log_word)),
       .LOG_DEPTH(LOG_LOG_DEPTH)
-   ) TASK_UNIT_LOG (
+   ) SERIALIZER_LOG (
       .clk(clk),
       .rstn(rstn),
 
