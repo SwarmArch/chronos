@@ -179,12 +179,12 @@ void push_from_task(uint ts, uint vid, uint neighbor_height, uint arg1) {
       if (amt > (edge_capacity - edge_flow)) amt = (edge_capacity - edge_flow);
       if (amt > 0) {
          uint reverse_index = edge_neighbors[eo_begin + push_to_index].reverse_index;
-         enq_task_arg2(PUSH_TO_TASK, ts, edge_neighbors[eo_begin+push_to_index].dest, reverse_index, amt);
          undo_log_write(&(node_prop[vid].flow[push_to_index]), edge_flow);
          edge_flow += amt;
          node_prop[vid].flow[push_to_index] = edge_flow;
          undo_log_write(&(node_prop[vid].excess), excess);
          node_prop[vid].excess = excess - amt;
+         enq_task_arg2(PUSH_TO_TASK, ts, edge_neighbors[eo_begin+push_to_index].dest, reverse_index, amt);
       }
 
    }
