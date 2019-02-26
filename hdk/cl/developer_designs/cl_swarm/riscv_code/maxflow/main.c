@@ -37,6 +37,7 @@ typedef unsigned int uint;
 
 uint* edge_offset;
 
+uint log_global_relabel_bits;
 uint global_relabel_mask;
 uint iteration_mask;
 
@@ -241,7 +242,7 @@ void push_to_task(uint ts, uint vid, uint reverse_index, uint amt) {
 void global_relabel_visit_task(uint ts, uint vid, uint enq_start, uint reverse_edge_id) {
 
    uint visited = node_prop[vid].visited;
-   uint iteration_no = ts & iteration_mask;
+   uint iteration_no = ts >> (TX_ID_OFFSET_BITS + log_global_relabel_bits);
    uint is_src_bfs = (ts >> (bfs_src_ts_bit) & 1);
    uint ts_height_bits = ts & (( 1<< bfs_src_ts_bit )-1);
 
@@ -305,8 +306,12 @@ void main() {
    src_node  = *(uint *)(ADDR_SRC_NODE) ;
    // if more than 1 tile, host should adjust this field before sending it over
    // to the FPGA
+   log_global_relabel_bits = *(uint *)(10<<2);
    global_relabel_mask = *(uint *)(ADDR_GLOBAL_RELABEL_MASK) ;
    iteration_mask = *(uint *)(ADDR_ITERATION_MASK) ;
+
+   global_relabel_mask = ((1<<(log_global_relabel_bits)) - 1 ) << (TX_ID_OFFSET_BITS);
+   //global_relabel_mask = ~0;
 
    while (1) {
       uint ts = *(volatile uint *)(ADDR_DEQ_TASK);
