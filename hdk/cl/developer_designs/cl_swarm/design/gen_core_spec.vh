@@ -41,7 +41,8 @@ generate
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         	);
 	end
 	if (CORE_ID == 2) begin 
@@ -85,7 +86,8 @@ generate
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         	);
 	end
 	if (CORE_ID == 3) begin 
@@ -129,7 +131,8 @@ generate
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         	);
 	end
 	if (CORE_ID == 4) begin 
@@ -173,7 +176,8 @@ generate
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         	);
 	end
 	if (CORE_ID == 5) begin 
@@ -217,7 +221,8 @@ generate
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         	);
 	end
 	if (CORE_ID == 6) begin 
@@ -261,7 +266,8 @@ generate
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         	);
 	end
 	if (CORE_ID == 7) begin 
@@ -305,7 +311,8 @@ generate
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         	);
 	end
 	if (CORE_ID == 8) begin 
@@ -349,7 +356,8 @@ generate
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         	);
 	end
 endgenerate

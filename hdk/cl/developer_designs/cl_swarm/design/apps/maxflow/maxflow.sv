@@ -48,7 +48,9 @@ module maxflow
    input                m_axi_l1_V_BVALID ,
    output logic         m_axi_l1_V_BREADY ,
    input [1:0]          m_axi_l1_V_BRESP  ,
-   input                m_axi_l1_V_BID    
+   input                m_axi_l1_V_BID,
+
+   output logic [31:0]  ap_state
 );
 
 localparam DISCHARGE_TASK = 0;
@@ -158,6 +160,8 @@ undo_log_data_t undo_log_data;
 
 maxflow_state_t state, state_next;
 task_t cur_task;
+
+assign ap_state = state;
 
 // next expected read word in a burst read
 logic [3:0] word_id;

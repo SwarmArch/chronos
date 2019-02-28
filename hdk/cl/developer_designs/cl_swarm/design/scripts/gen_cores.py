@@ -106,7 +106,8 @@ core_inst = """
         .m_axi_l1_V_BID     (1'b0),
         .undo_log_entry     (app_undo_log_data),
         .undo_log_entry_ap_vld (app_undo_log_valid),
-        .undo_log_entry_ap_rdy (app_undo_log_ready)
+        .undo_log_entry_ap_rdy (app_undo_log_ready),
+        .ap_state (ap_state)
         """
 
 for i in range(len(cores)):

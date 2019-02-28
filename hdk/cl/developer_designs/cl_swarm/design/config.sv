@@ -272,6 +272,10 @@ package swarm;
    parameter CORE_STATE               = 8'hc8;
    parameter CORE_PC                  = 8'hcc;
    parameter CORE_DEBUG_MODE          = 8'hb4;
+
+   parameter CORE_SET_QUERY_STATE     = 8'h10;
+   parameter CORE_QUERY_STATE_STAT    = 8'h14; 
+   parameter CORE_QUERY_AP_STATE_STAT = 8'h18; 
    
    //Since these are cache line aligned, send excluding the LSB 6 bits
    parameter CORE_BASE_EDGE_OFFSET    = 8'h20;
