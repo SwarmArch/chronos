@@ -295,6 +295,8 @@ end else begin
 end
 
 logic [31:0] cq_state_stats [0:7];
+logic [31:0] deq_stats [0:N_TASK_TYPES-1];
+logic [31:0] commit_stats [0:N_TASK_TYPES-1];
 logic [31:0] n_resource_aborts;
 logic [31:0] n_gvt_aborts;
 logic [31:0] stall_cycles_cq_full;
@@ -927,7 +929,23 @@ if (CQ_STATS) begin
       for (integer i=0;i<8;i++) begin
          cq_state_stats[i] = 0;
       end
+      for (integer i=0;i<N_TASK_TYPES;i++) begin
+         deq_stats[i] = 0;
+         commit_stats[i] = 0;
+      end
    end
+   always_ff@(posedge clk) begin
+      if (deq_task_valid & deq_task_ready) begin
+         deq_stats[ deq_task.ttype] <= deq_stats[deq_task.ttype] + 1;
+      end
+      if (commit_task_valid & commit_task_ready) begin
+         commit_stats[ cq_ttype[commit_task_slot] ] <= 
+            commit_stats[ cq_ttype[commit_task_slot] ] + 1; 
+      end
+   end
+
+
+
    always_ff@(posedge clk) begin
       if (!rstn) begin
          n_resource_aborts <= 0;
@@ -992,6 +1010,9 @@ always_ff @(posedge clk) begin
          CQ_STAT_N_IDLE_NO_TASK    : reg_bus.rdata <= stall_cycles_no_task;
          
          CQ_STAT_CYCLES_IN_RESOURCE_ABORT : reg_bus.rdata <= cycles_in_resource_abort;
+         
+         CQ_DEQ_TASK_STATS : reg_bus.rdata <= deq_stats[lookup_entry];
+         CQ_COMMIT_TASK_STATS : reg_bus.rdata <= commit_stats[lookup_entry];
          
          CQ_N_GVT_GOING_BACK : reg_bus.rdata <= n_gvt_going_back;
       endcase

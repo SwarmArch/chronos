@@ -363,6 +363,9 @@ package swarm;
    
    parameter CQ_MAXFLOW_THRESHOLD      = 8'ha0;
 
+   parameter CQ_DEQ_TASK_STATS         = 8'hb0;
+   parameter CQ_COMMIT_TASK_STATS      = 8'hb4;
+
    
    parameter DEQ_FIFO_FULL_THRESHOLD   = 8'h10;
    parameter DEQ_FIFO_SIZE             = 8'h14;
