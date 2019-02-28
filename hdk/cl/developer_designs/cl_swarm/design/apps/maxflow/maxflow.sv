@@ -185,6 +185,7 @@ logic [31:0] base_vertex_data;
 logic [31:0] sourceNode, sinkNode;
 logic [31:0] global_relabel_mask;
 logic [31:0] iteration_no_mask;
+logic ordered_edges;
 
 logic [31:0] eo_begin, eo_end;
 
@@ -217,6 +218,7 @@ always_ff @(posedge clk) begin
                9: sinkNode <= m_axi_l1_V_RDATA;
                11: global_relabel_mask <= m_axi_l1_V_RDATA;
                12: iteration_no_mask <= m_axi_l1_V_RDATA;
+               13: ordered_edges <= m_axi_l1_V_RDATA[0];
             endcase
          end
          DISCHARGE_WAIT_OFFSET,
@@ -368,7 +370,7 @@ assign cur_arg_0 = cur_task.args[31:0];
 assign cur_arg_1 = cur_task.args[63:32];
 
 logic [3:0] push_to_index;
-assign push_to_index = cur_task.ts[3:0];
+assign push_to_index = cur_arg_1[3:0];
 
 logic signed [31:0] push_flow_amt, push_flow_amt_reg;
 always_comb begin
@@ -411,7 +413,7 @@ always_comb begin
       READ_HEADERS: begin
          m_axi_l1_V_ARADDR = 0;
          m_axi_l1_V_ARVALID = 1'b1;
-         m_axi_l1_V_ARLEN = 12;
+         m_axi_l1_V_ARLEN = 13;
          if (m_axi_l1_V_ARREADY) begin
             state_next = WAIT_HEADERS;
          end
@@ -566,7 +568,8 @@ always_comb begin
          task_wdata.ttype = GET_HEIGHT_TASK;
          task_wdata.hint = edge_dest | RO_OFFSET;
          task_wdata.args[31:0] = cur_task.hint; 
-         task_wdata.ts = cur_task.ts | neighbor_offset; 
+         task_wdata.args[63:32] = neighbor_offset; 
+         task_wdata.ts = cur_task.ts | (ordered_edges ? neighbor_offset: 0); 
          task_out_V_TVALID = 1'b1;
          if (task_out_V_TREADY) begin
             if (neighbor_offset + 1 == (eo_end - eo_begin)) begin
@@ -596,6 +599,7 @@ always_comb begin
          task_wdata.ttype = PUSH_TASK;
          task_wdata.hint = cur_arg_0;
          task_wdata.args[31:0] = vid_height; 
+         task_wdata.args[63:32] = cur_arg_1; 
          task_wdata.ts = cur_task.ts; 
          task_out_V_TVALID = 1'b1;
          if (task_out_V_TREADY) begin
