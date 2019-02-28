@@ -326,4 +326,36 @@ if (UNDO_LOG_LOGGING[TILE_ID]) begin
    );
 end
 
+`ifdef XILINX_SIMULATOR
+   if (1) begin
+      logic [63:0] cycle;
+      integer file,r;
+      string file_name;
+      initial begin
+         $sformat(file_name, "undo_log_%0d.log", TILE_ID);
+         file = $fopen(file_name,"w");
+      end
+      always_ff @(posedge clk) begin
+         if (!rstn) cycle <=0;
+         else cycle <= cycle + 1;
+      end
+
+      always_ff @(posedge clk) begin
+         if (undo_log_select_valid) begin
+            $fwrite(file,"[%5d] [rob-%2d] addr:%8x, data:%8x, id:%1x, cq_slot:%2d, core:%1d \n", 
+               cycle, TILE_ID,
+               undo_log_addr[undo_log_select_core],
+               undo_log_data[undo_log_select_core],
+               undo_log_id[undo_log_select_core],
+               undo_log_slot[undo_log_select_core],
+               undo_log_select_core,
+
+
+            ) ;
+         end
+         $fflush(file);
+      end
+   end
+`endif
+
 endmodule

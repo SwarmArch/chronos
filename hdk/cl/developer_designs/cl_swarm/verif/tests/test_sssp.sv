@@ -436,6 +436,7 @@ end
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
          ocl_data = (ocl_data == 1) ? '1 :0;
       end else begin
+         
          ocl_addr[23:16] = 0;
          ocl_addr[15:8] = ID_CQ;
          ocl_addr[ 7:0] = CQ_GVT_TS;

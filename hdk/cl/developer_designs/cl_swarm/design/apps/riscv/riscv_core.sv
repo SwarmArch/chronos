@@ -448,16 +448,17 @@ always_ff @(posedge clk) begin
       end
    end
 end
+
 always_ff @ (posedge clk) begin
-   if (dBus_cmd_valid & dBus_cmd_payload_wr & !task_wvalid) begin
+   if (dBus_cmd_valid & dBus_cmd_payload_wr) begin
       case (dBus_cmd_addr) 
-         RISCV_DEQ_TASK      : task_wdata.ts <= dBus_cmd_data;
-         RISCV_DEQ_TASK_HINT : task_wdata.hint <= dBus_cmd_data; 
-         RISCV_DEQ_TASK_TTYPE: task_wdata.ttype <= dBus_cmd_data;
-         RISCV_DEQ_TASK_ARG0 : task_wdata.args[31:0] <= dBus_cmd_data;
-         RISCV_DEQ_TASK_ARG1 : task_wdata.args[63:32] <= dBus_cmd_data;
-         RISCV_UNDO_LOG_ADDR : undo_log_addr <= dBus_cmd_data;
-         RISCV_UNDO_LOG_DATA : undo_log_data <= dBus_cmd_data;
+         RISCV_DEQ_TASK      : if (!task_wvalid) task_wdata.ts <= dBus_cmd_data;
+         RISCV_DEQ_TASK_HINT : if (!task_wvalid) task_wdata.hint <= dBus_cmd_data; 
+         RISCV_DEQ_TASK_TTYPE: if (!task_wvalid) task_wdata.ttype <= dBus_cmd_data;
+         RISCV_DEQ_TASK_ARG0 : if (!task_wvalid) task_wdata.args[31:0] <= dBus_cmd_data;
+         RISCV_DEQ_TASK_ARG1 : if (!task_wvalid) task_wdata.args[63:32] <= dBus_cmd_data;
+         RISCV_UNDO_LOG_ADDR : if (!undo_log_valid) undo_log_addr <= dBus_cmd_data;
+         RISCV_UNDO_LOG_DATA : if (!undo_log_valid) undo_log_data <= dBus_cmd_data;
       endcase
    end
 end
@@ -538,11 +539,13 @@ always_comb begin
                end
             end
             RISCV_UNDO_LOG_DATA: begin
-               app_undo_log_valid = 1'b1;
-               dBus_cmd_ready = 1'b1;
+               if (!undo_log_valid) begin
+                  app_undo_log_valid = 1'b1;
+                  dBus_cmd_ready = 1'b1;
+               end
             end
             RISCV_UNDO_LOG_ADDR: begin
-               dBus_cmd_ready = 1'b1;
+               dBus_cmd_ready = !(undo_log_valid);
             end
             RISCV_DEBUG_PRINTF : begin
                dBus_cmd_ready = 1'b1;

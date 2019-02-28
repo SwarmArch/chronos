@@ -34,7 +34,7 @@ package swarm;
    parameter SERIALIZER_LOGGING = 1;
    parameter L2_LOGGING = 1;
    parameter CORE_LOGGING = 1;
-   parameter CORE_STATE_STATS = 0;
+   parameter CORE_STATE_STATS = 1;
    parameter TQ_STATS = 1;
    parameter CQ_STATS = 1;
    parameter CQ_CONFIG = 1;
@@ -272,6 +272,10 @@ package swarm;
    parameter CORE_STATE               = 8'hc8;
    parameter CORE_PC                  = 8'hcc;
    parameter CORE_DEBUG_MODE          = 8'hb4;
+
+   parameter CORE_SET_QUERY_STATE     = 8'h10;
+   parameter CORE_QUERY_STATE_STAT    = 8'h14; 
+   parameter CORE_QUERY_AP_STATE_STAT = 8'h18; 
    
    //Since these are cache line aligned, send excluding the LSB 6 bits
    parameter CORE_BASE_EDGE_OFFSET    = 8'h20;
@@ -358,6 +362,9 @@ package swarm;
    parameter CQ_N_GVT_GOING_BACK       = 8'h98;
    
    parameter CQ_MAXFLOW_THRESHOLD      = 8'ha0;
+
+   parameter CQ_DEQ_TASK_STATS         = 8'hb0;
+   parameter CQ_COMMIT_TASK_STATS      = 8'hb4;
 
    
    parameter DEQ_FIFO_FULL_THRESHOLD   = 8'h10;

@@ -270,14 +270,38 @@ end
 
 `endif
 
+logic [31:0] ap_state;
+logic [31:0] core_state_stats [0:7];
+logic [31:0] ap_state_stats [0:127];
+
+logic [7:0] query_state;
+
+generate
+if (CORE_STATE_STATS) begin
+   initial begin
+      for (integer i=0;i<8;i++) begin
+         core_state_stats[i] = 0;
+      end
+      for (integer i=0;i<128;i++) begin
+         ap_state_stats[i] = 0;
+      end
+   end
+   always_ff @(posedge clk) begin
+      core_state_stats[state] <= core_state_stats[state] + 1;
+      ap_state_stats[ap_state] <= ap_state_stats[ap_state] + 1;
+   end
+end
+endgenerate
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
       start <= 1'b0;
+      query_state <= 0;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
             CORE_START: start <= reg_bus.wdata[CORE_ID];
+            CORE_SET_QUERY_STATE: query_state <= reg_bus.wdata;
          endcase
       end
    end 
@@ -338,6 +362,8 @@ always_ff @(posedge clk) begin
          CORE_NUM_ENQ     : reg_bus.rdata <= num_enqueues;
          CORE_NUM_DEQ     : reg_bus.rdata <= num_dequeues;
          CORE_STATE       : reg_bus.rdata <= state;
+         CORE_QUERY_STATE_STAT : reg_bus.rdata <= core_state_stats[query_state];
+         CORE_QUERY_AP_STATE_STAT : reg_bus.rdata <= ap_state_stats[query_state];
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;
