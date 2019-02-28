@@ -620,7 +620,7 @@ void WriteOutputMaxflow(FILE* fp) {
       data[BASE_GROUND_TRUTH +i] = csr_dist[i];
       //printf("Node %d n_edges %d %d\n", i, csr_offset[i], csr_offset[i+1]-csr_offset[i]);
       for (int j=0;j<16;j++) {
-         data[BASE_DIST +i * 4 + j] = 0;
+         data[BASE_DIST +i * 16 + j] = 0;
       }
    }
    data[BASE_EDGE_OFFSET +numV] = csr_offset[numV];
