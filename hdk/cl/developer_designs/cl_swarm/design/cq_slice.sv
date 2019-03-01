@@ -859,8 +859,8 @@ initial begin
    end
 end
 always_ff @(posedge clk) begin
-   if (state == UNDO_LOG_RESTORE & out_task_valid & out_task_ready)  begin
-      cq_undo_log_ack_pending[out_task_slot] <= cq_undo_log_ack_pending[out_task_slot] + 1;
+   if (state == UNDO_LOG_RESTORE & undo_log_heap_enq)  begin
+      cq_undo_log_ack_pending[undo_log_heap_in_slot] <= cq_undo_log_ack_pending[undo_log_heap_in_slot] + 1;
    end else if (finish_task_valid & finish_task_ready & finish_task_is_undo_log_restore) begin
       cq_undo_log_ack_pending[finish_task_slot] <= cq_undo_log_ack_pending[finish_task_slot] -1;
    end
