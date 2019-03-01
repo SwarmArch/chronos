@@ -927,6 +927,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    for (int i=0;i<(1<<log_active_tiles);i++) {
        task_unit_stats(i);
        if (!NON_SPEC) cq_stats(i);
+       core_stats(0);
    }
    log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
 

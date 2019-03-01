@@ -71,6 +71,10 @@
 #define CORE_STATE                0xc8
 #define CORE_PC                   0xcc
 
+#define CORE_QUERY_STATE          0x10
+#define CORE_STATE_STATS          0x14
+#define CORE_AP_STATE_STATS       0x18
+
 #define SSSP_BASE_EDGE_OFFSET     0x20
 #define SSSP_BASE_DIST            0x24
 #define SSSP_BASE_NEIGHBORS       0x28
@@ -185,6 +189,7 @@ void pci_poke(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t data);
 void pci_peek(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t* data);
 void task_unit_stats(uint32_t tile);
 void cq_stats (uint32_t tile);
+void core_stats (uint32_t tile);
 extern pci_bar_handle_t pci_bar_handle;
 void dma_write(unsigned char* write_buffer, uint32_t write_len, size_t write_addr);
 

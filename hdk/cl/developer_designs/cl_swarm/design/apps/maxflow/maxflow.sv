@@ -76,12 +76,12 @@ typedef enum logic[6:0] {
       NEXT_TASK,
       READ_HEADERS, WAIT_HEADERS,
       DISPATCH_TASK, 
-
+      // 4
       DISCHARGE_CHECK_MASK,
       DISCHARGE_LAUNCH_GR_SINK,
       DISCHARGE_LAUNCH_GR_SOURCE,
       DISCHARGE_REENQUEUE,
-
+      //8
       DISCHARGE_READ_OFFSET, DISCHARGE_WAIT_OFFSET,
       DISCHARGE_READ_VID, DISCHARGE_WAIT_VID, // read active, counter, min_height
       DISCHARGE_UNDO_LOG_WRITE_ACTIVE,
@@ -90,14 +90,14 @@ typedef enum logic[6:0] {
       DISCHARGE_WRITE_COUNTER,
       DISCHARGE_UNDO_LOG_WRITE_MIN_NEIGHBOR_HEIGHT,
       DISCHARGE_WRITE_MIN_NEIGHBOR_HEIGHT,
-
+      // 18
       DISCHARGE_READ_NEIGHBORS, DISCHARGE_WAIT_NEIGHBORS, 
       DISCHARGE_ENQ_NEIGHBORS,
-
+      // 21
       GET_HEIGHT_READ_HEIGHT,
       GET_HEIGHT_WAIT_HEIGHT,
       GET_HEIGHT_ENQ_SUCCESSOR,
-
+      // 24
       PUSH_READ_VID, PUSH_WAIT_VID, // read counter, excess, height, min_height
       PUSH_UNDO_LOG_WRITE_COUNTER,
       PUSH_WRITE_COUNTER,
@@ -117,7 +117,7 @@ typedef enum logic[6:0] {
       PUSH_UNDO_LOG_WRITE_HEIGHT,
       PUSH_WRITE_HEIGHT,
       PUSH_ENQ_DISCHARGE,
-
+      // 47
       RECEIVE_READ_VID, // read excess, active
       RECEIVE_WAIT_VID,
       RECEIVE_READ_FLOW, RECEIVE_WAIT_FLOW,
@@ -128,7 +128,7 @@ typedef enum logic[6:0] {
       RECEIVE_UNDO_LOG_WRITE_ACTIVE,
       RECEIVE_WRITE_ACTIVE,
       RECEIVE_ENQ_DISCHARGE,
-      
+      // 58 
       BFS_READ_VID, BFS_WAIT_VID, // read visited, height
       BFS_UNDO_LOG_WRITE_VISITED,
       BFS_WRITE_VISITED,

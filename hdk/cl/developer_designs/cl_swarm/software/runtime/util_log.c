@@ -905,6 +905,24 @@ void cq_stats (uint32_t tile) {
     printf("\t deq_task_ts %6d tq_lvt:%6d, max_vt_pos:%d\n", deq_task_ts, tq_lvt, max_vt_pos);
     pci_poke(tile, ID_CQ, CQ_LOOKUP_MODE , 0);
 
+}
+
+void core_stats(uint32_t tile) {
+    uint32_t core_state_stats[16][128];
+    for (int i=0;i<N_CORES;i++) {
+        for (int j=0;j<128;j++) {
+            pci_poke(tile, i+1, CORE_QUERY_STATE , j);
+            pci_peek(tile, i+1, CORE_AP_STATE_STATS , &(core_state_stats[i][j]));
+        }
+    }
+    printf("Tile %d core state stats\n", tile);
+    for (int j=0;j<80;j++) {
+        printf("%2d:", j);
+        for (int i=0;i<N_CORES;i++) {
+            printf("%10d ", core_state_stats[i][j]);
+        }
+        printf("\n");
+    }
 
 }
 
