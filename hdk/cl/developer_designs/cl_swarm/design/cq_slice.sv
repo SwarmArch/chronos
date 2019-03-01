@@ -740,7 +740,7 @@ cq_state_t start_task_state;
 assign start_task_state = cq_state[start_task_slot_select];
 
 always_comb begin
-   if (state == UNDO_LOG_RESTORE & out_task_valid & out_task_ready) begin
+   if (undo_log_heap_enq) begin
       // conflict on cq_undo_log_ack_pending
       finish_task_ready = 1'b0; 
    end else begin
@@ -859,7 +859,7 @@ initial begin
    end
 end
 always_ff @(posedge clk) begin
-   if (state == UNDO_LOG_RESTORE & undo_log_heap_enq)  begin
+   if (undo_log_heap_enq)  begin
       cq_undo_log_ack_pending[undo_log_heap_in_slot] <= cq_undo_log_ack_pending[undo_log_heap_in_slot] + 1;
    end else if (finish_task_valid & finish_task_ready & finish_task_is_undo_log_restore) begin
       cq_undo_log_ack_pending[finish_task_slot] <= cq_undo_log_ack_pending[finish_task_slot] -1;
