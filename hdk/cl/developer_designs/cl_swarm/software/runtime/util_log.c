@@ -469,16 +469,18 @@ int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log
                );
 
          }
-         if (undo_task_valid & undo_task_ready) {
-            fprintf(fw,"[%6d][%10u][%6d:%10u] [%d:%3d,%3d] out_task slot%4d %d ttype:%d \n",
+         if (undo_task_valid) {
+            fprintf(fw,"[%6d][%10u][%6d:%10u] [%d:%3d,%3d] out_task slot%4d %d ttype:%d %d\n",
                seq, cycle,
                gvt_ts, gvt_tb,
                gvt_task_slot_valid, gvt_task_slot, max_vt_slot,
-               undo_task_slot, undo_task_hint, undo_task_ttype
+               undo_task_slot, undo_task_hint, undo_task_ttype,
+               undo_task_ready
                );
 
          }
     }
+   fflush(fw);
 
    return 0;
 }
@@ -490,6 +492,7 @@ int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
    fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
    fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
    printf("Undo log size %d gvt %d\n", log_size, gvt);
+   fprintf(fw, "Undo log size %d gvt %d\n", log_size, gvt);
    if (log_size > 17000) return 1;
    // if (log_size > 100) log_size -= 100;
    //unsigned char* log_buffer;
@@ -500,75 +503,185 @@ int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
    unsigned int rc;
    uint64_t cl_addr = (1L<<36) + (ID << 20);
    while (read_offset < read_len) {
-      rc = pread(fd,
-            log_buffer + read_offset,
-            // keep Tx size under 64*64 to prevent shell timeouts
-            (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
-            cl_addr);
-      read_offset += rc;
+       rc = pread(fd,
+               log_buffer,// + read_offset,
+               // keep Tx size under 64*64 to prevent shell timeouts
+               (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
+               cl_addr);
+       read_offset += rc;
+
+       unsigned int* buf = (unsigned int*) log_buffer;
+       for (int i=0;i<rc/64;i++) {
+           unsigned int seq = buf[i*16 + 0];
+           unsigned int cycle = buf[i*16 + 1];
+
+           unsigned int awaddr = buf[i*16 + 4];
+           unsigned int wdata = buf[i*16 + 5];
+
+           unsigned int undo_log_addr = buf[i*16+8];
+           unsigned int undo_log_data = buf[i*16+7];
+           unsigned int undo_log_id = buf[i*16+6] >> 28;
+           unsigned int undo_log_cq_slot = (buf[i*16+6] >> 22) & 0x3f;
+           unsigned int undo_log_valid = (buf[i*16+6] >> 21) & 0x1;
+
+           unsigned int restore_arvalid = (buf[i*16+3] >> 28) & 0xf;
+           unsigned int restore_rvalid = (buf[i*16+3] >> 24) & 0xf;
+           unsigned int restore_cq_slot = (buf[i*16+3] >> 16) & 0x3f;
+
+           unsigned int awvalid = (buf[i*16+3] >> 15) & 0x1;
+           unsigned int awready = (buf[i*16+3] >> 14) & 0x1;
+           unsigned int awid = (buf[i*16+3]) & 0x3fff;
+
+           unsigned int bid = (buf[i*16+2] >> 16) & 0xffff;
+           unsigned int bvalid = (buf[i*16+2] >> 15) & 0x1;
+           unsigned int bready = (buf[i*16+2] >> 14) & 0x1;
+           unsigned int restore_ack_thread = (buf[i*16+2] >> 8) & 0x3f;
+           unsigned int restore_done_valid = (buf[i*16+2] >> 4) & 0xf;
+           unsigned int restore_done_ready = (buf[i*16+2] ) & 0xf;
+           bool f = false;
+           if (undo_log_valid) {
+               fprintf(fw,"[%6d][%10u] undo_log_valid addr:%8x data:%8x id:%x cq_slot:%d\n",
+                       seq, cycle, undo_log_addr, undo_log_data, undo_log_id, undo_log_cq_slot
+                      );
+               f = true;
+           }
+
+           if (bvalid & bready) {
+               fprintf(fw,"[%6d][%10u] bvalid id:%4x\n",
+                       seq, cycle, bid
+                      );
+               f = true;
+           }
+
+           if (restore_rvalid > 0) {
+               fprintf(fw,"[%6d][%10u] restore rvalid:%x slot:%4d\n",
+                       seq, cycle, restore_rvalid, restore_cq_slot
+                      );
+               f = true;
+           }
+           if (restore_done_valid > 0) {
+               fprintf(fw,"[%6d][%10u] restore_ack valid:%x ready:%x thread:%4x\n",
+                       seq, cycle, restore_done_valid, restore_done_ready, restore_ack_thread
+                      );
+               f = true;
+           }
+           if (awvalid) {
+               fprintf(fw,"[%6d][%10u] awvalid %d%d addr:%8x data:%8x\n",
+                       seq, cycle, awvalid, awready,
+                       awaddr, wdata
+                      );
+               f = true;
+           }
+           if (!f) {
+               fprintf(fw,"[%6d][%10u] %8x %8x %8x %8x %8x %8x\n",
+                       seq, cycle,
+                       buf[i*16+2], buf[i*16+3],
+                       buf[i*16+4], buf[i*16+5],
+                       buf[i*16+6], buf[i*16+7]
+                      );
+
+           }
+       }
+
    }
 
-   //write_task_unit_log(log_buffer, fw, log_size);
-   unsigned int* buf = (unsigned int*) log_buffer;
-   for (int i=0;i<log_size ;i++) {
-        unsigned int seq = buf[i*16 + 0];
-        unsigned int cycle = buf[i*16 + 1];
+   fflush(fw);
+   return 0;
+}
 
-        unsigned int awaddr = buf[i*16 + 4];
-        unsigned int wdata = buf[i*16 + 5];
+int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
 
-        unsigned int undo_log_addr = buf[i*16+8];
-        unsigned int undo_log_data = buf[i*16+7];
-        unsigned int undo_log_id = buf[i*16+6] >> 28;
-        unsigned int undo_log_cq_slot = (buf[i*16+6] >> 22) & 0x3f;
-        unsigned int undo_log_valid = (buf[i*16+6] >> 21) & 0x1;
+   uint32_t log_size;
+   uint32_t gvt;
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
+   printf("Serializer log size %d gvt %d\n", log_size, gvt);
+   if (log_size > 17000) return 1;
+   // if (log_size > 100) log_size -= 100;
+   //unsigned char* log_buffer;
+   //log_buffer = (unsigned char *)malloc(log_size*64);
 
-        unsigned int restore_arvalid = (buf[i*16+3] >> 28) & 0xf;
-        unsigned int restore_rvalid = (buf[i*16+3] >> 24) & 0xf;
-        unsigned int restore_cq_slot = (buf[i*16+3] >> 16) & 0x3f;
+   unsigned int read_offset = 0;
+   unsigned int read_len = log_size * 64;
+   unsigned int rc;
+   uint64_t cl_addr = (1L<<36) + (ID << 20);
+   while (read_offset < read_len) {
+       rc = pread(fd,
+               log_buffer,// + read_offset,
+               // keep Tx size under 64*64 to prevent shell timeouts
+               (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
+               cl_addr);
+       read_offset += rc;
 
-        unsigned int awvalid = (buf[i*16+3] >> 15) & 0x1;
-        unsigned int awready = (buf[i*16+3] >> 14) & 0x1;
-        unsigned int awid = (buf[i*16+3]) & 0x3fff;
+       unsigned int* buf = (unsigned int*) log_buffer;
+       for (int i=0;i<rc/64;i++) {
+           unsigned int seq = buf[i*16 + 0];
+           unsigned int cycle = buf[i*16 + 1];
 
-        unsigned int bid = (buf[i*16+2] >> 16) & 0xffff;
-        unsigned int bvalid = (buf[i*16+2] >> 15) & 0x1;
-        unsigned int bready = (buf[i*16+2] >> 14) & 0x1;
-        unsigned int restore_ack_thread = (buf[i*16+2] >> 8) & 0x3f;
-        unsigned int restore_done_valid = (buf[i*16+2] >> 4) & 0xf;
-        unsigned int restore_done_ready = (buf[i*16+2] ) & 0xf;
+           unsigned int s_arvalid = (buf[i*16+10] >> 16) & 0xffff;
+           unsigned int s_rvalid = (buf[i*16+10] >> 0) & 0xffff;
 
-        if (undo_log_valid) {
-            fprintf(fw,"[%6d][%10u] undo_log_valid addr:%8x data:%8x id:%x cq_slot:%d\n",
-               seq, cycle, undo_log_addr, undo_log_data, undo_log_id, undo_log_cq_slot
-               );
-        }
+           unsigned int s_rdata_hint = (buf[i*16+9]);
+           unsigned int s_rdata_ts = (buf[i*16+8]);
 
-        if (bvalid & bready) {
-            fprintf(fw,"[%6d][%10u] bvalid id:%4x\n",
-               seq, cycle, bid
-               );
-        }
+           unsigned int s_cq_slot = (buf[i*16+7] >> 26) & 0x3f;
+           unsigned int s_rdata_ttype = (buf[i*16+7] >> 22) & 0xf;
+           unsigned int finished_task_valid = (buf[i*16+7] >> 21) & 0x1;
+           unsigned int finished_task_core = (buf[i*16+7] >> 16) & 0x1f;
 
-        if (restore_rvalid > 0) {
-            fprintf(fw,"[%6d][%10u] restore rvalid:%x slot:%4d\n",
-               seq, cycle, restore_rvalid , restore_cq_slot
-               );
-        }
-        if (restore_done_valid > 0) {
-            fprintf(fw,"[%6d][%10u] restore_ack valid:%x ready:%x thread:%4x\n",
-               seq, cycle, restore_rvalid , restore_cq_slot, restore_ack_thread
-               );
-        }
-        if (awvalid) {
-            fprintf(fw,"[%6d][%10u] awvalid %d%d addr:%8x data:%8x\n",
-               seq, cycle, awvalid, awready,
-               awaddr, wdata
-               );
-        }
+           unsigned int ready_list_valid = (buf[i*16+6]);
+           unsigned int ready_list_conflict = (buf[i*16+5]);
 
-    }
+           unsigned int m_ts = (buf[i*16+4]);
+           unsigned int m_hint = (buf[i*16+3]);
 
+           unsigned int m_ttype = (buf[i*16+2] >> 28) & 0xf;
+           unsigned int m_cq_slot = (buf[i*16+2] >> 22) & 0x3f;
+           unsigned int m_valid = (buf[i*16+2] >> 21) & 1;
+           unsigned int m_ready = (buf[i*16+2] >> 20) & 1;
+           unsigned int finished_task_hint_match = (buf[i*16+2] >> 4) & 0xffff;
+           bool f = false;
+           if (finished_task_valid) {
+               fprintf(fw,"[%6d][%10u] [%8x %8x] finished_task core:%2x hint_match:%8x\n",
+                       seq, cycle,
+                       ready_list_valid, ready_list_conflict,
+                       finished_task_core, finished_task_hint_match
+                      );
+               f = true;
+           }
+
+           if (s_rvalid > 0) {
+               fprintf(fw,"[%6d][%10u] [%8x %8x] s_ rvalid:%4x ttype:%x ts:%8x hint:%8x slot:%d\n",
+                       seq, cycle,
+                       ready_list_valid, ready_list_conflict,
+                       s_rvalid, s_rdata_ttype, s_rdata_ts, s_rdata_hint, s_cq_slot
+                      );
+               f = true;
+           }
+
+           if (m_valid & m_ready) {
+               fprintf(fw,"[%6d][%10u] [%8x %8x] m_ ttype:%x ts:%8x hint:%8x slot:%d\n",
+                       seq, cycle,
+                       ready_list_valid, ready_list_conflict,
+                       m_ttype, m_ts, m_hint, m_cq_slot
+                      );
+               f = true;
+           }
+           if (!f) {
+               fprintf(fw,"[%6d][%10u] %8x %8x %8x %8x %8x %8x %8x %8x %8x %8x\n",
+                       seq, cycle,
+                       buf[i*16+2], buf[i*16+3],
+                       buf[i*16+4], buf[i*16+5],
+                       buf[i*16+6], buf[i*16+7],
+                       buf[i*16+8], buf[i*16+9],
+                       buf[i*16+10], buf[i*16+11]
+                      );
+
+           }
+       }
+
+   }
+   fflush(fw);
    return 0;
 }
 
@@ -578,7 +691,7 @@ int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
    uint32_t gvt;
    fpga_pci_peek(pci_bar_handle,  (ID_CORE << 8) + (DEBUG_CAPACITY), &log_size );
    fpga_pci_peek(pci_bar_handle,  (ID_CORE << 8) + (CQ_GVT_TS), &gvt );
-   printf("CQ log size %d gvt %d\n", log_size, gvt);
+   printf("Risc log size %d gvt %d\n", log_size, gvt);
    if (log_size > 17000) return 1;
    // if (log_size > 100) log_size -= 100;
    //unsigned char* log_buffer;
@@ -773,7 +886,6 @@ void cq_stats (uint32_t tile) {
     printf("stall cycles: cq_full: %8d, cc_full: %8d, no_task: %8d\n",
                idle_cq_full, idle_cc_full, idle_no_task);
 
-    //return;
     pci_poke(tile, ID_CQ, CQ_LOOKUP_MODE , 1);
     for (int i=0;i<64;i++) {
         uint32_t ts,tb, state, hint;
@@ -782,7 +894,7 @@ void cq_stats (uint32_t tile) {
         pci_peek(tile, ID_CQ, CQ_LOOKUP_TS, &ts);
         pci_peek(tile, ID_CQ, CQ_LOOKUP_TB, &tb);
         pci_peek(tile, ID_CQ, CQ_LOOKUP_HINT, &hint);
-        printf(" (%2d: %2d %5d:%10u %8d)", i, state,ts,tb, hint);
+        printf(" (%2d: %2d %5d:%10u %8x)", i, state,ts,tb, hint);
         if ( (i%2 == 1)) printf("\n");
     }
 

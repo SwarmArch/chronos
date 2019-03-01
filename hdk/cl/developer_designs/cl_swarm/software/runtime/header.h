@@ -158,6 +158,7 @@
 #define SERIALIZER_CAN_TAKE_REQ_1 0x34
 #define SERIALIZER_CAN_TAKE_REQ_2 0x38
 #define SERIALIZER_CAN_TAKE_REQ_3 0x3c
+#define SERIALIZER_SIZE_CONTROL 0x40
 
 #define L2_FLUSH          0x10
 #define L2_READ_HITS      0x20
@@ -176,6 +177,7 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t);
 int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t);
 int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
+int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size, uint32_t tile_id);
 
 void init_params();

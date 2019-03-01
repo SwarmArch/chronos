@@ -363,6 +363,8 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     write_fd = -1;
     read_fd = -1;
 
+    uint32_t log_active_tiles = 0;
+
     /* make sure the AFI is loaded and ready */
     rc = check_slot_config(slot_id);
     if (rc >0) {
@@ -406,8 +408,13 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     }
     if (app == APP_MAXFLOW) {
         // global relabel interval
-        headers[10] += 0;
-        write_buffer[10*4] = headers[10];
+        bool adjust_relabel_interval = true;
+        if (adjust_relabel_interval) {
+            headers[10] += -log_active_tiles ;
+            if (headers[10] < 5) headers[10] =5;
+            write_buffer[10*4] = headers[10];
+        }
+        write_buffer[13*4] = 1;
     }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
@@ -485,6 +492,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     //FILE* fws5 = fopen("sssp_core_5_log", "w");
     FILE* fwl2 = fopen("l2_log", "w");
     FILE* fwul = fopen("undo_log_log", "w");
+    FILE* fwse = fopen("serializer_log", "w");
     // OCL Initialization
 
     // Checking PCI latency;
@@ -498,10 +506,10 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     uint32_t clean_threshold = 40;
     uint32_t spill_threshold = (1<<LOG_TQ_SIZE) - 20;
     uint32_t spill_size = 64;
-    uint32_t log_active_tiles = 0;
 
     bool task_unit_logging_on = false;
-    //task_unit_logging_on = true;
+    task_unit_logging_on = true;
+
 
     assert(spill_threshold > (tied_cap + (1<<LOG_CQ_SIZE) + spill_size));
     assert((spill_size % 8) == 0);
@@ -543,6 +551,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         //pci_poke(i, ID_COALESCER, CORE_START, 0xffffffff);
         //pci_poke(i, ID_CQ, CQ_SIZE, 48);
         pci_poke(i, ID_CQ, CQ_MAXFLOW_THRESHOLD, 0xffffffff);
+        pci_poke(i, ID_SERIALIZER, SERIALIZER_SIZE_CONTROL, 24);
 
         if (app == APP_MAXFLOW) {
             pci_poke(i, ID_TASK_UNIT, TASK_UNIT_IS_TRANSACTIONAL, 1);
@@ -774,8 +783,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                }
            }
            //log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
-           //log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
-           //log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
+           log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
+           log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
+           log_serializer(pci_bar_handle, read_fd, fwse, log_buffer, ID_SERIALIZER);
            log_splitter(pci_bar_handle, read_fd, fwsp, ID_SPLITTER);
            if (!NON_SPEC) log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
            usleep(200);
@@ -809,7 +819,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                        n_tasks, n_tied_tasks, heap_capacity,
                        cq_state, tq_debug, stack_ptr);
                //task_unit_stats(i);
-               //cq_stats(i);
+               cq_stats(i);
                /*
                   for (int j=1;j<=8;j++) {
                   uint32_t core_state, core_pc, num_deq;
@@ -819,13 +829,13 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                   printf(" \t [core-%d] state:%d pc:%08x n_deq:%8d\n",
                   j, core_state, core_pc, num_deq);
                   }
-               */
+                */
                //task_unit_stats(i);
                 pci_poke(i, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0xd0);
 
            }
 
-           usleep(1000);
+           usleep(100);
            if (iters == 50000) break;
            if (iters % 1000 == 10) {
                char fname [40];
@@ -916,7 +926,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       */
    for (int i=0;i<(1<<log_active_tiles);i++) {
        task_unit_stats(i);
-       //if (!NON_SPEC) cq_stats(i);
+       if (!NON_SPEC) cq_stats(i);
    }
    log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
 
