@@ -41,6 +41,11 @@ module conflict_serializer #(
    // Upon a task-finish, the earliest entry in the shift register with the
    // finishing tasks's hint will be set conflict-free.
    
+   typedef struct packed {
+      logic [TASK_TYPE_WIDTH-1:0] ttype;
+      logic [HINT_WIDTH-1:0] hint;
+   } task_t_ser;
+
    localparam LOG_N_CORES = $clog2(NUM_CORES);
 
    localparam LOG_READY_LIST_SIZE = 5;
@@ -58,10 +63,12 @@ module conflict_serializer #(
                                     // accessed simulataneously
    logic [NUM_CORES-1:0] running_task_hint_valid;
 
-   task_t [READY_LIST_SIZE-1:0] ready_list;
+   task_t_ser [READY_LIST_SIZE-1:0] ready_list;
    cq_slice_slot_t [READY_LIST_SIZE-1:0] ready_list_cq_slot;
    logic [READY_LIST_SIZE-1:0] ready_list_valid;
    logic [READY_LIST_SIZE-1:0] ready_list_conflict;
+
+   task_t ready_list_ram [0:2**LOG_CQ_SLICE_SIZE-1];
 
    logic [N_TASK_TYPES-1:0] [READY_LIST_SIZE-1:0] task_type_ready;
    
@@ -211,7 +218,8 @@ module conflict_serializer #(
             // shift right existing tasks with the incoming task going at the
             // back
             if (m_valid & m_ready & (next_insert_location== i+1)) begin
-               ready_list[i] <= new_enq_task;
+               ready_list[i].ttype <= new_enq_task.ttype;
+               ready_list[i].hint <= new_enq_task.hint;
                ready_list_cq_slot[i] <= m_cq_slot;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
@@ -235,7 +243,8 @@ module conflict_serializer #(
          end else begin
             // No dequeue, only enqueue
             if (m_valid & m_ready & (next_insert_location== i)) begin
-               ready_list[i] <= new_enq_task;
+               ready_list[i].ttype <= new_enq_task.ttype;
+               ready_list[i].hint <= new_enq_task.hint;
                ready_list_cq_slot[i] <= m_cq_slot;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
@@ -252,8 +261,14 @@ module conflict_serializer #(
    end
    endgenerate
 
+   always_ff @(posedge clk) begin
+      if (m_valid & m_ready) begin
+         ready_list_ram[m_cq_slot] <= new_enq_task;
+      end
+      s_rdata <= ready_list_ram[ ready_list_cq_slot[task_select]];
+   end
+
    always_comb begin
-      s_rdata = ready_list[reg_task_select];
       s_cq_slot = ready_list_cq_slot[reg_task_select];
    end
 
