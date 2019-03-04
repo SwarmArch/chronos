@@ -233,6 +233,8 @@ always_comb begin
          if (from_tq_abort_valid) begin
             ts_array_raddr = from_tq_abort_slot;
          end
+      end else if (state == UNDO_LOG_WAITING) begin
+         ts_array_raddr = undo_log_abort_next_cand;
       end
    end
 end
@@ -303,21 +305,24 @@ logic [31:0] stall_cycles_cq_full;
 logic [31:0] stall_cycles_cc_full;
 logic [31:0] stall_cycles_no_task;
 
-vt_t undo_log_heap_in_ts;
-cq_slice_slot_t undo_log_heap_in_slot;
-heap_op_t undo_log_heap_in_op;
-logic undo_log_heap_ready;
 
-vt_t undo_log_heap_out_ts;
-cq_slice_slot_t undo_log_heap_out_slot;
-logic undo_log_heap_out_valid;
+// bitmap of tasks whose undo log tasks have not been sent out
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending; 
+// in the current iterations
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad; 
 
-cq_slice_slot_t undo_log_heap_capacity;
-logic undo_log_heap_empty;
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending_diff; 
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad_diff; 
+cq_slice_slot_t undo_log_abort_max_ts_index;
+cq_slice_slot_t undo_log_abort_next_cand;
+vt_t            undo_log_abort_max_ts;
 
-logic undo_log_heap_enq;
-logic undo_log_heap_deq;
-
+always_comb begin
+   undo_log_abort_pending_diff = undo_log_abort_pending;
+   undo_log_abort_pending_diff[undo_log_abort_next_cand] = 1'b0;
+   undo_log_abort_scratchpad_diff = undo_log_abort_scratchpad;
+   undo_log_abort_scratchpad_diff[undo_log_abort_next_cand] = 1'b0;
+end
 
 // Task currently in the FSM, dequeued from TQ but not enqueued to FIFOs
 task_t cur_task;
@@ -484,6 +489,7 @@ always_ff @(posedge clk) begin
       cur_task_slot <= 'x;
       cur_task_epoch <= 'x;
       cur_task_tq_slot <= 'x;
+      undo_log_abort_pending <= 0;
    end else begin
       case (state) 
          IDLE: begin
@@ -542,14 +548,18 @@ always_ff @(posedge clk) begin
          end
          DEQ_CHECK_TS: begin
             if (reg_conflict ==0) begin
-               state <= !undo_log_heap_empty ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
+               state <= (undo_log_abort_pending != 0)   ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
+               undo_log_abort_scratchpad <= undo_log_abort_pending;
+               undo_log_abort_max_ts <= '0;
             end else begin
                if (abort_ts_check_task) begin
                   if (cq_state[ts_check_id] == FINISHED) begin
                      // if undo_log_write[] then heap_ready
-                     if (undo_log_heap_ready | !cq_undo_log_write[ts_check_id]) begin
-                        state <=(cq_num_children[ts_check_id] == 0)
-                                          ? ABORT_REQUEUE : ABORT_CHILDREN;
+                     state <=(cq_num_children[ts_check_id] == 0)
+                                       ? ABORT_REQUEUE : ABORT_CHILDREN;
+                     if (cq_undo_log_write[ts_check_id]) begin
+                        // undo_log_walk_required = 1
+                        undo_log_abort_pending[ts_check_id] <= 1'b1;
                      end
                   end else if (cq_state[ts_check_id] == DEQUEUED) begin
                      // task dequeued but a core has not started running yet
@@ -578,10 +588,27 @@ always_ff @(posedge clk) begin
             end
          end
          UNDO_LOG_RESTORE: begin
-            if (undo_log_heap_empty) begin 
-               // or valid & ready & capacity == (size -1)
-            // if (out_task_valid & out_task_ready) begin
-               state <= DEQ_PUSH_TASK;
+            // double loop
+            // first check inner loop, if it is terminating check outer loop
+            if (undo_log_abort_scratchpad_diff == 0) begin
+               // out_task_valid should be set
+               if (out_task_valid & out_task_ready) begin
+                  if (undo_log_abort_pending_diff == 0) begin
+                     state <= DEQ_PUSH_TASK;
+                  end
+                  // start next outer loop iteration after removing current cand
+                  // element
+                  undo_log_abort_scratchpad <= undo_log_abort_pending_diff;
+                  undo_log_abort_max_ts <= '0;
+                  undo_log_abort_pending <= undo_log_abort_pending;
+                  undo_log_abort_pending[out_task_slot] <= 1'b0;
+               end
+            end else begin
+               if (undo_log_abort_max_ts < check_vt) begin
+                  undo_log_abort_max_ts <= check_vt;
+                  undo_log_abort_scratchpad <= undo_log_abort_scratchpad_diff;
+                  undo_log_abort_max_ts_index <= undo_log_abort_next_cand;
+               end
             end
          end
          DEQ_PUSH_TASK: begin
@@ -597,30 +624,25 @@ always_ff @(posedge clk) begin
    end
 end
 
-assign undo_log_heap_enq = (state == DEQ_CHECK_TS) & (reg_conflict != 0) &
-                     abort_ts_check_task & (cq_state[ts_check_id]==FINISHED) &
-                     undo_log_heap_ready & cq_undo_log_write[ts_check_id];
-assign undo_log_heap_in_ts = ~check_vt; // negate so that min-heap ordering is reversed
-assign undo_log_heap_in_slot = ts_check_id;
 
 always_comb begin
    out_task_valid = 1'b0;
    out_task = 'x;
    out_task_slot = 'x;
-   undo_log_heap_deq = 1'b0;
    if (state == DEQ_PUSH_TASK) begin
       out_task_valid = !in_tq_abort & !in_resource_abort & !in_gvt_induced_abort;
       out_task = cur_task;
       out_task_slot = cur_task_slot;
    end else if (state == UNDO_LOG_RESTORE) begin
-      if (undo_log_heap_out_valid & undo_log_heap_ready) begin
+      if (undo_log_abort_scratchpad_diff == 0) begin
          out_task_valid = 1'b1;
          out_task.ttype = TASK_TYPE_UNDO_LOG_RESTORE;
          out_task.hint = cur_task.hint;
          // other fields doesn't matter
-         out_task_slot = undo_log_heap_out_slot;
-         if (out_task_ready) begin
-            undo_log_heap_deq = 1'b1;
+         if (undo_log_abort_max_ts < check_vt) begin
+            out_task_slot = undo_log_abort_next_cand;
+         end else begin
+            out_task_slot = undo_log_abort_max_ts_index;
          end
       end
    end
@@ -739,8 +761,11 @@ end
 cq_state_t start_task_state;
 assign start_task_state = cq_state[start_task_slot_select];
 
+logic undo_log_walk_required;
+assign undo_log_walk_required = abort_ts_check_task & (cq_state[ts_check_id] == FINISHED) & 
+          (cq_undo_log_write[ts_check_id]);
 always_comb begin
-   if (undo_log_heap_enq) begin
+   if (undo_log_walk_required) begin
       // conflict on cq_undo_log_ack_pending
       finish_task_ready = 1'b0; 
    end else begin
@@ -795,7 +820,7 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                         cq_ttype[i] <= out_task.ttype;
                      end
                      cq_state[i] <= DEQUEUED;
-                  end else if (state == UNDO_LOG_RESTORE & (i==undo_log_heap_out_slot) & 
+                  end else if (state == UNDO_LOG_RESTORE & (i==out_task_slot) & 
                            out_task_valid & out_task_ready) begin
                      cq_state[i] <=UNDO_LOG_WAITING;
                   end
@@ -859,10 +884,10 @@ initial begin
    end
 end
 always_ff @(posedge clk) begin
-   if (undo_log_heap_enq)  begin
-      cq_undo_log_ack_pending[undo_log_heap_in_slot] <= cq_undo_log_ack_pending[undo_log_heap_in_slot] + 1;
+   if (undo_log_walk_required) begin 
+      cq_undo_log_ack_pending[ts_check_id] <= 1'b1;
    end else if (finish_task_valid & finish_task_ready & finish_task_is_undo_log_restore) begin
-      cq_undo_log_ack_pending[finish_task_slot] <= cq_undo_log_ack_pending[finish_task_slot] -1;
+      cq_undo_log_ack_pending[finish_task_slot] <= 1'b0;
    end
 end
 
@@ -886,40 +911,13 @@ always_ff @(posedge clk) begin
    end
 end
   
-// Order tasks whose undo log needs to be walked by their vt order. 
-// Largest vt should dequeue first, so order-by bit inverted {in/out}_ts
-min_heap #(
-   .N_STAGES(LOG_CQ_SLICE_SIZE),
-   .PRIORITY_WIDTH(TS_WIDTH + TB_WIDTH),
-   .DATA_WIDTH(LOG_CQ_SLICE_SIZE)
-) UNDO_LOG_HEAP (
-   .clk(clk),
-   .rstn(rstn),
-
-   .in_ts(undo_log_heap_in_ts),
-   .in_data(undo_log_heap_in_slot),
-   .in_op(undo_log_heap_in_op),
-   .ready(undo_log_heap_ready),
-
-   .out_ts(undo_log_heap_out_ts), // unused 
-   .out_data(undo_log_heap_out_slot),
-   .out_valid(undo_log_heap_out_valid),
-
-   .capacity(undo_log_heap_capacity)
+lowbit #(
+   .OUT_WIDTH(LOG_CQ_SLICE_SIZE),
+   .IN_WIDTH(2**LOG_CQ_SLICE_SIZE)
+) UNDO_LOG_WALK_CAND (
+   .in(undo_log_abort_scratchpad),
+   .out(undo_log_abort_next_cand)
 );
-
-assign undo_log_heap_empty = (undo_log_heap_capacity == 2** LOG_CQ_SLICE_SIZE -1);
-always_comb begin
-   if (undo_log_heap_enq & undo_log_heap_deq) begin
-      undo_log_heap_in_op = REPLACE;
-   end else if (undo_log_heap_enq) begin
-      undo_log_heap_in_op = ENQ;
-   end else if (undo_log_heap_deq) begin
-      undo_log_heap_in_op = DEQ_MIN;
-   end else begin
-      undo_log_heap_in_op = NOP;
-   end
-end
 
 
 logic [31:0] cycles_in_resource_abort;
