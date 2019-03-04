@@ -521,8 +521,8 @@ int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
            unsigned int undo_log_addr = buf[i*16+8];
            unsigned int undo_log_data = buf[i*16+7];
            unsigned int undo_log_id = buf[i*16+6] >> 28;
-           unsigned int undo_log_cq_slot = (buf[i*16+6] >> 22) & 0x3f;
-           unsigned int undo_log_valid = (buf[i*16+6] >> 21) & 0x1;
+           unsigned int undo_log_cq_slot = (buf[i*16+6] >> 21) & 0x7f;
+           unsigned int undo_log_valid = (buf[i*16+6] >> 20) & 0x1;
 
            unsigned int restore_arvalid = (buf[i*16+3] >> 28) & 0xf;
            unsigned int restore_rvalid = (buf[i*16+3] >> 24) & 0xf;
@@ -624,10 +624,10 @@ int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned c
            unsigned int s_rdata_hint = (buf[i*16+9]);
            unsigned int s_rdata_ts = (buf[i*16+8]);
 
-           unsigned int s_cq_slot = (buf[i*16+7] >> 26) & 0x3f;
-           unsigned int s_rdata_ttype = (buf[i*16+7] >> 22) & 0xf;
-           unsigned int finished_task_valid = (buf[i*16+7] >> 21) & 0x1;
-           unsigned int finished_task_core = (buf[i*16+7] >> 16) & 0x1f;
+           unsigned int s_cq_slot = (buf[i*16+7] >> 25) & 0x3f;
+           unsigned int s_rdata_ttype = (buf[i*16+7] >> 21) & 0xf;
+           unsigned int finished_task_valid = (buf[i*16+7] >> 20) & 0x1;
+           unsigned int finished_task_core = (buf[i*16+7] >> 15) & 0x1f;
 
            unsigned int ready_list_valid = (buf[i*16+6]);
            unsigned int ready_list_conflict = (buf[i*16+5]);
@@ -636,10 +636,10 @@ int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned c
            unsigned int m_hint = (buf[i*16+3]);
 
            unsigned int m_ttype = (buf[i*16+2] >> 28) & 0xf;
-           unsigned int m_cq_slot = (buf[i*16+2] >> 22) & 0x3f;
-           unsigned int m_valid = (buf[i*16+2] >> 21) & 1;
-           unsigned int m_ready = (buf[i*16+2] >> 20) & 1;
-           unsigned int finished_task_hint_match = (buf[i*16+2] >> 4) & 0xffff;
+           unsigned int m_cq_slot = (buf[i*16+2] >> 21) & 0x3f;
+           unsigned int m_valid = (buf[i*16+2] >> 20) & 1;
+           unsigned int m_ready = (buf[i*16+2] >> 19) & 1;
+           unsigned int finished_task_hint_match = (buf[i*16+2] >> 3) & 0xffff;
            bool f = false;
            if (finished_task_valid) {
                fprintf(fw,"[%6d][%10u] [%8x %8x] finished_task core:%2x hint_match:%8x\n",

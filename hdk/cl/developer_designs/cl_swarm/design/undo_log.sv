@@ -251,9 +251,9 @@ if (UNDO_LOG_LOGGING[TILE_ID]) begin
       logic [31:0] undo_log_data;
 
       logic [3:0] undo_log_id;
-      logic [5:0] undo_log_cq_slot;
+      logic [6:0] undo_log_cq_slot;
       logic undo_log_select_valid;
-      logic [20:0] unused_1;
+      logic [19:0] unused_1;
       
 
       logic [31:0] awaddr;

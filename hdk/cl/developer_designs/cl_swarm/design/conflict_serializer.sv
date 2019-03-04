@@ -347,11 +347,11 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       logic [31:0] s_rdata_ts;
 
       // 32
-      logic [5:0] s_cq_slot;
+      logic [6:0] s_cq_slot;
       logic [3:0] s_rdata_ttype;
       logic finished_task_valid;
       logic [4:0] finished_task_core;
-      logic [15:0] unused_1;
+      logic [14:0] unused_1;
       logic [31:0] ready_list_valid;
       logic [31:0] ready_list_conflict;
 
@@ -359,11 +359,11 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       logic [31:0] m_hint;
 
       logic [3:0] m_ttype;
-      logic [5:0] m_cq_slot;
+      logic [6:0] m_cq_slot;
       logic m_valid;
       logic m_ready;
       logic [15:0] finished_task_hint_match;
-      logic [3:0] unused_2;
+      logic [2:0] unused_2;
       
    
       
