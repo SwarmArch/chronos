@@ -130,7 +130,7 @@ assign task_child_id = child_id;
 assign start_task_valid = (state == INFORM_CQ);
 assign start_task_slot = cq_slot;
 
-assign finish_task_valid = (state == FINISH_TASK) & !task_wvalid;
+assign finish_task_valid = (state == FINISH_TASK) & !task_wvalid & !undo_log_valid;
 assign finish_task_slot = cq_slot;
 
 logic [2:0] reads_left;
