@@ -287,8 +287,10 @@ if (CORE_STATE_STATS) begin
       end
    end
    always_ff @(posedge clk) begin
-      core_state_stats[state] <= core_state_stats[state] + 1;
-      ap_state_stats[ap_state] <= ap_state_stats[ap_state] + 1;
+      if (start) begin
+         core_state_stats[state] <= core_state_stats[state] + 1;
+         ap_state_stats[ap_state] <= ap_state_stats[ap_state] + 1;
+      end
    end
 end
 endgenerate

@@ -34,7 +34,7 @@ package swarm;
    parameter SERIALIZER_LOGGING = 1;
    parameter L2_LOGGING = 1;
    parameter CORE_LOGGING = 1;
-   parameter CORE_STATE_STATS = 0;
+   parameter CORE_STATE_STATS = 1;
    parameter TQ_STATS = 1;
    parameter CQ_STATS = 1;
    parameter CQ_CONFIG = 1;
