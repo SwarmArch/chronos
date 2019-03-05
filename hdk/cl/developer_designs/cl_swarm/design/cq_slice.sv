@@ -606,9 +606,9 @@ always_ff @(posedge clk) begin
             end else begin
                if (undo_log_abort_max_ts < check_vt) begin
                   undo_log_abort_max_ts <= check_vt;
-                  undo_log_abort_scratchpad <= undo_log_abort_scratchpad_diff;
                   undo_log_abort_max_ts_index <= undo_log_abort_next_cand;
                end
+               undo_log_abort_scratchpad <= undo_log_abort_scratchpad_diff;
             end
          end
          DEQ_PUSH_TASK: begin
