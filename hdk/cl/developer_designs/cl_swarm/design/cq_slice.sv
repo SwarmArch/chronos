@@ -242,14 +242,6 @@ end
 logic resource_abort_start;
 logic gvt_induced_abort_start;
 
-localparam MAXFLOW_UPDATE_TTYPE = 0;
-localparam MAXFLOW_RELABEL_TTYPE = 10;
-logic [31:0] maxflow_update_counter; 
-logic [31:0] maxflow_update_threshold;
-logic maxflow_relabel_pending;
-assign maxflow_relabel_pending = (maxflow_update_counter > maxflow_update_threshold);
-
-
 // Allows changing cq_size at runtime. This might be costly in terms of resources.
 // Consider cutting it in when building high-tile-count systems
 logic [LOG_CQ_SLICE_SIZE:0] cq_size;
@@ -263,14 +255,12 @@ if (CQ_CONFIG) begin
          //cq_size <= 2**LOG_CQ_SLICE_SIZE;
          lookup_entry <= 'x;
          lookup_mode <= 1'b0;
-         maxflow_update_threshold <= 32'hffffffff;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
            //    CQ_SIZE : cq_size <= reg_bus.wdata;
                CQ_LOOKUP_MODE : lookup_mode <= reg_bus.wdata;
                CQ_LOOKUP_ENTRY : lookup_entry <= reg_bus.wdata;
-               CQ_MAXFLOW_THRESHOLD : maxflow_update_threshold <= reg_bus.wdata;
             endcase
          end
       end 
@@ -384,16 +374,14 @@ assign resource_abort_start = (state == IDLE)
 assign gvt_induced_abort_start = (state == IDLE) & can_abort_core_1_task & gvt_task_slot_valid & 
                            (cq_state[gvt_task_slot] == DEQUEUED) & no_idle_cores & 
                            (cq_state[core_1_running_task_slot] == RUNNING) & 
-                           tsb_almost_full & !(IS_MAXFLOW & maxflow_relabel_pending);
+                           tsb_almost_full ;
 
 
 
 hint_t ref_hint;
 always_comb begin
    if (state==IDLE) begin
-      if (maxflow_relabel_pending & IS_MAXFLOW) begin
-         ref_hint = 0; 
-      end else if (from_tq_abort_valid) begin
+      if (from_tq_abort_valid) begin
          ref_hint = { 1'b0, cq_hint[from_tq_abort_slot][30:0]};
       end else if (resource_abort_start) begin
          ref_hint = { 1'b0, cq_hint[max_vt_pos_fixed][30:0]};
@@ -445,26 +433,15 @@ cq_slice_slot_t commit_task_slot;
 always_ff @(posedge clk) begin
    if (!rstn) begin
       should_terminate <= 1'b0;
-      maxflow_update_counter <= 0;
    end else begin
       if (commit_task_valid & commit_task_ready & 
             cq_terminate_task[commit_task_slot] ) begin
          should_terminate <= 1'b1;
       end
-      if (IS_MAXFLOW) begin
-         if (out_task_valid & out_task_ready 
-                  & out_task.ttype == MAXFLOW_RELABEL_TTYPE) begin
-            maxflow_update_counter <= 0;
-         end else 
-         if (commit_task_valid & commit_task_ready
-               & cq_ttype[commit_task_slot] == MAXFLOW_UPDATE_TTYPE) begin
-            maxflow_update_counter <= maxflow_update_counter + 1;
-         end
-      end
    end
 end
 
-assign from_tq_abort_ready = (state == IDLE) & !(IS_MAXFLOW & maxflow_relabel_pending);
+assign from_tq_abort_ready = (state == IDLE);
 
 logic abort_ts_check_task;
 logic in_tq_abort;
@@ -493,16 +470,6 @@ always_ff @(posedge clk) begin
    end else begin
       case (state) 
          IDLE: begin
-            if (maxflow_relabel_pending & IS_MAXFLOW) begin
-               reg_conflict <= 0; 
-               state <= DEQ_PUSH_TASK; 
-               cur_task.ttype <= MAXFLOW_RELABEL_TTYPE;
-               cur_task.ts <= 0;
-               cur_task.hint <= 0;
-               cur_task_slot <= deq_task_cq_slot;
-               cur_task_epoch <= deq_task_epoch;
-               cur_task_tq_slot <= 0;
-            end else 
             if (from_tq_abort_valid & from_tq_abort_ready) begin
                reg_conflict <= cq_conflict;
                state <= DEQ_CHECK_TS;
@@ -687,7 +654,7 @@ assign deq_task_ready = (state == IDLE) & !from_tq_abort_valid &
             (cq_next_idle_in != 0) &
             // if cc is almost full, only let the gvt task proceed
             (!cc_almost_full | (deq_task_valid & ((deq_task.ts == gvt.ts) | deq_task_force))) &
-            !gvt_induced_abort_start & !(IS_MAXFLOW & maxflow_relabel_pending); 
+            !gvt_induced_abort_start; 
 
 
 // Commit Task
@@ -710,12 +677,9 @@ always_ff @(posedge clk) begin
       cut_ties_num_children <= 'x;
    end else begin
       if (commit_task_valid & commit_task_ready) begin
-         if (IS_MAXFLOW & cq_ttype[commit_task_slot] == MAXFLOW_RELABEL_TTYPE) begin 
-         end else begin
-            tq_commit_task_valid <= 1'b1;
-            tq_commit_task_slot <= cq_tq_slot[commit_task_slot];
-            tq_commit_task_epoch <= tq_epoch[commit_task_slot];
-         end
+         tq_commit_task_valid <= 1'b1;
+         tq_commit_task_slot <= cq_tq_slot[commit_task_slot];
+         tq_commit_task_epoch <= tq_epoch[commit_task_slot];
       end else begin
          if (tq_commit_task_valid & tq_commit_task_ready) begin
             tq_commit_task_valid <= 1'b0;
@@ -816,9 +780,7 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                if (out_task_valid & out_task_ready) begin
                   if (state== DEQ_PUSH_TASK & (i==out_task_slot) ) begin
                      cq_hint [i] <= out_task.hint;
-                     if (IS_MAXFLOW) begin
-                        cq_ttype[i] <= out_task.ttype;
-                     end
+                     cq_ttype[i] <= out_task.ttype;
                      cq_state[i] <= DEQUEUED;
                   end else if (state == UNDO_LOG_RESTORE & (i==out_task_slot) & 
                            out_task_valid & out_task_ready) begin

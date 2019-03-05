@@ -44,8 +44,6 @@ package swarm;
    parameter NO_SPILLING = 0; 
    parameter NON_SPEC = 0 ;
 
-   parameter IS_MAXFLOW = 0; // TODO: remove
-   
    parameter LOG_CQ_SLICE_SIZE = 6;
    parameter LOG_TQ_SIZE = 10;
    parameter TQ_STAGES = 12; 
@@ -361,8 +359,6 @@ package swarm;
    parameter CQ_LOOKUP_TB              = 8'h94;
    parameter CQ_N_GVT_GOING_BACK       = 8'h98;
    
-   parameter CQ_MAXFLOW_THRESHOLD      = 8'ha0;
-
    parameter CQ_DEQ_TASK_STATS         = 8'hb0;
    parameter CQ_COMMIT_TASK_STATS      = 8'hb4;
 
