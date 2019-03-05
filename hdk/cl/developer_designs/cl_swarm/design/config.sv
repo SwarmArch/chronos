@@ -49,6 +49,8 @@ package swarm;
    parameter TQ_STAGES = 13; 
    parameter LOG_READY_LIST_SIZE = 5;
 
+   parameter LOG_LAST_DEQ_VT_CACHE = 6; // must be >=4, 0 to turn off
+
    parameter TS_WIDTH = 32;
    parameter HINT_WIDTH = 32;
    parameter HINT_DATA_WIDTH = 32;
@@ -339,6 +341,7 @@ package swarm;
    parameter TSB_ENTRY_VALID           = 8'h20;
 
    parameter CQ_SIZE                   = 8'h10;
+   parameter CQ_USE_TS_CACHE           = 8'h1c;
    parameter CQ_STATE                  = 8'h14;
    parameter CQ_LOOKUP_ENTRY           = 8'h18;
    parameter CQ_LOOKUP_STATE           = 8'h20;
@@ -364,6 +367,11 @@ package swarm;
    
    parameter CQ_DEQ_TASK_STATS         = 8'hb0;
    parameter CQ_COMMIT_TASK_STATS      = 8'hb4;
+
+   parameter CQ_N_TASK_NO_CONFLICT     = 8'hc0;
+   parameter CQ_N_TASK_CONFLICT_MITIGATED  = 8'hc4;
+   parameter CQ_N_TASK_CONFLICT_MISS   = 8'hc8;
+   parameter CQ_N_TASK_REAL_CONFLICT   = 8'hcc;
 
    
    parameter DEQ_FIFO_FULL_THRESHOLD   = 8'h10;

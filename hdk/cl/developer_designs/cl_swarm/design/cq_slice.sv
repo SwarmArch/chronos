@@ -258,6 +258,7 @@ logic gvt_induced_abort_start;
 logic [LOG_CQ_SLICE_SIZE:0] cq_size;
 vt_t gvt_q;
 logic [15:0] n_gvt_going_back;
+logic use_ts_cache;
 
 logic [LOG_LOG_DEPTH:0] log_size; 
 if (CQ_CONFIG) begin
@@ -266,12 +267,14 @@ if (CQ_CONFIG) begin
          //cq_size <= 2**LOG_CQ_SLICE_SIZE;
          lookup_entry <= 'x;
          lookup_mode <= 1'b0;
+         use_ts_cache <= 1'b1;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
            //    CQ_SIZE : cq_size <= reg_bus.wdata;
                CQ_LOOKUP_MODE : lookup_mode <= reg_bus.wdata;
                CQ_LOOKUP_ENTRY : lookup_entry <= reg_bus.wdata;
+               CQ_USE_TS_CACHE : use_ts_cache <= reg_bus.wdata[0];
             endcase
          end
       end 
@@ -305,6 +308,17 @@ logic [31:0] n_gvt_aborts;
 logic [31:0] stall_cycles_cq_full;
 logic [31:0] stall_cycles_cc_full;
 logic [31:0] stall_cycles_no_task;
+
+// tasks who did not have any same hint tasks on dequeue
+logic [31:0] n_tasks_no_conflict;
+// has same hint tasks, but conflict checks were skipped because the cache was
+// effective
+logic [31:0] n_tasks_conflict_mitigated;
+// has same hint tasks, but could not skip conflict checks because cache miss
+logic [31:0] n_tasks_conflict_miss; 
+// has same hint tasks which were real conflicts
+logic [31:0] n_tasks_real_conflict; 
+
 
 
 
@@ -346,6 +360,23 @@ logic [2**LOG_CQ_SLICE_SIZE-1:0] cq_next_idle_in;
 epoch_t cur_task_epoch;
 tq_slot_t cur_task_tq_slot;
 
+logic last_deq_ts_cache_hit; 
+ts_t  last_deq_ts_cache_ts;
+
+last_deq_ts_cache TS_CACHE 
+(
+   .clk(clk),
+   .rstn(rstn),
+   
+   .query_hint(deq_task.hint),
+   .query_out_valid(last_deq_ts_cache_hit),
+   .query_out_ts(last_deq_ts_cache_ts),
+
+   .wr_en(ts_write_valid),
+   .write_hint(out_task.hint),
+   .write_ts(out_task.ts)
+
+);
 
 // Nuke core 1 on a gvt induced abort. FIXME This will not work if core 1 does
 // not support gvt task type
@@ -499,8 +530,15 @@ always_ff @(posedge clk) begin
                if (cq_conflict == 0) begin
                   state <= DEQ_PUSH_TASK;
                end else begin
-                  state <= DEQ_CHECK_TS;
-                  reg_conflict <= cq_conflict;
+                  if ( !use_ts_cache | !last_deq_ts_cache_hit |
+                        (deq_task.ts < last_deq_ts_cache_ts) ) begin
+                     // bypass conflict checks if dequeing a task with a larger
+                     // ts than the previous dequeued task of the same hint
+                     state <= DEQ_CHECK_TS;
+                     reg_conflict <= cq_conflict;
+                  end else begin
+                     state <= DEQ_PUSH_TASK;
+                  end
                end
                cq_terminate_task[deq_task_cq_slot] <= 
                      (deq_task.ttype == TASK_TYPE_TERMINATE);
@@ -909,6 +947,31 @@ if (CQ_STATS) begin
       end
    end
 
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         n_tasks_no_conflict <= 0;
+         n_tasks_conflict_mitigated <= 0;
+         n_tasks_conflict_miss <= 0;
+         n_tasks_real_conflict <= 0;
+      end else begin
+         if (deq_task_valid & deq_task_ready) begin
+            if (cq_conflict == 0) begin
+               n_tasks_no_conflict <= n_tasks_no_conflict + 1;
+            end else begin
+               if (!use_ts_cache) begin
+                  n_tasks_real_conflict <= n_tasks_real_conflict + 1;
+               end else if (!last_deq_ts_cache_hit) begin
+                  n_tasks_conflict_miss <= n_tasks_conflict_miss + 1;
+               end else if (deq_task.ts < last_deq_ts_cache_ts) begin
+                  n_tasks_real_conflict <= n_tasks_real_conflict + 1;
+               end else begin
+                  n_tasks_conflict_mitigated <= n_tasks_conflict_mitigated + 1;
+               end
+            end
+         end
+      end
+   end
+
 
 
    always_ff@(posedge clk) begin
@@ -988,6 +1051,11 @@ always_ff @(posedge clk) begin
          CQ_COMMIT_TASK_STATS : reg_bus.rdata <= commit_stats[lookup_entry];
          
          CQ_N_GVT_GOING_BACK : reg_bus.rdata <= n_gvt_going_back;
+         
+         CQ_N_TASK_NO_CONFLICT : reg_bus.rdata <= n_tasks_no_conflict;
+         CQ_N_TASK_CONFLICT_MITIGATED : reg_bus.rdata <= n_tasks_conflict_mitigated;
+         CQ_N_TASK_CONFLICT_MISS : reg_bus.rdata <= n_tasks_conflict_miss;
+         CQ_N_TASK_REAL_CONFLICT : reg_bus.rdata <= n_tasks_real_conflict;
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;
@@ -1372,3 +1440,67 @@ end else begin
 end
 endgenerate
 endmodule
+
+// looks up of the last dequeued ts for a given ts
+// used to accelerate conflict detection where if the currently dequeued task
+// comes after the last dequeued ts for the same hint, then no conflict
+// detection is required.
+module last_deq_ts_cache 
+(
+   input clk,
+   input rstn,
+
+   input hint_t query_hint,
+   output logic query_out_valid,
+   output ts_t query_out_ts,
+
+   input wr_en,
+   input hint_t write_hint,
+   input ts_t   write_ts
+);
+generate
+if (LOG_LAST_DEQ_VT_CACHE >0) begin
+   hint_t tag  [0:2**LOG_LAST_DEQ_VT_CACHE-1];
+   ts_t data   [0:2**LOG_LAST_DEQ_VT_CACHE-1];
+
+   // skip bits[7:4] in indexing, since they may be constant if the task is
+   // mapped to the current tile.
+   logic [LOG_LAST_DEQ_VT_CACHE-1:0] rd_addr;
+   assign rd_addr = {query_hint[8+:(LOG_LAST_DEQ_VT_CACHE-4)],  query_hint[3:0]};
+   logic [LOG_LAST_DEQ_VT_CACHE-1:0] wr_addr;
+   assign wr_addr =  {write_hint[8+:(LOG_LAST_DEQ_VT_CACHE-4)],  write_hint[3:0]};
+   initial begin
+      for (integer i=0;i<2**LOG_LAST_DEQ_VT_CACHE;i+=1) begin
+         tag[i] = 0;
+         data[i] = 0;
+      end
+   end
+   assign query_out_valid = (tag[rd_addr][30:0] == query_hint[30:0]);
+   assign query_out_ts = data[rd_addr];
+   // a read-only task may not have aborted all its successors. Therefore its
+   // not safe to update the last_deq_ts with current task's ts
+   ts_t current_ts;
+   assign current_ts = (tag[wr_addr][30:0] == write_hint[30:0]) ? data[wr_addr] : 0;
+   ts_t new_write_ts;
+   always_comb begin
+      new_write_ts = write_ts;
+      if (write_hint[31] == 1'b1) begin
+         if (current_ts > write_ts) begin
+            new_write_ts = current_ts;
+         end
+      end
+   end
+   
+   always_ff @(posedge clk) begin
+      if (wr_en) begin
+         tag[wr_addr] <= {1'b0, write_hint[30:0]};
+         data[wr_addr] <= new_write_ts;
+      end
+   end
+end else begin
+   assign query_out_valid = 1'b0;
+end
+
+endgenerate
+endmodule
+
