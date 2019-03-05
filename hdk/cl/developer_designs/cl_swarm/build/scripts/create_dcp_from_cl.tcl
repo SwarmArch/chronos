@@ -204,6 +204,7 @@ file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/sssp/*.{v,sv,vh}]  
 file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/des/*.{v,sv,vh}]  $TARGET_DIR 
 file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/astar/*.{v,sv,vh,dat}]  $TARGET_DIR 
 file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/riscv/*.{v,sv,vh,dat}]  $TARGET_DIR 
+file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/maxflow/*.{v,sv,vh,dat}]  $TARGET_DIR 
 file copy -force {*}[glob -nocomplain -- $UNUSED_TEMPLATES_DIR/*.inc]  $TARGET_DIR 
 
 #Encrypt source code
