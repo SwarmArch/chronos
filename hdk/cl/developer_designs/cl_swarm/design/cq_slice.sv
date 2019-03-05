@@ -215,6 +215,17 @@ assign ts_write_valid = out_task_valid & (state == DEQ_PUSH_TASK);
 logic [LOG_GVT_PERIOD-1:0] lvt_cycle;
 assign lvt_cycle = cur_cycle[LOG_GVT_PERIOD-1:0];
 
+// bitmap of tasks whose undo log tasks have not been sent out
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending; 
+// in the current iterations
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad; 
+
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending_diff; 
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad_diff; 
+cq_slice_slot_t undo_log_abort_max_ts_index;
+cq_slice_slot_t undo_log_abort_next_cand;
+vt_t            undo_log_abort_max_ts;
+
 // A task of type TASK_TYPE_TERMINATE has committed; 
 // All subsequently dequeud tasks should immediately finish
 logic should_terminate;
@@ -296,16 +307,6 @@ logic [31:0] stall_cycles_cc_full;
 logic [31:0] stall_cycles_no_task;
 
 
-// bitmap of tasks whose undo log tasks have not been sent out
-logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending; 
-// in the current iterations
-logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad; 
-
-logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending_diff; 
-logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad_diff; 
-cq_slice_slot_t undo_log_abort_max_ts_index;
-cq_slice_slot_t undo_log_abort_next_cand;
-vt_t            undo_log_abort_max_ts;
 
 always_comb begin
    undo_log_abort_pending_diff = undo_log_abort_pending;
