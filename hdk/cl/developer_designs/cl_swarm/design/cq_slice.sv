@@ -886,6 +886,7 @@ lowbit #(
 
 
 logic [31:0] cycles_in_resource_abort;
+logic [31:0] cycles_in_gvt_abort;
 
 if (CQ_STATS) begin
    initial begin
@@ -917,15 +918,22 @@ if (CQ_STATS) begin
          stall_cycles_cq_full <= 0;
          stall_cycles_no_task <= 0;
          cycles_in_resource_abort <= 0;
+         cycles_in_gvt_abort <= 0;
       end else begin
          if (resource_abort_start) begin
-            n_resource_aborts <= n_resource_aborts + 1;
+            if ( !(from_tq_abort_valid & from_tq_abort_ready) & (!gvt_induced_abort_start) 
+               & !(deq_task_valid & deq_task_ready)) begin
+               n_resource_aborts <= n_resource_aborts + 1;
+            end
          end 
          if (gvt_induced_abort_start) begin
             n_gvt_aborts <= n_gvt_aborts + 1;
          end
          if (in_resource_abort) begin
             cycles_in_resource_abort <= cycles_in_resource_abort + 1;
+         end
+         if (in_gvt_induced_abort) begin
+            cycles_in_gvt_abort <= cycles_in_gvt_abort + 1;
          end
          if (cq_valid != 0) begin
             cq_state_stats[state] <= cq_state_stats[state] + 1;
@@ -973,6 +981,7 @@ always_ff @(posedge clk) begin
          CQ_STAT_N_IDLE_NO_TASK    : reg_bus.rdata <= stall_cycles_no_task;
          
          CQ_STAT_CYCLES_IN_RESOURCE_ABORT : reg_bus.rdata <= cycles_in_resource_abort;
+         CQ_STAT_CYCLES_IN_GVT_ABORT : reg_bus.rdata <= cycles_in_gvt_abort;
          
          CQ_DEQ_TASK_STATS : reg_bus.rdata <= deq_stats[lookup_entry];
          CQ_COMMIT_TASK_STATS : reg_bus.rdata <= commit_stats[lookup_entry];

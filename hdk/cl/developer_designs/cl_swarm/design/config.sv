@@ -45,8 +45,9 @@ package swarm;
    parameter NON_SPEC = 0 ;
 
    parameter LOG_CQ_SLICE_SIZE = 6;
-   parameter LOG_TQ_SIZE = 10;
-   parameter TQ_STAGES = 12; 
+   parameter LOG_TQ_SIZE = 12;
+   parameter TQ_STAGES = 13; 
+   parameter LOG_READY_LIST_SIZE = 5;
 
    parameter TS_WIDTH = 32;
    parameter HINT_WIDTH = 32;
@@ -326,6 +327,7 @@ package swarm;
    parameter TASK_UNIT_STAT_N_ABORT_TASK           = 8'hb0;
    parameter TASK_UNIT_STAT_N_COAL_CHILD           = 8'hc0;
    parameter TASK_UNIT_STAT_N_OVERFLOW             = 8'hc4;
+   parameter TASK_UNIT_STAT_N_CYCLES_DEQ_VALID     = 8'hc8;
 
    parameter TASK_UNIT_STATS_0_BEGIN               = 8'hdx;
    parameter TASK_UNIT_STATS_1_BEGIN               = 8'hex;
@@ -354,6 +356,7 @@ package swarm;
    parameter CQ_STAT_N_IDLE_CC_FULL    = 8'h74;
    parameter CQ_STAT_N_IDLE_NO_TASK    = 8'h78;
    parameter CQ_STAT_CYCLES_IN_RESOURCE_ABORT    = 8'h80;
+   parameter CQ_STAT_CYCLES_IN_GVT_ABORT    = 8'h84;
    
    parameter CQ_LOOKUP_TS              = 8'h90;
    parameter CQ_LOOKUP_TB              = 8'h94;

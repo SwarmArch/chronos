@@ -489,6 +489,7 @@ module task_unit
    logic abort_child_ready_q;  
 
    logic cut_ties_epoch_match;
+   logic deq_epoch_match;
    assign cut_ties_epoch_match = (epoch[cut_ties_tq_slot] == cut_ties_epoch);
    
    // Scheduler
@@ -549,7 +550,7 @@ module task_unit
                   if (next_deque_elem.splitter) begin
                      deq_task = !splitter_deq_valid & !commit_task_ready; 
                   end else begin
-                     deq_task = !task_deq_valid_reg; 
+                     deq_task = !task_deq_valid_reg | !deq_epoch_match; 
                   end
                end
             end
@@ -606,7 +607,6 @@ module task_unit
       abort_child_ready_q <= abort_child_ready;
    end
    
-   logic deq_epoch_match;
    assign deq_epoch_match = (epoch[next_deque_elem.slot] == next_deque_elem.epoch); 
    logic deq_splitter, deq_non_splitter;
    logic deq_splitter_q, deq_non_splitter_q;
@@ -1095,6 +1095,8 @@ module task_unit
    logic [31:0] n_coal_child;
    logic [31:0] n_overflow;
 
+   logic [31:0] n_cycles_task_deq_valid; 
+
 
    logic [31:0] state_stats [0:7];
 
@@ -1137,6 +1139,8 @@ if(TQ_STATS) begin // Approximate cost: 1000 LUTs/500 FFs
 
          n_coal_child <= 0;
          n_overflow <= 0;
+
+         n_cycles_task_deq_valid <= 0;
       end else begin
          if (task_enq_valid & task_enq_ready) begin
             if (!task_enq_tied) begin
@@ -1203,6 +1207,9 @@ if(TQ_STATS) begin // Approximate cost: 1000 LUTs/500 FFs
          end
          if (overflow_valid & overflow_ready) begin
             n_overflow <= n_overflow + 1;
+         end
+         if (task_deq_valid) begin
+            n_cycles_task_deq_valid <= n_cycles_task_deq_valid + 1; 
          end
       end
    end
@@ -1277,6 +1284,7 @@ endgenerate
             TASK_UNIT_STAT_N_ABORT_TASK          : reg_bus.rdata <= n_abort_task;
             TASK_UNIT_STAT_N_COAL_CHILD          : reg_bus.rdata <= n_coal_child;
             TASK_UNIT_STAT_N_OVERFLOW            : reg_bus.rdata <= n_overflow;
+            TASK_UNIT_STAT_N_CYCLES_DEQ_VALID    : reg_bus.rdata <= n_cycles_task_deq_valid;
 
             TASK_UNIT_STATS_0_BEGIN : reg_bus.rdata <= state_stats[{1'b0, reg_bus.araddr[3:2]}];
             TASK_UNIT_STATS_1_BEGIN : reg_bus.rdata <= state_stats[{1'b1, reg_bus.araddr[3:2]}];

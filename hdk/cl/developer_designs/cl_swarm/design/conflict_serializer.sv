@@ -48,7 +48,6 @@ module conflict_serializer #(
 
    localparam LOG_N_CORES = $clog2(NUM_CORES);
 
-   localparam LOG_READY_LIST_SIZE = 5;
    localparam READY_LIST_SIZE = 2**LOG_READY_LIST_SIZE;
 
    logic [LOG_N_CORES-1:0] reg_core_id;
