@@ -161,7 +161,7 @@ always_ff @(posedge clk) begin
    end
 end
 
-assign ap_start = (state == START_CORE) | (state == WAIT_CORE) & ap_rst_n;
+assign ap_start = ((state == START_CORE) & !abort_running_task_q) | ((state == WAIT_CORE) & ap_rst_n);
 
 assign task_arvalid = (state == NEXT_TASK) & start & (dequeues_remaining >0) & ap_rst_n;
 
@@ -176,11 +176,13 @@ always_comb begin
       end
       INFORM_CQ: begin
          if (start_task_ready) begin
+            // This abort_running_task_q check only makes sense if
+            // start_task_ready was asserted the first time
             state_next = abort_running_task_q ? FINISH_TASK : START_CORE;
          end
       end
       START_CORE: begin
-         state_next = WAIT_CORE;
+         state_next = abort_running_task_q ? FINISH_TASK : WAIT_CORE;
       end
       WAIT_CORE: begin
          if (!ap_rst_n) begin

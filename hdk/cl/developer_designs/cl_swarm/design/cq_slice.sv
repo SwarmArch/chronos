@@ -858,7 +858,10 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                end 
             end
             ABORTED: begin
-               if ( start_task_at[i]) begin
+               if (finish_task_valid & finish_task_ready &
+                     (finish_task_slot == i) &
+                     !finish_task_is_undo_log_restore) begin
+                  // Task was found to be aborted on dequeue
                   cq_state[i] <= UNUSED;
                end else if (abort_ack_valid & abort_ack_ready & (abort_ack_cq_slot ==i)) begin
                   if (cq_undo_log_ack_pending[i] > 0) begin
