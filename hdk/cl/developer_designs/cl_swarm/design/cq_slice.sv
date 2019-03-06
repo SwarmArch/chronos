@@ -189,6 +189,7 @@ cq_state_t   cq_state [0:2**LOG_CQ_SLICE_SIZE-1];
 hint_t       cq_hint  [0:2**LOG_CQ_SLICE_SIZE-1];
 epoch_t      tq_epoch [0:2**LOG_CQ_SLICE_SIZE-1];
 tq_slot_t    cq_tq_slot [0:2**LOG_CQ_SLICE_SIZE-1];
+logic        cq_read_only_task [0:2**LOG_CQ_SLICE_SIZE-1];
 
 task_type_t  cq_ttype [0:2**LOG_CQ_SLICE_SIZE-1];
 
@@ -205,6 +206,11 @@ cq_slice_slot_t ts_check_id;
 vt_t check_vt;
 vt_t [0:2**LOG_CQ_TS_BANKS-1] rdata_lvt;
 
+initial begin
+   for (integer i=0;i<2**LOG_CQ_SLICE_SIZE;i=i+1) begin
+      cq_hint[i] = 0;
+   end
+end
 vt_t ts_write_data;
 logic ts_write_valid;
 
@@ -378,6 +384,50 @@ last_deq_ts_cache TS_CACHE
 
 );
 
+hint_t bloom_query_hint;
+logic [2**LOG_CQ_SLICE_SIZE-1:0] bloom_query_out_conflict;
+logic bloom_wr_en;
+cq_slice_slot_t bloom_wr_cq_slot; 
+hint_t bloom_wr_hint; 
+logic bloom_wr_set; 
+
+assign bloom_query_hint = {1'b0, deq_task.hint[30:0]};
+
+hint_t ref_hint;
+hint_bloom_filters HINT_BLOOM
+(
+   .clk(clk),
+   .rstn(rstn),
+   
+   .query_hint(ref_hint),
+   .query_out_conflict(bloom_query_out_conflict),
+
+   .wr_en(bloom_wr_en),
+   .write_slot(bloom_wr_cq_slot),
+   .write_hint(bloom_wr_hint),
+   .write_set(bloom_wr_set) // set-1, reset-0 
+);
+
+always_comb begin
+   bloom_wr_en = 1'b0;
+   if (state == IDLE) begin
+      bloom_wr_cq_slot = deq_task_cq_slot;
+      bloom_wr_hint = cq_hint[deq_task_cq_slot];
+      bloom_wr_set = 0;
+      if (deq_task_valid & deq_task_ready) begin
+         bloom_wr_en = 1'b1;
+      end
+   end else if (state == DEQ_PUSH_TASK) begin
+      bloom_wr_cq_slot = out_task_slot;
+      bloom_wr_hint = {1'b0, out_task.hint[30:0]}; 
+      bloom_wr_set = 1;
+      if (out_task_valid & out_task_ready) begin
+         bloom_wr_en = 1'b1;
+      end
+   end
+end
+
+
 // Nuke core 1 on a gvt induced abort. FIXME This will not work if core 1 does
 // not support gvt task type
 cq_slice_slot_t core_1_running_task_slot;
@@ -410,7 +460,6 @@ assign gvt_induced_abort_start = (state == IDLE) & can_abort_core_1_task & gvt_t
 
 
 
-hint_t ref_hint;
 always_comb begin
    if (state==IDLE) begin
       if (from_tq_abort_valid) begin
@@ -429,10 +478,10 @@ end
 
 genvar i;
 for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
-   assign cq_conflict[i] = cq_valid[i] & (cq_hint[i][30:0] == ref_hint[30:0])
+   assign cq_conflict[i] = cq_valid[i] & bloom_query_out_conflict[i]  
             // if MSB of hint is set, its a read-only hint. No conflicts between
             // RO tasks
-            &  !( cq_hint[i][31] & ref_hint[31])
+            &  !(cq_read_only_task[i] & ref_hint[31])
             & (cq_state[i] != ABORTED) & (cq_state[i] != UNDO_LOG_WAITING);
    assign cq_next_idle_in[i] = !cq_valid[i] & (i < cq_size) ;
 end
@@ -812,14 +861,11 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
    always_ff @(posedge clk) begin
       if (!rstn) begin
          cq_state[i] <= UNUSED;
-         cq_hint[i] <= 'x;
       end else begin
          case (cq_state[i]) 
             UNUSED: begin
                if (out_task_valid & out_task_ready) begin
                   if (state== DEQ_PUSH_TASK & (i==out_task_slot) ) begin
-                     cq_hint [i] <= out_task.hint;
-                     cq_ttype[i] <= out_task.ttype;
                      cq_state[i] <= DEQUEUED;
                   end else if (state == UNDO_LOG_RESTORE & (i==out_task_slot) & 
                            out_task_valid & out_task_ready) begin
@@ -899,6 +945,9 @@ always_ff @(posedge clk) begin
    if (state==DEQ_PUSH_TASK & out_task_valid & out_task_ready) begin
       tq_epoch  [out_task_slot] <= cur_task_epoch;
       cq_tq_slot[out_task_slot] <= cur_task_tq_slot;
+      cq_hint [out_task_slot] <= out_task.hint;
+      cq_read_only_task [out_task_slot] <= out_task.hint[31];
+      cq_ttype[out_task_slot] <= out_task.ttype;
 
    end
 end
@@ -1502,5 +1551,92 @@ end else begin
 end
 
 endgenerate
+endmodule
+
+module hint_bloom_filters
+(
+   input clk,
+   input rstn,
+
+   input hint_t query_hint,
+   output logic [2**LOG_CQ_SLICE_SIZE-1:0] query_out_conflict,
+
+   input wr_en,
+   input cq_slice_slot_t write_slot,
+   input hint_t write_hint,
+   input write_set // set-1, reset-0 
+);
+
+localparam N_FILTERS = 4;
+localparam FILTER_DEPTH = 8;
+
+// random 32-bit numbers generated from 
+// https://www.browserling.com/tools/random-hex
+localparam logic [31:0][0:15] hash_keys = {
+ 32'h2cccc93a,
+ 32'h05c4357e,
+ 32'h95bd7e36,
+ 32'h62e721fa,
+ 32'h3bbc49a6,
+ 32'h2da9f278,
+ 32'he39243ce,
+ 32'h8329b91a,
+ 32'h1cd8549a,
+ 32'hfe73b4f1,
+ 32'h64d611a0,
+ 32'h04a16e92,
+ 32'hc8c3c457,
+ 32'hecd2efd0,
+ 32'h3a2c194f,
+ 32'h3aa2ce85
+};
+
+typedef logic [$clog2(FILTER_DEPTH)-1:0] filter_addr_t;
+
+typedef logic [2**LOG_CQ_SLICE_SIZE-1:0] filter_entry_t;
+
+filter_entry_t filters[0:N_FILTERS-1][0:FILTER_DEPTH-1];
+
+filter_addr_t query_addr [0:N_FILTERS-1];
+filter_addr_t write_addr [0:N_FILTERS-1];
+
+logic [2**LOG_CQ_SLICE_SIZE-1:0] filter_out[0:N_FILTERS-1];
+logic [2**LOG_CQ_SLICE_SIZE-1:0] write_current_data[0:N_FILTERS-1];
+logic [2**LOG_CQ_SLICE_SIZE-1:0] write_new_data[0:N_FILTERS-1];
+initial begin
+   for (integer i=0;i<N_FILTERS;i=i+1) begin
+      for (integer j=0;j<FILTER_DEPTH;j=j+1) begin
+         filters[i][j] = 0;
+      end
+   end
+   
+end
+
+generate
+genvar i;
+genvar j;
+for (i=0;i<N_FILTERS;i=i+1) begin
+   // generate hint->addr mapping
+   for (j=0;j<$clog2(FILTER_DEPTH);j+=1) begin
+      assign query_addr[i][j] = ^(query_hint & hash_keys[i * $clog2(FILTER_DEPTH)] +j);
+      assign write_addr[i][j] = ^(write_hint & hash_keys[i * $clog2(FILTER_DEPTH)] +j);
+   end
+   assign filter_out[i] = filters[i][query_addr[i]]; 
+   assign write_current_data[i] = filters[i][write_addr[i]]; 
+   always_comb begin
+      write_new_data[i] = write_current_data[i];
+      write_new_data[i][write_slot] = write_set;
+   end
+   always @(posedge clk) begin
+      if (wr_en) begin
+         filters[i][write_addr[i]] <= write_new_data[i];
+      end
+   end
+end
+
+assign query_out_conflict = filter_out[0] & filter_out[1] & filter_out[2] & filter_out[3];
+
+endgenerate
+
 endmodule
 

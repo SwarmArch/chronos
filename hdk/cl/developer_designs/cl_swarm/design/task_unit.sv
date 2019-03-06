@@ -361,6 +361,8 @@ module task_unit
    logic [23:0] maxflow_global_relabel_trigger_inc;
 
    ts_t modified_task_enq_ts;
+   logic [3:0] four_bit_tile_id;
+   assign four_bit_tile_id = TILE_ID;
    always_ff @(posedge clk) begin
       if (!rstn) begin
         transaction_id <= 1; 
@@ -380,8 +382,6 @@ module task_unit
      end
    end
    
-   logic [3:0] four_bit_tile_id;
-   assign four_bit_tile_id = TILE_ID;
    always_comb begin
       if (is_transactional & task_enq_valid & (task_enq_data.ttype == 0)) begin
          if (task_enq_data.ts[31:4] > {transaction_id, four_bit_tile_id}) begin
