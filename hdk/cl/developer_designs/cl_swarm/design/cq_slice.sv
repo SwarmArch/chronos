@@ -692,6 +692,8 @@ always_comb begin
       out_task_valid = (undo_log_abort_scratchpad_diff ==0);
       out_task.ttype = TASK_TYPE_UNDO_LOG_RESTORE;
       out_task.hint = cur_task.hint;
+      out_task.ts = 'x;
+      out_task.args = 'x;
       // other fields doesn't matter
       if (undo_log_abort_max_ts < check_vt) begin
          out_task_slot = undo_log_abort_next_cand;
