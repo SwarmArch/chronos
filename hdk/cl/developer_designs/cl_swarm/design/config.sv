@@ -44,12 +44,12 @@ package swarm;
    parameter NO_SPILLING = 0; 
    parameter NON_SPEC = 0 ;
 
-   parameter LOG_CQ_SLICE_SIZE = 6;
+   parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;
    parameter TQ_STAGES = 13; 
    parameter LOG_READY_LIST_SIZE = 5;
 
-   parameter LOG_LAST_DEQ_VT_CACHE = 6; // must be >=4, 0 to turn off
+   parameter LOG_LAST_DEQ_VT_CACHE = 8; // must be >=4, 0 to turn off
 
    parameter TS_WIDTH = 32;
    parameter HINT_WIDTH = 32;
@@ -64,7 +64,7 @@ package swarm;
    parameter LOG_UNDO_LOG_ENTRIES_PER_TASK = 3;
 
    parameter TB_WIDTH = 32; // tiebreaker width;
-   parameter LOG_GVT_PERIOD = 4; // 16 cycles
+   parameter LOG_GVT_PERIOD = 5; // 16 cycles
    parameter LOG_CQ_TS_BANKS = LOG_CQ_SLICE_SIZE - LOG_GVT_PERIOD;
 
    
