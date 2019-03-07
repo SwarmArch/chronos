@@ -410,6 +410,9 @@ hint_bloom_filters HINT_BLOOM
 
 always_comb begin
    bloom_wr_en = 1'b0;
+   bloom_wr_set = 'x;
+   bloom_wr_hint = 'x;
+   bloom_wr_cq_slot = 'x;
    if (state == IDLE) begin
       bloom_wr_cq_slot = deq_task_cq_slot;
       bloom_wr_hint = cq_hint[deq_task_cq_slot];
