@@ -14,6 +14,7 @@ typedef enum logic[2:0] {
    COMMITTED // waiting for cut_ties_ack before the slot can be freed
 } cq_state_t;
 typedef vt_t [2**LOG_CQ_TS_BANKS -1:0] ts_vt_out; 
+typedef logic [2**LOG_CQ_SLICE_SIZE-1:0] filter_entry_t;
 
 module cq_slice 
 #( 
@@ -1582,76 +1583,109 @@ module hint_bloom_filters
    input write_set // set-1, reset-0 
 );
 
-localparam N_FILTERS = 4;
-localparam FILTER_DEPTH = 8;
+   localparam N_FILTERS = 4;
+   localparam FILTER_DEPTH = 8;
 
-// random 32-bit numbers generated from 
-// https://www.browserling.com/tools/random-hex
-localparam logic [31:0][0:15] hash_keys = {
- 32'h2cccc93a,
- 32'h05c4357e,
- 32'h95bd7e36,
- 32'h62e721fa,
- 32'h3bbc49a6,
- 32'h2da9f278,
- 32'he39243ce,
- 32'h8329b91a,
- 32'h1cd8549a,
- 32'hfe73b4f1,
- 32'h64d611a0,
- 32'h04a16e92,
- 32'hc8c3c457,
- 32'hecd2efd0,
- 32'h3a2c194f,
- 32'h3aa2ce85
-};
 
-typedef logic [$clog2(FILTER_DEPTH)-1:0] filter_addr_t;
+   filter_entry_t [N_FILTERS-1:0]  filter_out;
 
-typedef logic [2**LOG_CQ_SLICE_SIZE-1:0] filter_entry_t;
 
-filter_entry_t filters[0:N_FILTERS-1][0:FILTER_DEPTH-1];
+   generate
+   genvar i;
+      for (i=0;i<N_FILTERS;i=i+1) begin
+         bloom_bank #(
+            .FILTER_DEPTH(FILTER_DEPTH),
+            .BANK_ID(i)
+         ) BANK (
+            .clk(clk),
+            .rstn(rstn),
+            .query_hint(query_hint),
+            .filter_out(filter_out[i]),
 
-filter_addr_t query_addr [0:N_FILTERS-1];
-filter_addr_t write_addr [0:N_FILTERS-1];
-
-logic [2**LOG_CQ_SLICE_SIZE-1:0] filter_out[0:N_FILTERS-1];
-logic [2**LOG_CQ_SLICE_SIZE-1:0] write_current_data[0:N_FILTERS-1];
-logic [2**LOG_CQ_SLICE_SIZE-1:0] write_new_data[0:N_FILTERS-1];
-initial begin
-   for (integer i=0;i<N_FILTERS;i=i+1) begin
-      for (integer j=0;j<FILTER_DEPTH;j=j+1) begin
-         filters[i][j] = 0;
+            .wr_en(wr_en),
+            .write_slot(write_slot),
+            .write_hint(write_hint),
+            .write_set(write_set)
+         );
       end
-   end
-   
-end
 
-generate
-genvar i;
-genvar j;
-for (i=0;i<N_FILTERS;i=i+1) begin
-   // generate hint->addr mapping
-   for (j=0;j<$clog2(FILTER_DEPTH);j+=1) begin
-      assign query_addr[i][j] = ^(query_hint & hash_keys[i * $clog2(FILTER_DEPTH)] +j);
-      assign write_addr[i][j] = ^(write_hint & hash_keys[i * $clog2(FILTER_DEPTH)] +j);
-   end
-   assign filter_out[i] = filters[i][query_addr[i]]; 
-   assign write_current_data[i] = filters[i][write_addr[i]]; 
-   always_comb begin
-      write_new_data[i] = write_current_data[i];
-      write_new_data[i][write_slot] = write_set;
-   end
-   always @(posedge clk) begin
-      if (wr_en) begin
-         filters[i][write_addr[i]] <= write_new_data[i];
-      end
-   end
-end
-
-assign query_out_conflict = filter_out[0] & filter_out[1] & filter_out[2] & filter_out[3];
-
-endgenerate
+   endgenerate
+   assign query_out_conflict = filter_out[0] & filter_out[1] & filter_out[2] & filter_out[3];
 
 endmodule
 
+module bloom_bank 
+#( 
+   parameter FILTER_DEPTH = 8,
+   parameter BANK_ID = 0
+) (
+   input clk,
+   input rstn,
+
+   input hint_t query_hint,
+   output logic [2**LOG_CQ_SLICE_SIZE-1:0] filter_out,
+
+   input wr_en,
+   input cq_slice_slot_t write_slot,
+   input hint_t write_hint,
+   input write_set // set-1, reset-0 
+);
+   typedef logic [$clog2(FILTER_DEPTH)-1:0] filter_addr_t;
+
+   filter_addr_t query_addr ;
+   filter_addr_t write_addr ;
+
+   filter_entry_t write_current_data;
+   filter_entry_t write_new_data;
+   filter_entry_t read_data;
+
+   filter_entry_t filters [0:FILTER_DEPTH-1];       
+
+   // random 32-bit numbers generated from 
+   // https://www.browserling.com/tools/random-hex
+   localparam logic [31:0][0:15] hash_keys = {
+    32'h2cccc93a,
+    32'h05c4357e,
+    32'h95bd7e36,
+    32'h62e721fa,
+    32'h3bbc49a6,
+    32'h2da9f278,
+    32'he39243ce,
+    32'h8329b91a,
+    32'h1cd8549a,
+    32'hfe73b4f1,
+    32'h64d611a0,
+    32'h04a16e92,
+    32'hc8c3c457,
+    32'hecd2efd0,
+    32'h3a2c194f,
+    32'h3aa2ce85
+   };
+
+   generate genvar j;
+      for (j=0;j<$clog2(FILTER_DEPTH);j+=1) begin
+         assign query_addr[j] = ^(query_hint & hash_keys[BANK_ID * $clog2(FILTER_DEPTH)] +j);
+         assign write_addr[j] = ^(write_hint & hash_keys[BANK_ID * $clog2(FILTER_DEPTH)] +j);
+      end
+   endgenerate
+   always_comb begin
+      write_new_data = write_current_data;
+      write_new_data[write_slot] = write_set;
+   end
+   initial begin
+      for (integer j=0;j<FILTER_DEPTH;j=j+1) begin
+         filters[j] = 0;
+      end
+   end
+   always_comb begin
+      write_current_data = filters[write_addr]; 
+      filter_out = filters[query_addr]; 
+   end
+   always @(posedge clk) begin
+      if (wr_en) begin
+         filters[write_addr] <= write_new_data;
+      end
+   end
+
+
+endmodule
