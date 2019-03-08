@@ -414,7 +414,8 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
             if (headers[10] < 5) headers[10] =5;
             write_buffer[10*4] = headers[10];
         }
-        write_buffer[13*4] = 1;
+        // uncomment for ordered edges
+        //write_buffer[13*4] = 1;
     }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
@@ -508,7 +509,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     uint32_t spill_size = 64;
 
     bool task_unit_logging_on = false;
-    task_unit_logging_on = true;
+    //task_unit_logging_on = true;
 
 
     assert(spill_threshold > (tied_cap + (1<<LOG_CQ_SIZE) + spill_size));
@@ -549,9 +550,8 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq hint/ts
         //pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 5);
         //pci_poke(i, ID_COALESCER, CORE_START, 0xffffffff);
-        //pci_poke(i, ID_CQ, CQ_SIZE, 48);
-        pci_poke(i, ID_CQ, CQ_MAXFLOW_THRESHOLD, 0xffffffff);
         pci_poke(i, ID_SERIALIZER, SERIALIZER_SIZE_CONTROL, 24);
+        //pci_poke(i, ID_CQ, CQ_USE_TS_CACHE, 0);
 
         if (app == APP_MAXFLOW) {
             pci_poke(i, ID_TASK_UNIT, TASK_UNIT_IS_TRANSACTIONAL, 1);
@@ -698,7 +698,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(0, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0xe0);
     }
     uint32_t core_mask = 0;
-    uint32_t active_cores = 8;
+    uint32_t active_cores = 12;
     core_mask = (1<<(active_cores+1))-1;
     core_mask |= (1<<ID_COALESCER);
     //core_mask |= (1<<9);
@@ -740,6 +740,42 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        uint32_t gvt;
        uint32_t gvt_tb;
        pci_peek(0, ID_CQ, CQ_GVT_TS, &gvt);
+       /*
+           uint32_t n_tasks, n_tied_tasks, heap_capacity;
+           uint32_t coal_tasks;
+           uint32_t stack_ptr;
+           uint32_t cq_state;
+           uint32_t tq_debug;
+           uint32_t cycle;
+           for (int i=0;i<(1<<log_active_tiles);i++) {
+               pci_peek(i, ID_CQ, CQ_GVT_TS, &gvt);
+               pci_peek(i, ID_CQ, CQ_GVT_TB, &gvt_tb);
+               pci_peek(i, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB       , &cycle);
+               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TASKS, &n_tasks);
+               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TIED_TASKS, &n_tied_tasks);
+               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_CAPACITY, &heap_capacity);
+               pci_peek(i, ID_COALESCER, CORE_NUM_DEQ, &coal_tasks);
+               pci_poke(i, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB,
+                       ADDR_BASE_SPILL + i*TOTAL_SPILL_ALLOCATION);
+               pci_peek(i, ID_OCL_SLAVE, OCL_ACCESS_MEM, &stack_ptr );
+               pci_peek(i, ID_CQ, CQ_STATE, &cq_state );
+               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug );
+               //pci_peek(0, ID_TSB, TSB_ENTRY_VALID, &stack_ptr );
+               printf(" [%4d][%1d][%8u] gvt:(%9x %9d) (%4d %4d %4d) %6d %4x stack_ptr:%4d\n",
+                       iters, i, cycle, gvt, gvt_tb,
+                       n_tasks, n_tied_tasks, heap_capacity,
+                       cq_state, tq_debug, stack_ptr);
+                for (int j=1;j<9;j++) {
+
+                    uint32_t core_state, core_pc;
+                    pci_peek(i, j, CORE_STATE, &core_state );
+                    pci_peek(i, j, CORE_PC, &core_pc );
+                    printf("\t core %d state:%d pc:%x\n", j, core_state, core_pc);
+                }
+               cq_stats(i);
+           }
+           */
+           usleep(100);
        //printf(" gvt %d\n", gvt);
        if (gvt == -1 || gvt == -2) {
            // -2 to ignore some non-spec bugs
@@ -925,9 +961,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       coal_tasks);
       */
    for (int i=0;i<(1<<log_active_tiles);i++) {
+       //core_stats(i);
        task_unit_stats(i);
        if (!NON_SPEC) cq_stats(i);
-       core_stats(0);
    }
    log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
 
