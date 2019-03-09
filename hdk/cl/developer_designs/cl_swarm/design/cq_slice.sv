@@ -1525,12 +1525,12 @@ if (LOG_LAST_DEQ_VT_CACHE >0) begin
    hint_t tag  [0:2**LOG_LAST_DEQ_VT_CACHE-1];
    ts_t data   [0:2**LOG_LAST_DEQ_VT_CACHE-1];
 
-   // skip bits[7:4] in indexing, since they may be constant if the task is
+   // skip bits[4+LOG_N_TILES -1:4] in indexing, since they may be constant if the task is
    // mapped to the current tile.
    logic [LOG_LAST_DEQ_VT_CACHE-1:0] rd_addr;
-   assign rd_addr = {query_hint[8+:(LOG_LAST_DEQ_VT_CACHE-4)],  query_hint[3:0]};
+   assign rd_addr = {query_hint[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  query_hint[3:0]};
    logic [LOG_LAST_DEQ_VT_CACHE-1:0] wr_addr;
-   assign wr_addr =  {write_hint[8+:(LOG_LAST_DEQ_VT_CACHE-4)],  write_hint[3:0]};
+   assign wr_addr =  {write_hint[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  write_hint[3:0]};
    initial begin
       for (integer i=0;i<2**LOG_LAST_DEQ_VT_CACHE;i+=1) begin
          tag[i] = 0;
