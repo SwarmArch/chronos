@@ -112,7 +112,7 @@ always_ff @(posedge clk) begin
 end
 
 logic wr_begin;
-logic ap_state = state;
+assign ap_state = state;
 
 logic initialized;
 
