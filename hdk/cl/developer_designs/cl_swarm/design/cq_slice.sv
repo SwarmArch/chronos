@@ -1049,20 +1049,17 @@ if (CQ_STATS) begin
          cycles_in_resource_abort <= 0;
          cycles_in_gvt_abort <= 0;
       end else begin
-         if (resource_abort_start) begin
-            if ( !(from_tq_abort_valid & from_tq_abort_ready) & (!gvt_induced_abort_start) 
-               & !(deq_task_valid & deq_task_ready)) begin
-               n_resource_aborts <= n_resource_aborts + 1;
-            end
-         end 
-         if (gvt_induced_abort_start) begin
-            n_gvt_aborts <= n_gvt_aborts + 1;
-         end
          if (in_resource_abort) begin
             cycles_in_resource_abort <= cycles_in_resource_abort + 1;
+            if (state == DEQ_PUSH_TASK) begin
+               n_resource_aborts <= n_resource_aborts + 1;
+            end
          end
          if (in_gvt_induced_abort) begin
             cycles_in_gvt_abort <= cycles_in_gvt_abort + 1;
+            if (state == DEQ_PUSH_TASK) begin
+               n_gvt_aborts <= n_gvt_aborts + 1;
+            end
          end
          if (cq_valid != 0) begin
             cq_state_stats[state] <= cq_state_stats[state] + 1;
