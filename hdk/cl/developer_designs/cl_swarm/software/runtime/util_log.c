@@ -865,6 +865,10 @@ printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW       
                     stat_TASK_UNIT_STAT_N_ABORT_CHILD_NOT_DEQ -
                     stat_TASK_UNIT_STAT_N_CUT_TIES_COM_ABO);
 
+    uint32_t n_cycles_deq_valid;
+    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_CYCLES_DEQ_VALID,&n_cycles_deq_valid);
+    printf("cycles deq_valid:%9d\n", n_cycles_deq_valid);
+
 }
 
 void cq_stats (uint32_t tile) {
@@ -876,16 +880,41 @@ void cq_stats (uint32_t tile) {
         if ( (i%4==3)) printf("\n");
     }
     uint32_t resource_aborts, gvt_aborts;
+    uint32_t cycles_in_resource_aborts;
+    uint32_t cycles_in_gvt_aborts;
+
     pci_peek(tile, ID_CQ, CQ_STAT_N_RESOURCE_ABORTS ,&resource_aborts            );
     pci_peek(tile, ID_CQ, CQ_STAT_N_GVT_ABORTS ,&gvt_aborts            );
+    pci_peek(tile, ID_CQ, CQ_STAT_CYCLES_IN_RESOURCE_ABORT, &cycles_in_resource_aborts );
+    pci_peek(tile, ID_CQ, CQ_STAT_CYCLES_IN_GVT_ABORT, &cycles_in_gvt_aborts   );
     uint32_t idle_cq_full, idle_cc_full, idle_no_task;
     pci_peek(tile, ID_CQ, CQ_STAT_N_IDLE_CC_FULL ,&idle_cc_full            );
     pci_peek(tile, ID_CQ, CQ_STAT_N_IDLE_CQ_FULL ,&idle_cq_full            );
     pci_peek(tile, ID_CQ, CQ_STAT_N_IDLE_NO_TASK ,&idle_no_task            );
     printf("aborts: resource:%d, gvt:%d\n", resource_aborts, gvt_aborts);
+    printf("cycles in aborts: resource:%d, gvt:%d\n", cycles_in_resource_aborts, cycles_in_gvt_aborts);
+
     printf("stall cycles: cq_full: %8d, cc_full: %8d, no_task: %8d\n",
                idle_cq_full, idle_cc_full, idle_no_task);
 
+    uint32_t ttype_stat_deq, ttype_stat_commit;
+    for (int i=0;i<5;i++) {
+        pci_poke(tile, ID_CQ, CQ_LOOKUP_ENTRY, i);
+        pci_peek(tile, ID_CQ, CQ_DEQ_TASK_STATS, &ttype_stat_deq);
+        pci_peek(tile, ID_CQ, CQ_COMMIT_TASK_STATS, &ttype_stat_commit);
+        printf("ttype:%d deq:%9d commit:%9d\n",i, ttype_stat_deq, ttype_stat_commit);
+
+    }
+
+    uint32_t conflict_none, conflict_bypassed, conflict_miss, conflict_real;
+    pci_peek(tile, ID_CQ, CQ_N_TASK_NO_CONFLICT, &conflict_none);
+    pci_peek(tile, ID_CQ, CQ_N_TASK_CONFLICT_MITIGATED, &conflict_bypassed);
+    pci_peek(tile, ID_CQ, CQ_N_TASK_CONFLICT_MISS, &conflict_miss);
+    pci_peek(tile, ID_CQ, CQ_N_TASK_REAL_CONFLICT, &conflict_real);
+
+    printf("conflict none:%d bypass:%d miss:%d real:%d\n", conflict_none, conflict_bypassed, conflict_miss, conflict_real);
+
+    return;
     pci_poke(tile, ID_CQ, CQ_LOOKUP_MODE , 1);
     for (int i=0;i<64;i++) {
         uint32_t ts,tb, state, hint;
@@ -909,7 +938,7 @@ void cq_stats (uint32_t tile) {
 
 void core_stats(uint32_t tile) {
     uint32_t core_state_stats[16][128];
-    for (int i=0;i<N_CORES;i++) {
+    for (int i=0;i<=N_SSSP_CORES;i++) {
         for (int j=0;j<128;j++) {
             pci_poke(tile, i+1, CORE_QUERY_STATE , j);
             pci_peek(tile, i+1, CORE_AP_STATE_STATS , &(core_state_stats[i][j]));
@@ -918,7 +947,7 @@ void core_stats(uint32_t tile) {
     printf("Tile %d core state stats\n", tile);
     for (int j=0;j<80;j++) {
         printf("%2d:", j);
-        for (int i=0;i<N_CORES;i++) {
+        for (int i=0;i<N_SSSP_CORES;i++) {
             printf("%10d ", core_state_stats[i][j]);
         }
         printf("\n");

@@ -123,6 +123,7 @@
 #define TASK_UNIT_STAT_N_ABORT_TASK           0xb0
 #define TASK_UNIT_STAT_N_COAL_CHILD           0xc0
 #define TASK_UNIT_STAT_N_OVERFLOW             0xc4
+#define TASK_UNIT_STAT_N_CYCLES_DEQ_VALID     0xc8
 
 #define TASK_UNIT_STATE_STATS                 0xd0
 #define TASK_UNIT_MISC_DEBUG                  0xf4
@@ -133,6 +134,7 @@
 
 #define CQ_SIZE                0x10
 #define CQ_STATE               0x14
+#define CQ_USE_TS_CACHE        0x1c
 #define CQ_LOOKUP_ENTRY        0x18
 #define CQ_LOOKUP_STATE        0x20
 #define CQ_LOOKUP_HINT         0x24
@@ -148,12 +150,20 @@
 #define CQ_STAT_N_IDLE_CQ_FULL    0x70
 #define CQ_STAT_N_IDLE_CC_FULL    0x74
 #define CQ_STAT_N_IDLE_NO_TASK    0x78
+#define CQ_STAT_CYCLES_IN_RESOURCE_ABORT    0x80
+#define CQ_STAT_CYCLES_IN_GVT_ABORT         0x84
 
 #define CQ_LOOKUP_TS              0x90
 #define CQ_LOOKUP_TB              0x94
 #define CQ_N_GVT_GOING_BACK       0x98
 
-#define CQ_MAXFLOW_THRESHOLD      0xa0
+#define CQ_DEQ_TASK_STATS               0xb0
+#define CQ_COMMIT_TASK_STATS            0xb4
+
+#define CQ_N_TASK_NO_CONFLICT           0xc0
+#define CQ_N_TASK_CONFLICT_MITIGATED    0xc4
+#define CQ_N_TASK_CONFLICT_MISS         0xc8
+#define CQ_N_TASK_REAL_CONFLICT         0xcc
 
 #define SERIALIZER_ARVALID 0x20
 #define SERIALIZER_READY_LIST 0x24
