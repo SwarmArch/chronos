@@ -197,6 +197,7 @@ package swarm;
    typedef logic [TASK_TYPE_WIDTH-1:0] task_type_t;
    typedef logic [TS_WIDTH-1:0] ts_t;
    typedef logic [HINT_WIDTH-1:0] hint_t;
+   typedef logic [ARG_WIDTH-1:0] args_t;
    typedef logic [HINT_DATA_WIDTH-1:0] hint_data_t;
 
    typedef logic [$clog2(CACHE_NUM_WAYS)-1:0] lru_width_t;

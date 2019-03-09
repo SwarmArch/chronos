@@ -63,11 +63,13 @@ module conflict_serializer #(
    logic [NUM_CORES-1:0] running_task_hint_valid;
 
    task_t_ser [READY_LIST_SIZE-1:0] ready_list;
+   ts_t [READY_LIST_SIZE-1:0] ready_list_ts;
+   args_t [READY_LIST_SIZE-1:0] ready_list_args; 
+
    cq_slice_slot_t [READY_LIST_SIZE-1:0] ready_list_cq_slot;
    logic [READY_LIST_SIZE-1:0] ready_list_valid;
    logic [READY_LIST_SIZE-1:0] ready_list_conflict;
 
-   task_t ready_list_ram [0:2**LOG_CQ_SLICE_SIZE-1];
 
    logic [N_TASK_TYPES-1:0] [READY_LIST_SIZE-1:0] task_type_ready;
    
@@ -219,6 +221,10 @@ module conflict_serializer #(
             if (m_valid & m_ready & (next_insert_location== i+1)) begin
                ready_list[i].ttype <= new_enq_task.ttype;
                ready_list[i].hint <= new_enq_task.hint;
+               if (NON_SPEC) begin
+                  ready_list_args[i] <= new_enq_task.args; 
+                  ready_list_ts[i] <= new_enq_task.ts; 
+               end
                ready_list_cq_slot[i] <= m_cq_slot;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
@@ -226,6 +232,10 @@ module conflict_serializer #(
                ready_list[i] <= ready_list[i+1];
                ready_list_cq_slot[i] <= ready_list_cq_slot[i+1];
                ready_list_valid[i] <= ready_list_valid[i+1];
+               if (NON_SPEC) begin
+                  ready_list_ts[i] <= ready_list_ts[i+1]; 
+                  ready_list_args[i] <= ready_list_args[i+1]; 
+               end
                if ((finished_task_hint_match_select == i+1) & finished_task_hint_match[i+1]) begin
                   ready_list_conflict[i] <= 1'b0;
                end else begin
@@ -244,6 +254,10 @@ module conflict_serializer #(
             if (m_valid & m_ready & (next_insert_location== i)) begin
                ready_list[i].ttype <= new_enq_task.ttype;
                ready_list[i].hint <= new_enq_task.hint;
+               if (NON_SPEC) begin
+                  ready_list_args[i] <= new_enq_task.args; 
+                  ready_list_ts[i] <= new_enq_task.ts; 
+               end
                ready_list_cq_slot[i] <= m_cq_slot;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
@@ -259,17 +273,30 @@ module conflict_serializer #(
 
    end
    endgenerate
-
-   always_ff @(posedge clk) begin
-      if (m_valid & m_ready) begin
-         ready_list_ram[m_cq_slot] <= new_enq_task;
+   
+   generate 
+   if (NON_SPEC) begin
+      always_comb begin
+         s_rdata.ttype = ready_list[reg_task_select].ttype;
+         s_rdata.hint = ready_list[reg_task_select].hint;
+         s_rdata.args = ready_list_args[reg_task_select];
+         s_rdata.ts = ready_list_ts[reg_task_select];
+         s_cq_slot = ready_list_cq_slot[reg_task_select];
       end
-      s_rdata <= ready_list_ram[ ready_list_cq_slot[task_select]];
-   end
+   end else begin
+      task_t ready_list_ram [0:2**LOG_CQ_SLICE_SIZE-1];
+      always_ff @(posedge clk) begin
+         if (m_valid & m_ready) begin
+            ready_list_ram[m_cq_slot] <= new_enq_task;
+         end
+         s_rdata <= ready_list_ram[ ready_list_cq_slot[task_select]];
+      end
 
-   always_comb begin
-      s_cq_slot = ready_list_cq_slot[reg_task_select];
+      always_comb begin
+         s_cq_slot = ready_list_cq_slot[reg_task_select];
+      end
    end
+   endgenerate
 
    logic [LOG_READY_LIST_SIZE-1:0] ready_list_size;
    logic ready_list_size_inc, ready_list_size_dec;
