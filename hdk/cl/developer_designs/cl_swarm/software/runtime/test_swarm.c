@@ -658,6 +658,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0);
 
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
+            break;
         case APP_MAXFLOW:
             printf("APP_MAXFLOW\n");
             switch (log_active_tiles) {

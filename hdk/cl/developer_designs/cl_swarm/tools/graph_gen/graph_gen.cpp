@@ -483,7 +483,7 @@ void WriteOutputColor(FILE* fp) {
    int SIZE_NEIGHBORS =(( (numE)+ 15)/ 16 ) * 16;
    int SIZE_GROUND_TRUTH =((numV+15)/16)*16;
    int SIZE_INITLIST = ((numV+15)/16)*16;
-   int SIZE_SCRATCH = size_of_field(numV, 16);
+   int SIZE_SCRATCH = size_of_field(numV, 4);
    int SIZE_JOIN_CNT = size_of_field(numV, 4);
 
    int BASE_DIST = 16;
@@ -520,8 +520,8 @@ void WriteOutputColor(FILE* fp) {
       data[BASE_EDGE_OFFSET +i] = csr_offset[i];
       data[BASE_DIST+i] = max_int;
       data[BASE_GROUND_TRUTH +i] = csr_dist[i];
-      for (int j=0;j<4;j++) {
-         data[BASE_SCRATCH +i * 4 + j] = 0;
+      for (int j=0;j<1;j++) {
+         data[BASE_SCRATCH +i * 1 + j] = 0;
       }
       //printf("gt %d %d\n", i, csr_dist[i]);
    }
