@@ -776,6 +776,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                cq_stats(i);
            }
            */
+           //cq_stats(1);
            usleep(100);
        //printf(" gvt %d\n", gvt);
        if (gvt == -1 || gvt == -2) {
@@ -856,7 +857,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                        n_tasks, n_tied_tasks, heap_capacity,
                        cq_state, tq_debug, stack_ptr);
                //task_unit_stats(i);
-               cq_stats(i);
+               cq_stats(i,0);
                /*
                   for (int j=1;j<=8;j++) {
                   uint32_t core_state, core_pc, num_deq;
@@ -961,10 +962,11 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       n_tasks, n_tied_tasks, heap_capacity,
       coal_tasks);
       */
+   cycles = endCycle64 - startCycle64;
    for (int i=0;i<(1<<log_active_tiles);i++) {
-       //core_stats(i);
+       core_stats(i, cycles);
        task_unit_stats(i);
-       if (!NON_SPEC) cq_stats(i);
+       if (!NON_SPEC) cq_stats(i, cycles);
    }
    log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
 
@@ -974,7 +976,6 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        pci_poke(i, ID_L2, L2_FLUSH , 1 );
    }
 
-   cycles = endCycle64 - startCycle64;
    uint32_t task_unit_ops=0;
    uint32_t total_tasks = 0;
    for (int t=0;t<(1<<log_active_tiles);t++) {

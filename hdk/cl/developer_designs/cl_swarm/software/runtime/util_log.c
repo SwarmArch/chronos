@@ -871,7 +871,7 @@ printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW       
 
 }
 
-void cq_stats (uint32_t tile) {
+void cq_stats (uint32_t tile, uint32_t tot_cycles) {
     printf("CQ stats \n");
     uint32_t state_stats[8] = {0};
     for (int i=0;i<8;i++) {
@@ -914,6 +914,30 @@ void cq_stats (uint32_t tile) {
 
     printf("conflict none:%d bypass:%d miss:%d real:%d\n", conflict_none, conflict_bypassed, conflict_miss, conflict_real);
 
+    // calculate CQ cycle breakdown;
+    if (tot_cycles>0) {
+        uint32_t n_deq_task;
+        uint32_t n_abort_task;
+        pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_DEQ_TASK, &n_deq_task);
+        pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_ABORT_TASK, &n_abort_task);
+
+        uint32_t useful_work = (n_deq_task - n_abort_task) *2;
+        uint32_t aborted_work = (n_abort_task)*2 +
+            state_stats[2] + state_stats[3] + state_stats[4];
+        uint32_t conflict_checks = state_stats[1];
+        uint32_t cq_stall = idle_cq_full;
+        uint32_t no_core = idle_cc_full + (state_stats[5] - n_deq_task);
+        uint32_t no_task = tot_cycles - useful_work - aborted_work - conflict_checks -
+                cq_stall - no_core;
+
+        printf("useful work:      %9d\n", useful_work);
+        printf("aborted work:     %9d\n", aborted_work);
+        printf("conflict checks:  %9d\n", conflict_checks);
+        printf("stall_cq:         %9d\n", cq_stall);
+        printf("stall_no_core:    %9d\n", no_core);
+        printf("stall_no_task:    %9d\n", no_task);
+    }
+
     return;
     pci_poke(tile, ID_CQ, CQ_LOOKUP_MODE , 1);
     for (int i=0;i<64;i++) {
@@ -936,16 +960,47 @@ void cq_stats (uint32_t tile) {
 
 }
 
-void core_stats(uint32_t tile) {
+uint32_t maxflow_wait_states[] = {2, 9, 11, 13, 19, 22, 25, 29, 31, 33, 48, 51, 59, 65, 67, 69, 71, 73};
+uint32_t maxflow_enq_states[] = {5, 6, 7, 20, 23, 35, 46, 57, 74};
+void core_stats(uint32_t tile, uint32_t tot_cycles) {
+    const int SUM_INDEX = 80;
+    const int MEM_STALL_INDEX = 81;
+    const int ENQ_STALL_INDEX = 82;
+    const int CQ_STALL_INDEX = 83;
+    const int USEFUL_WORK_INDEX = 84;
     uint32_t core_state_stats[16][128];
     for (int i=0;i<=N_SSSP_CORES;i++) {
+        uint32_t sum_all = 0;
+        uint32_t mem_stall =0;
+        uint32_t enq_stall = 0;
         for (int j=0;j<128;j++) {
             pci_poke(tile, i+1, CORE_QUERY_STATE , j);
             pci_peek(tile, i+1, CORE_AP_STATE_STATS , &(core_state_stats[i][j]));
+            sum_all += core_state_stats[i][j];
         }
+        core_state_stats[i][SUM_INDEX] = sum_all;
+        for (int k=0;k<18;k++) {
+            mem_stall += core_state_stats[i][maxflow_wait_states[k]];
+        }
+        core_state_stats[i][MEM_STALL_INDEX] = mem_stall;
+        for (int k=0;k<9;k++) {
+            enq_stall += core_state_stats[i][maxflow_enq_states[k]];
+        }
+        uint32_t num_enq;
+        pci_peek(tile, i+1, CORE_NUM_ENQ , &num_enq);
+        core_state_stats[i][ENQ_STALL_INDEX] = enq_stall - num_enq;
+        core_state_stats[i][CQ_STALL_INDEX] =
+            // adjust for cycles spent while reading stats.
+            core_state_stats[i][0] - (sum_all - tot_cycles);
+        core_state_stats[i][USEFUL_WORK_INDEX] = tot_cycles -
+            core_state_stats[i][MEM_STALL_INDEX] -
+            core_state_stats[i][ENQ_STALL_INDEX] -
+            core_state_stats[i][CQ_STALL_INDEX];
+
+
     }
     printf("Tile %d core state stats\n", tile);
-    for (int j=0;j<80;j++) {
+    for (int j=0;j<85;j++) {
         printf("%2d:", j);
         for (int i=0;i<N_SSSP_CORES;i++) {
             printf("%10d ", core_state_stats[i][j]);

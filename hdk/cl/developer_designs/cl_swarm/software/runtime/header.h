@@ -198,8 +198,8 @@ void init_params();
 void pci_poke(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t data);
 void pci_peek(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t* data);
 void task_unit_stats(uint32_t tile);
-void cq_stats (uint32_t tile);
-void core_stats (uint32_t tile);
+void cq_stats (uint32_t tile, uint32_t);
+void core_stats (uint32_t tile, uint32_t);
 extern pci_bar_handle_t pci_bar_handle;
 void dma_write(unsigned char* write_buffer, uint32_t write_len, size_t write_addr);
 
