@@ -306,7 +306,7 @@ always_comb begin
          end
       end
       UNDO_LOG: begin
-         if (undo_log_entry_ap_vld) begin
+         if (undo_log_entry_ap_vld & undo_log_entry_ap_rdy) begin
             write_state_next = AWADDR;
          end
       end

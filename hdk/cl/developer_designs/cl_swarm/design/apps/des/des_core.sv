@@ -24,6 +24,7 @@ module des_core
         
    output logic [UNDO_LOG_ADDR_WIDTH + UNDO_LOG_DATA_WIDTH -1:0] undo_log_entry,
    output logic undo_log_entry_ap_vld,
+   input undo_log_entry_ap_rdy,
    
    output logic         m_axi_l1_V_AWVALID ,
    input                m_axi_l1_V_AWREADY,
@@ -49,7 +50,9 @@ module des_core
    input                m_axi_l1_V_BVALID ,
    output logic         m_axi_l1_V_BREADY ,
    input [1:0]          m_axi_l1_V_BRESP  ,
-   input                m_axi_l1_V_BID    
+   input                m_axi_l1_V_BID    ,
+   
+   output logic [31:0]  ap_state
 );
 
 
@@ -375,7 +378,9 @@ always_comb begin
          end
       end
       UNDO_LOG: begin
-         write_state_next = AWADDR;
+         if (undo_log_entry_ap_vld & undo_log_entry_ap_rdy) begin
+            write_state_next = AWADDR;
+         end
       end
       AWADDR: begin
          m_axi_l1_V_AWVALID = 1'b1;
