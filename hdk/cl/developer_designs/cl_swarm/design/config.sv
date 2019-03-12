@@ -42,7 +42,9 @@ package swarm;
    // how many tiles go directly into the axi xbar. has to be a power of two
    parameter XBAR_IN_TILES = 1;
    parameter NO_SPILLING = 0; 
-   parameter NON_SPEC = 0 ;
+   parameter NON_SPEC = 1;
+
+   parameter UNORDERED = 0;
 
    parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;
@@ -266,6 +268,7 @@ package swarm;
    parameter OCL_PARAM_N_APP_CORES         = 8'h60;
    parameter OCL_PARAM_LOG_SPILL_Q_SIZE    = 8'h64;
    parameter OCL_PARAM_NON_SPEC            = 8'h68;
+   parameter OCL_PARAM_LOG_READY_LIST_SIZE = 8'h6c;
 
    parameter CORE_START               = 8'ha0; //  wdata - bitmap of which cores are activated 
    parameter CORE_N_DEQUEUES          = 8'hb0;

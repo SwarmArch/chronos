@@ -207,6 +207,10 @@ module ocl_slave
                         state <= OCL_SEND_R;
                         data <= LOG_CQ_SLICE_SIZE;
                      end
+                     OCL_PARAM_LOG_READY_LIST_SIZE : begin
+                        state <= OCL_SEND_R;
+                        data <= LOG_READY_LIST_SIZE;
+                     end
                      OCL_PARAM_N_APP_CORES : begin
                         state <= OCL_SEND_R;
                         data <= N_APP_CORES;
@@ -217,7 +221,7 @@ module ocl_slave
                      end
                      OCL_PARAM_NON_SPEC: begin
                         state <= OCL_SEND_R;
-                        data <= NON_SPEC;
+                        data <= {UNORDERED, NON_SPEC};
                      end
                      OCL_DONE: begin
                         state <= OCL_SEND_R;
