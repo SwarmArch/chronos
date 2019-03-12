@@ -85,6 +85,7 @@ ${CL_ROOT}/design/apps/astar/queue_vertex.sv
 ${CL_ROOT}/design/apps/astar/visit_vertex.sv
 ${CL_ROOT}/design/apps/riscv/riscv_core.sv
 ${CL_ROOT}/design/apps/maxflow/maxflow.sv
+${CL_ROOT}/design/apps/color/color.sv
 ${CL_ROOT}/design/cl_swarm.sv
 
 -f ${HDK_COMMON_DIR}/verif/tb/filelists/tb.${SIMULATOR}.f

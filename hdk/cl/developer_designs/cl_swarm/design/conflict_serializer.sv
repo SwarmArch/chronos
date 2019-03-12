@@ -87,7 +87,7 @@ module conflict_serializer #(
    endgenerate
 
 
-   assign all_cores_idle = (running_task_hint_valid[NUM_CORES-1:1]==0); // ignore OCL
+   assign all_cores_idle = (ready_list_valid ==0) && (running_task_hint_valid[NUM_CORES-1:1]==0); // ignore OCL
 
    // Stage 1: arbitrate among the cores
 

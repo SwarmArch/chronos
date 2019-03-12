@@ -428,7 +428,7 @@ end
    do begin
      
       #300ns;
-      if (0 & NON_SPEC) begin
+      if (1 & NON_SPEC) begin
          ocl_addr[23:16] = 0;
          ocl_addr[15:8] = 0;
          ocl_addr[ 7:0] = OCL_DONE;
