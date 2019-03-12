@@ -181,8 +181,8 @@ always_ff @(posedge clk) begin
                3: base_edge_offset <= {m_axi_l1_V_RDATA[30:0], 2'b00};
                4: base_neighbors <= {m_axi_l1_V_RDATA[30:0], 2'b00};
                5: base_color <= {m_axi_l1_V_RDATA[30:0], 2'b00};
-               6: base_scratch <= {m_axi_l1_V_RDATA[30:0], 2'b00};
-               8: enq_limit <= m_axi_l1_V_RDATA[6:0];
+               7: base_scratch <= {m_axi_l1_V_RDATA[30:0], 2'b00};
+               9: enq_limit <= m_axi_l1_V_RDATA[6:0];
             endcase
          end
          CALC_WAIT_OFFSET,
@@ -344,7 +344,7 @@ always_comb begin
       READ_HEADERS: begin
          m_axi_l1_V_ARADDR = 0;
          m_axi_l1_V_ARVALID = 1'b1;
-         m_axi_l1_V_ARLEN = 8;
+         m_axi_l1_V_ARLEN = 9;
          if (m_axi_l1_V_ARREADY) begin
             state_next = WAIT_HEADERS;
          end

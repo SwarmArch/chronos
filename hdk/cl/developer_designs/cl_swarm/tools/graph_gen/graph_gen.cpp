@@ -31,8 +31,8 @@ struct NodeSort {
 };
 struct degree_sort {
    bool operator() (const NodeSort &a, const NodeSort &b) const {
-      int a_deg = (a.degree > 255) ? 255 : a.degree;
-      int b_deg = (b.degree > 255) ? 255 : b.degree;
+      int a_deg = a.degree;
+      int b_deg = b.degree;
       bool ret = (a_deg > b_deg) ||
                   ( (a_deg == b_deg) && (a.vid < b.vid)) ;
       //printf(" (%d %d), (%d,%d) %d\n", a.degree, a.vid, b.degree, b.vid, ret);
@@ -478,50 +478,44 @@ void WriteOutput(FILE* fp) {
 }
 void WriteOutputColor(FILE* fp) {
    // all offsets are in units of uint32_t. i.e 16 per cache line
-   int SIZE_DIST =((numV+15)/16)*16;
+   int SIZE_COLOR =((numV+15)/16)*16;
    int SIZE_EDGE_OFFSET =( (numV+1 +15)/ 16) * 16;
    int SIZE_NEIGHBORS =(( (numE)+ 15)/ 16 ) * 16;
-   int SIZE_GROUND_TRUTH =((numV+15)/16)*16;
-   int SIZE_INITLIST = ((numV+15)/16)*16;
-   int SIZE_SCRATCH = size_of_field(numV, 4);
-   int SIZE_JOIN_CNT = size_of_field(numV, 4);
+   int SIZE_SCRATCH = size_of_field(numV, 8); // scratch-32, counter-32
+   int SIZE_GROUND_TRUTH = size_of_field(numV, 4);
 
-   int BASE_DIST = 16;
-   int BASE_EDGE_OFFSET = BASE_DIST + SIZE_DIST;
+   int BASE_COLOR = 16;
+   int BASE_EDGE_OFFSET = BASE_COLOR + SIZE_COLOR;
    int BASE_NEIGHBORS = BASE_EDGE_OFFSET + SIZE_EDGE_OFFSET;
-   int BASE_INITLIST = BASE_NEIGHBORS + SIZE_NEIGHBORS;
-   int BASE_SCRATCH = BASE_INITLIST + SIZE_INITLIST;
-   int BASE_JOIN_CNT = BASE_SCRATCH + SIZE_SCRATCH;
-   int BASE_GROUND_TRUTH = BASE_JOIN_CNT + SIZE_JOIN_CNT;
+   int BASE_SCRATCH = BASE_NEIGHBORS + SIZE_NEIGHBORS;
+   int BASE_GROUND_TRUTH = BASE_SCRATCH + SIZE_SCRATCH;
    int BASE_END = BASE_GROUND_TRUTH + SIZE_GROUND_TRUTH;
 
    uint32_t* data = (uint32_t*) calloc(BASE_END, sizeof(uint32_t));
+   uint32_t enqueuer_size = 16;
 
    data[0] = MAGIC_OP;
    data[1] = numV;
    data[2] = numE;
    data[3] = BASE_EDGE_OFFSET;
    data[4] = BASE_NEIGHBORS;
-   data[5] = BASE_DIST;
+   data[5] = BASE_COLOR;
    data[6] = BASE_GROUND_TRUTH;
-   data[7] = startNode;
+   data[7] = BASE_SCRATCH;
    data[8] = BASE_END;
-   data[9] = BASE_INITLIST;
-   data[10] = BASE_SCRATCH;
-   data[11] = BASE_JOIN_CNT;
+   data[9] = enqueuer_size;
 
-   for (int i=0;i<12;i++) {
+
+   for (int i=0;i<11;i++) {
       printf("header %d: %d\n", i, data[i]);
    }
-   //todo ground truth
 
    uint32_t max_int = 0xFFFFFFFF;
    for (uint32_t i=0;i<numV;i++) {
       data[BASE_EDGE_OFFSET +i] = csr_offset[i];
-      data[BASE_DIST+i] = max_int;
-      data[BASE_GROUND_TRUTH +i] = csr_dist[i];
-      for (int j=0;j<1;j++) {
-         data[BASE_SCRATCH +i * 1 + j] = 0;
+      data[BASE_COLOR+i] = max_int;
+      for (int j=0;j<2;j++) {
+         data[BASE_SCRATCH +i * 2 + j] = 0;
       }
       //printf("gt %d %d\n", i, csr_dist[i]);
    }
@@ -530,6 +524,8 @@ void WriteOutputColor(FILE* fp) {
    for (uint32_t i=0;i<numE;i++) {
       data[ BASE_NEIGHBORS +i ] = csr_neighbors[i].n;
    }
+
+
    // sort by degree
    std::vector< NodeSort > vec;
    for (unsigned int i=0;i<numV;i++) {
@@ -538,10 +534,6 @@ void WriteOutputColor(FILE* fp) {
       vec.push_back(n);
    }
    std::sort(vec.begin(), vec.end(), degree_sort());
-   for (uint32_t i =0;i<numV;i++) {
-      //if (i < 100) printf("%d %d\n", vec[i].vid, vec[i].degree);
-      data[BASE_INITLIST + i] = vec[i].vid;
-   }
    for (uint32_t i=0;i<numV;i++) {
       uint32_t vid = vec[i].vid;
       uint64_t vec = 0;
@@ -559,7 +551,8 @@ void WriteOutputColor(FILE* fp) {
       }
       csr_dist[vid] = bit;
       data[BASE_GROUND_TRUTH + vid] = bit;
-      //if (bit > 28) printf("vid %d color %d\n", vid, bit);
+
+      if (bit >= 28) printf("vid %d color %d\n", vid, bit);
    }
 
    printf("Writing file \n");
