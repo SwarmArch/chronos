@@ -57,6 +57,62 @@ module tsb
    output logic   empty // for termination detection
 
 );
+   logic [3:0] dest_tile;
+   always_comb begin
+      case (log_n_tiles) 
+         0: dest_tile = 0;
+         1: dest_tile = s_wdata.hint[4];
+         2: dest_tile = s_wdata.hint[5:4];
+         3: dest_tile = s_wdata.hint[6:4];
+         default: dest_tile = s_wdata.hint[7:4];
+      endcase
+   end
+   logic [1:0] log_n_tiles;
+   
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         log_n_tiles <= $clog2(N_TILES);
+      end else begin
+         if (reg_bus.wvalid) begin
+            case (reg_bus.waddr) 
+               TSB_LOG_N_TILES : log_n_tiles <= reg_bus.wdata;
+            endcase
+         end
+      end 
+   end
+
+generate 
+if (NON_SPEC) begin
+
+
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         task_enq_valid <= 1'b0;
+      end else begin
+         if (s_wready & s_wvalid) begin
+            task_enq_valid <= 1'b1;
+            task_enq_data <= s_wdata;
+            task_enq_dest_tile <= dest_tile;
+            task_enq_tied <= s_tied;
+            task_enq_tsb_id <= 0; 
+         end else if (task_enq_valid & task_enq_ready) begin
+            task_enq_valid <= 1'b0;
+         end
+      end 
+   end
+   
+   assign reg_bus.rvalid = 1'b1;
+   assign reg_bus.rdata = 0;
+
+   assign s_wready = (!task_enq_valid | (task_enq_valid & task_enq_ready) ); 
+   assign s_only_untied = 1'b0;
+   assign retry_ready = 1'b1;
+   assign task_resp_ready = 1'b1;
+
+   assign m_resp_valid = 1'b0;
+   assign lvt = '1;
+
+end else begin
 
    logic [2**LOG_TSB_SIZE -1: 0] tsb_entry_valid;
 
@@ -116,16 +172,6 @@ module tsb
    end
    assign task_resp_ready = !m_resp_valid;
 
-   logic [3:0] dest_tile;
-   always_comb begin
-      case (log_n_tiles) 
-         0: dest_tile = 0;
-         1: dest_tile = s_wdata.hint[4];
-         2: dest_tile = s_wdata.hint[5:4];
-         3: dest_tile = s_wdata.hint[6:4];
-         default: dest_tile = s_wdata.hint[7:4];
-      endcase
-   end
 
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -193,7 +239,6 @@ module tsb
 
 
    genvar i, j;
-   generate;
       for (i=0;i<2**LOG_TSB_SIZE;i++) begin
          always_ff @(posedge clk) begin
             if (!rstn) begin
@@ -212,7 +257,6 @@ module tsb
             end
          end 
       end
-   endgenerate
 
    task_t lvt_tsb_entry;
    assign lvt_tsb_entry = tsb_entry_task[cur_cycle];
@@ -259,4 +303,6 @@ module tsb
    assign lvt = tree[0][0];
 */
    assign empty = (tsb_entry_valid==0) ;
+end
+endgenerate
 endmodule
