@@ -482,7 +482,9 @@ end
 
 genvar i;
 for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
-   assign cq_conflict[i] = cq_valid[i] & bloom_query_out_conflict[i]  
+   assign cq_conflict[i] = cq_valid[i] 
+            & bloom_query_out_conflict[i]  
+            // & (ref_hint[30:0] == cq_hint[i][30:0])
             // if MSB of hint is set, its a read-only hint. No conflicts between
             // RO tasks
             &  !(cq_read_only_task[i] & ref_hint[31])
