@@ -506,7 +506,7 @@ void WriteOutputColor(FILE* fp) {
    data[9] = enqueuer_size;
 
 
-   for (int i=0;i<11;i++) {
+   for (int i=0;i<10;i++) {
       printf("header %d: %d\n", i, data[i]);
    }
 

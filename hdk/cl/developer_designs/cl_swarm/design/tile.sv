@@ -707,7 +707,7 @@ logic               tq_commit_task_ready;
 tq_slot_t           tq_commit_task_slot;
 epoch_t             tq_commit_task_epoch;
 
-task_unit  
+`TASK_UNIT_MODULE  
 #(
    .TILE_ID(TILE_ID)
 ) TASK_UNIT (

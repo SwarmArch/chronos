@@ -1,7 +1,5 @@
 
 import swarm::*;
-typedef enum logic [2:0] {TQ_NOP, ENQ_TASK, DEQ_TASK, SPILL_TASK, 
-                           CUT_TIE, ABORT_REQUEUE, ABORT_CHILD, COMMIT_TASK} tq_op_t; 
 
 typedef struct packed {
    ts_t ts;

@@ -149,11 +149,13 @@ if (NON_SPEC) begin : gen
       .out(write_select)
    );
 
+   logic can_take_new_task;
+   assign can_take_new_task = (!task_enq_valid | (task_enq_valid & task_enq_ready));
    always_ff @(posedge clk) begin
       if (!rstn) begin
          task_enq_valid <= 1'b0;
       end else begin
-         if (!task_enq_valid & s_wvalid[write_select]) begin 
+         if (s_wvalid[write_select] & can_take_new_task) begin 
             task_enq_valid <= 1'b1;
             task_enq_data <= s_wdata[write_select];
          end else if (task_enq_valid & task_enq_ready) begin
@@ -163,7 +165,7 @@ if (NON_SPEC) begin : gen
    end
    
    for (i=0;i<NUM_SI;i++) begin
-      assign s_wready[i] = !task_enq_valid & s_wvalid[i] & (write_select == i); 
+      assign s_wready[i] = can_take_new_task & s_wvalid[i] & (write_select == i); 
    end
    assign task_enq_tied = 1'b0;
    assign task_enq_resp_cq_slot = 0;

@@ -368,7 +368,7 @@ logic [LOG_LOG_DEPTH:0] log_size;
    end
    always_ff @(posedge clk) begin
       if (!rstn) begin
-         ready_list_size_control <= READY_LIST_SIZE - 8;
+         ready_list_size_control <= READY_LIST_SIZE - 4;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 

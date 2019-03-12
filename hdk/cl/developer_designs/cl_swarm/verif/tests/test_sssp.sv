@@ -411,7 +411,7 @@ end
       ocl_addr[15:8] = ID_ALL_CORES;
       ocl_addr [7:0] = CORE_START;
       ocl_data = '1;
-      //ocl_data = 32'h203;
+      //ocl_data = 32'h03;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
       #1us;
@@ -428,13 +428,18 @@ end
    do begin
      
       #300ns;
-      if (1 & NON_SPEC) begin
-         ocl_addr[23:16] = 0;
-         ocl_addr[15:8] = 0;
-         ocl_addr[ 7:0] = OCL_DONE;
-         tb.peek(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-         ocl_data = (ocl_data == 1) ? '1 :0;
+      if (NON_SPEC) begin
+         for (i=0;i<N_TILES;i++) begin
+            ocl_addr[23:16] = 0;
+            ocl_addr[15:8] = 0;
+            ocl_addr[ 7:0] = OCL_DONE;
+            tb.peek(.addr(ocl_addr), .data(ocl_data),
+                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+            ocl_data = (ocl_data == 1) ? '1 :0;
+            if (ocl_data == 0) begin
+               break;
+            end
+         end
       end else begin
 
          ocl_addr[23:16] = 0;
@@ -443,6 +448,7 @@ end
          tb.peek(.addr(ocl_addr), .data(ocl_data),
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
       end
+      #300ns;
    end while (ocl_data!='1);
 
    

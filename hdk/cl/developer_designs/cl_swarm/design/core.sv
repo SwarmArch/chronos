@@ -412,7 +412,16 @@ always_ff @(posedge clk) begin
       end
    end
 end
-assign task_out_ready = !task_wvalid;
+
+generate
+if (NON_SPEC) begin
+   // 1-task/cycle, don't do this if SPEC beacuse of possible critical path
+   // issues
+   assign task_out_ready = !task_wvalid |(task_wvalid & task_wready);
+end else begin
+   assign task_out_ready = !task_wvalid;
+end 
+endgenerate
 
 always_ff @(posedge clk) begin
    if (!rstn) begin

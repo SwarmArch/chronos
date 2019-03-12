@@ -37,6 +37,25 @@ module undo_log
 
 localparam ENTRIES_PER_TASK = 2**LOG_UNDO_LOG_ENTRIES_PER_TASK;
 
+generate 
+if (NON_SPEC) begin
+   assign undo_log_ready = '1;
+   assign restore_arvalid = 0;
+   assign restore_araddr = 'x;
+   assign restore_done_valid = 0;
+   assign restore_done_cq_slot = 'x;
+   assign l2.awvalid = 0;
+   assign l2.wvalid = 0;
+   assign l2.awsize = 2;
+   assign l2.awlen = 0;
+   assign l2.awaddr = 'x;  
+   assign l2.wdata = 'x;
+   assign l2.awid = ID_BASE ;
+   assign l2.wid = ID_BASE ;
+   assign l2.wstrb = '1;
+   assign l2.bready = 1;
+end else begin
+
 logic [$clog2(N_THREADS)-1:0] undo_log_select_core;
 
 lowbit #(
@@ -55,12 +74,10 @@ always_comb begin
 end
 
 genvar i;
-generate 
    for (i=0;i<N_THREADS;i++) begin
       assign undo_log_ready[i] = undo_log_select_valid & undo_log_select_ready & 
          (undo_log_select_core ==i);
    end
-endgenerate
 assign undo_log_select_ready = undo_log_select_valid;
 cq_slice_slot_t next_cq_slot;
 undo_id_t       next_id;
@@ -121,7 +138,6 @@ restore_ack_state_t restore_ack_state;
 id_t [UNDO_LOG_THREADS-1:0] restore_bvalid_remaining;
 assign bthread = l2.bid[UNDO_LOG_THREADS-1:0];
 
-generate;
 for (i=0;i<UNDO_LOG_THREADS;i++) begin
    assign restore_arvalid[i] = (arthread == i) & !thread_in_use[i] 
          & (restore_state == RESTORE_IDLE) & !restore_rvalid[rthread];
@@ -155,7 +171,6 @@ always_ff @(posedge clk) begin
 end
 
 
-endgenerate
 always_ff @(posedge clk) begin
    if (!rstn) begin
       restore_state <= RESTORE_IDLE;
@@ -358,4 +373,6 @@ end
    end
 `endif
 
+end
+endgenerate
 endmodule

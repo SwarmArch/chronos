@@ -43,8 +43,9 @@ package swarm;
    parameter XBAR_IN_TILES = 1;
    parameter NO_SPILLING = 0; 
    parameter NON_SPEC = 1;
-
-   parameter UNORDERED = 0;
+   parameter UNORDERED = 1;
+   `define TASK_UNIT_MODULE task_unit_unordered
+   //`define TASK_UNIT_MODULE task_unit
 
    parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;
@@ -53,9 +54,8 @@ package swarm;
 
    parameter LOG_LAST_DEQ_VT_CACHE = 8; // must be >=4, 0 to turn off
 
-   parameter TS_WIDTH = 32;
+   parameter TS_WIDTH = UNORDERED ? 1 : 32;
    parameter HINT_WIDTH = 32;
-   parameter HINT_DATA_WIDTH = 32;
    // ARG_WIDTH is app dependent
    parameter N_TASK_TYPES = 16;
    parameter TASK_TYPE_WIDTH = $clog2(N_TASK_TYPES);
@@ -66,8 +66,9 @@ package swarm;
    parameter LOG_UNDO_LOG_ENTRIES_PER_TASK = 3;
 
    parameter TB_WIDTH = 32; // tiebreaker width;
-   parameter LOG_GVT_PERIOD = 5; // 16 cycles
+   parameter LOG_GVT_PERIOD = 4; // 16 cycles
    parameter LOG_CQ_TS_BANKS = LOG_CQ_SLICE_SIZE - LOG_GVT_PERIOD;
+
 
    
    // Total Address Space Size = 16GB = 34 bits 
@@ -84,7 +85,7 @@ package swarm;
    parameter N_CORES = N_APP_CORES + 1; 
    parameter N_THREADS = N_APP_THREADS + 1; 
 
-   parameter UNDO_LOG_THREADS = 4;
+   parameter UNDO_LOG_THREADS = UNORDERED ? 1 : 4;
    
    parameter ID_SPLITTER = N_CORES;
    parameter ID_COAL = N_CORES + 1;
@@ -200,7 +201,6 @@ package swarm;
    typedef logic [TS_WIDTH-1:0] ts_t;
    typedef logic [HINT_WIDTH-1:0] hint_t;
    typedef logic [ARG_WIDTH-1:0] args_t;
-   typedef logic [HINT_DATA_WIDTH-1:0] hint_data_t;
 
    typedef logic [$clog2(CACHE_NUM_WAYS)-1:0] lru_width_t;
 
