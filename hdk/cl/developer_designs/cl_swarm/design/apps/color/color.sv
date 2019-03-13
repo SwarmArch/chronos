@@ -142,7 +142,7 @@ logic [31:0] bitmap;
 logic [31:0] join_counter;
 
 logic [31:0] edge_dest;
-logic [6:0] neighbor_offset;
+logic [31:0] neighbor_offset;
 logic [31:0] neighbor_degree;
 
 logic [31:0] degree;

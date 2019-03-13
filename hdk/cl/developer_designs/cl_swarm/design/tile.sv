@@ -1190,7 +1190,7 @@ always @(posedge clk_main_a0) begin
    if (!rst_main_n_sync) begin
       done <= 0;
    end else begin
-      done <= tq_empty & tsb_empty & all_cores_idle;
+      done <= tq_empty & tsb_empty & all_cores_idle & out_task_fifo_empty;
    end
 
 end

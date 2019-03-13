@@ -199,7 +199,7 @@ module task_unit_unordered
    assign commit_task_ready = 1'b1;
 
    
-   assign lvt = 0;
+   assign lvt = empty ? '1 : 0;
    assign task_deq_tq_slot = 0;
    assign task_deq_epoch = 0;
    
@@ -367,11 +367,11 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       logic [7:0] epoch_2;
    } msg_type_t; // 32 bits each
    typedef struct packed {
-      ts_t gvt_tb;
-      ts_t gvt_ts;
+      logic [31:0] gvt_tb;
+      logic [31:0] gvt_ts;
       
-      hint_t deq_hint;
-      ts_t deq_ts;
+      logic [31:0] deq_hint;
+      logic [31:0] deq_ts;
 
       msg_type_t  commit_task_abort_child;
       msg_type_t  abort_task;
@@ -382,8 +382,8 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
 
 
       // enq parameters 
-      hint_t enq_hint; 
-      ts_t   enq_ts;
+      logic [31:0] enq_hint; 
+      logic [31:0] enq_ts;
       
       logic [3:0] enq_ttype;
       logic resp_ack;

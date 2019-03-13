@@ -221,7 +221,7 @@ module ocl_slave
                      end
                      OCL_PARAM_NON_SPEC: begin
                         state <= OCL_SEND_R;
-                        data <= {UNORDERED, NON_SPEC};
+                        data <= UNORDERED + NON_SPEC;
                      end
                      OCL_DONE: begin
                         state <= OCL_SEND_R;
