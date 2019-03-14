@@ -523,7 +523,7 @@ always_comb begin
          end
       end
       COLOR_READ_NEIGHBOR: begin
-         if (eo_begin + neighbor_offset == eo_end) begin
+         if (neighbor_offset == enq_end) begin
             state_next = FINISH_TASK;
          end else begin
             m_axi_l1_V_ARADDR = base_neighbors + ( (eo_begin + neighbor_offset) << 2);
