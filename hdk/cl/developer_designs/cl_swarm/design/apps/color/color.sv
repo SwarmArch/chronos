@@ -309,7 +309,7 @@ always_comb begin
 end
 always_comb begin
    if (enq_start + enq_limit > enq_last) begin
-      enq_end = numV;
+      enq_end = enq_last;
    end else begin
       enq_end = enq_start + enq_limit;
    end
