@@ -54,6 +54,8 @@ if (NON_SPEC) begin
    assign l2.wid = ID_BASE ;
    assign l2.wstrb = '1;
    assign l2.bready = 1;
+   assign l2.arvalid = 1'b0;
+   assign l2.rready = 1'b1;
 end else begin
 
 logic [$clog2(N_THREADS)-1:0] undo_log_select_core;

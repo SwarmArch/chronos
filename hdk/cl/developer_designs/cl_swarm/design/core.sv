@@ -73,6 +73,7 @@ logic ap_rst_n;
 logic ap_start;
 logic ap_done;
 logic ap_idle;
+logic ap_ready;
 
 logic ap_l1_bready;
 logic ap_l1_rready;

@@ -114,7 +114,7 @@ for i in range(len(cores)):
     (core_type, task_type, threads, custom) = cores[i]
     if (custom):
         continue
-    core_spec.write('\tif (CORE_ID == ' + str(i+1) + ') begin \n')
+    core_spec.write('\tif (CORE_ID == ' + str(i+1) + ') begin : core_'+str(i+1) +'\n')
     core_spec.write('\t\tassign task_araddr = ' + str(task_type) +  ';\n')
     core_spec.write('\t\t' + core_type + ' APP_CORE (\n')
 

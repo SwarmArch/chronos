@@ -430,7 +430,7 @@ end
       #300ns;
       if (NON_SPEC) begin
          for (i=0;i<N_TILES;i++) begin
-            ocl_addr[23:16] = 0;
+            ocl_addr[23:16] = i;
             ocl_addr[15:8] = 0;
             ocl_addr[ 7:0] = OCL_DONE;
             tb.peek(.addr(ocl_addr), .data(ocl_data),

@@ -182,8 +182,8 @@ always_ff @(posedge clk_main_a0) begin
 end
 
 
-axi_bus_t arb_l2_p();
-axi_bus_t arb_l2();
+axi_bus_t arb_l2_p[L2_BANKS]();
+axi_bus_t arb_l2[L2_BANKS]();
 axi_bus_t ocl_bus_q();
    
    axi_pipe 
@@ -349,140 +349,143 @@ endgenerate
 
 //functional cores
 `include "gen_core_spec_tile.vh"
-/*
-generate;
-   for (i=0; i<N_APP_CORES; i=i+1) begin : app_cores
-         core #(
-           .CORE_ID(i+1),
-           .TILE_ID(TILE_ID)
-         ) SSSP_CORE (
-           .clk(clk_main_a0),
-           .rstn(rst_main_n_sync),
-
-           .reg_bus(reg_bus[i+1]),
-           .pci_debug(pci_debug[i+1]),
-            
-           .task_arvalid( cc_cores_arvalid[i+1] ),
-           .task_araddr ( cc_cores_araddr [i+1] ),
-           .task_rvalid ( cc_cores_rvalid [i+1] ),
-           .task_rdata  ( cc_cores_rdata        ),
-           .task_rslot  ( cc_cores_rslot        ),
-
-           .start_task_valid( start_task_valid[i+1]),
-           .start_task_slot ( start_task_slot [i+1]),
-           .start_task_ready( start_task_ready[i+1]),
-           
-           .finish_task_valid( finish_task_valid[i+1]),
-           .finish_task_slot ( finish_task_slot [i+1]),
-           .finish_task_num_children ( finish_task_num_children [i+1]),
-           .finish_task_undo_log_write ( finish_task_undo_log_write [i+1]),
-           .finish_task_ready( finish_task_ready[i+1]),
-
-           .abort_running_task (abort_running_task[i+1]),
-           .abort_running_slot (abort_running_slot     ),
-           .gvt_task_slot_valid  (gvt_task_slot_valid ),
-           .gvt_task_slot        (gvt_task_slot       ),
-            
-           .task_wvalid    (cores_cm_wvalid     [i+1]),
-           .task_wdata     (cores_cm_wdata      [i+1]),
-           .task_wready    (cores_cm_wready     [i+1]),
-           .task_enq_untied(cores_cm_enq_untied [i+1]),  
-           .task_cq_slot   (cores_cm_cq_slot    [i+1]),
-           .task_child_id  (cores_cm_child_id   [i+1]),
-
-           .undo_log_valid (undo_log_valid[i+1]),
-           .undo_log_ready (undo_log_ready[i+1]),
-           .undo_log_addr  (undo_log_addr [i+1]),
-           .undo_log_data  (undo_log_data [i+1]),
-           .undo_log_slot  (undo_log_slot [i+1]),
-
-           .l1(core_l1[i+1])
-         );
-         
-         axi_decoder #(
-            .ID_BASE( (TILE_ID<<11) + ((i+1) << 4)),
-            .MAX_AWSIZE(2),
-            .MAX_ARSIZE(5)
-         ) CORE_L1 (
-           .clk(clk_main_a0),
-           .rstn(rst_main_n_sync),
-
-            .core(core_l1[i+1]),
-            .l2(l1_arb[i+1])
-         );
-
-   end
-
-endgenerate
-*/
-
-   axi_id_t    [L2_PORTS-1:0] l2_awid;
-   axi_addr_t  [L2_PORTS-1:0] l2_awaddr;
-   axi_len_t   [L2_PORTS-1:0] l2_awlen;
-   axi_size_t  [L2_PORTS-1:0] l2_awsize;
-   logic       [L2_PORTS-1:0] l2_awvalid;
-   logic       [L2_PORTS-1:0] l2_awready;
    
-   axi_id_t    [L2_PORTS-1:0] l2_wid;
-   axi_data_t  [L2_PORTS-1:0] l2_wdata;
-   axi_strb_t  [L2_PORTS-1:0] l2_wstrb;
-   logic       [L2_PORTS-1:0] l2_wlast;
-   logic       [L2_PORTS-1:0] l2_wvalid;
-   logic       [L2_PORTS-1:0] l2_wready;
+   // input to l2_arbiter
+   axi_id_t    [L2_PORTS-1:0] l2_arb_in_awid;
+   axi_addr_t  [L2_PORTS-1:0] l2_arb_in_awaddr;
+   axi_len_t   [L2_PORTS-1:0] l2_arb_in_awlen;
+   axi_size_t  [L2_PORTS-1:0] l2_arb_in_awsize;
+   logic       [L2_PORTS-1:0] l2_arb_in_awvalid;
+   logic       [L2_PORTS-1:0] l2_arb_in_awready;
+   
+   axi_id_t    [L2_PORTS-1:0] l2_arb_in_wid;
+   axi_data_t  [L2_PORTS-1:0] l2_arb_in_wdata;
+   axi_strb_t  [L2_PORTS-1:0] l2_arb_in_wstrb;
+   logic       [L2_PORTS-1:0] l2_arb_in_wlast;
+   logic       [L2_PORTS-1:0] l2_arb_in_wvalid;
+   logic       [L2_PORTS-1:0] l2_arb_in_wready;
 
-   axi_id_t    [L2_PORTS-1:0] l2_bid;
-   axi_resp_t  [L2_PORTS-1:0] l2_bresp;
-   logic       [L2_PORTS-1:0] l2_bvalid;
-   logic       [L2_PORTS-1:0] l2_bready;
+   axi_id_t    [L2_PORTS-1:0] l2_arb_in_bid;
+   axi_resp_t  [L2_PORTS-1:0] l2_arb_in_bresp;
+   logic       [L2_PORTS-1:0] l2_arb_in_bvalid;
+   logic       [L2_PORTS-1:0] l2_arb_in_bready;
 
-   axi_id_t    [L2_PORTS-1:0] l2_arid;
-   axi_addr_t  [L2_PORTS-1:0] l2_araddr;
-   axi_len_t   [L2_PORTS-1:0] l2_arlen;
-   axi_size_t  [L2_PORTS-1:0] l2_arsize;
-   logic       [L2_PORTS-1:0] l2_arvalid;
-   logic       [L2_PORTS-1:0] l2_arready;
+   axi_id_t    [L2_PORTS-1:0] l2_arb_in_arid;
+   axi_addr_t  [L2_PORTS-1:0] l2_arb_in_araddr;
+   axi_len_t   [L2_PORTS-1:0] l2_arb_in_arlen;
+   axi_size_t  [L2_PORTS-1:0] l2_arb_in_arsize;
+   logic       [L2_PORTS-1:0] l2_arb_in_arvalid;
+   logic       [L2_PORTS-1:0] l2_arb_in_arready;
 
-   axi_id_t    [L2_PORTS-1:0] l2_rid;
-   axi_data_t  [L2_PORTS-1:0] l2_rdata;
-   axi_resp_t  [L2_PORTS-1:0] l2_rresp;
-   logic       [L2_PORTS-1:0] l2_rlast;
-   logic       [L2_PORTS-1:0] l2_rvalid;
-   logic       [L2_PORTS-1:0] l2_rready;
+   axi_id_t    [L2_PORTS-1:0] l2_arb_in_rid;
+   axi_data_t  [L2_PORTS-1:0] l2_arb_in_rdata;
+   axi_resp_t  [L2_PORTS-1:0] l2_arb_in_rresp;
+   logic       [L2_PORTS-1:0] l2_arb_in_rlast;
+   logic       [L2_PORTS-1:0] l2_arb_in_rvalid;
+   logic       [L2_PORTS-1:0] l2_arb_in_rready;
+
+   // output from l2 arbiter
+   axi_id_t    [L2_BANKS-1:0] l2_arb_out_awid;
+   axi_addr_t  [L2_BANKS-1:0] l2_arb_out_awaddr;
+   axi_len_t   [L2_BANKS-1:0] l2_arb_out_awlen;
+   axi_size_t  [L2_BANKS-1:0] l2_arb_out_awsize;
+   logic       [L2_BANKS-1:0] l2_arb_out_awvalid;
+   logic       [L2_BANKS-1:0] l2_arb_out_awready;
+   
+   axi_id_t    [L2_BANKS-1:0] l2_arb_out_wid;
+   axi_data_t  [L2_BANKS-1:0] l2_arb_out_wdata;
+   axi_strb_t  [L2_BANKS-1:0] l2_arb_out_wstrb;
+   logic       [L2_BANKS-1:0] l2_arb_out_wlast;
+   logic       [L2_BANKS-1:0] l2_arb_out_wvalid;
+   logic       [L2_BANKS-1:0] l2_arb_out_wready;
+
+   axi_id_t    [L2_BANKS-1:0] l2_arb_out_bid;
+   axi_resp_t  [L2_BANKS-1:0] l2_arb_out_bresp;
+   logic       [L2_BANKS-1:0] l2_arb_out_bvalid;
+   logic       [L2_BANKS-1:0] l2_arb_out_bready;
+
+   axi_id_t    [L2_BANKS-1:0] l2_arb_out_arid;
+   axi_addr_t  [L2_BANKS-1:0] l2_arb_out_araddr;
+   axi_len_t   [L2_BANKS-1:0] l2_arb_out_arlen;
+   axi_size_t  [L2_BANKS-1:0] l2_arb_out_arsize;
+   logic       [L2_BANKS-1:0] l2_arb_out_arvalid;
+   logic       [L2_BANKS-1:0] l2_arb_out_arready;
+
+   axi_id_t    [L2_BANKS-1:0] l2_arb_out_rid;
+   axi_data_t  [L2_BANKS-1:0] l2_arb_out_rdata;
+   axi_resp_t  [L2_BANKS-1:0] l2_arb_out_rresp;
+   logic       [L2_BANKS-1:0] l2_arb_out_rlast;
+   logic       [L2_BANKS-1:0] l2_arb_out_rvalid;
+   logic       [L2_BANKS-1:0] l2_arb_out_rready;
 
 generate;
    for (i=0;i<L2_PORTS;i=i+1) begin
-      assign l2_awid    [i] = l1_arb[i].awid;
-      assign l2_awaddr  [i] = l1_arb[i].awaddr;
-      assign l2_awsize  [i] = l1_arb[i].awsize;
-      assign l2_awlen   [i] = l1_arb[i].awlen;
-      assign l2_awvalid [i] = l1_arb[i].awvalid;
-      assign l1_arb[i].awready = l2_awready [i];
+      assign l2_arb_in_awid    [i] = l1_arb[i].awid;
+      assign l2_arb_in_awaddr  [i] = l1_arb[i].awaddr;
+      assign l2_arb_in_awsize  [i] = l1_arb[i].awsize;
+      assign l2_arb_in_awlen   [i] = l1_arb[i].awlen;
+      assign l2_arb_in_awvalid [i] = l1_arb[i].awvalid;
+      assign l1_arb[i].awready = l2_arb_in_awready [i];
 
-      assign l2_wid     [i] = l1_arb[i].wid;
-      assign l2_wdata   [i] = l1_arb[i].wdata;
-      assign l2_wlast   [i] = l1_arb[i].wlast;
-      assign l2_wstrb   [i] = l1_arb[i].wstrb;
-      assign l2_wvalid  [i] = l1_arb[i].wvalid;
-      assign l1_arb[i].wready  = l2_wready [i];
+      assign l2_arb_in_wid     [i] = l1_arb[i].wid;
+      assign l2_arb_in_wdata   [i] = l1_arb[i].wdata;
+      assign l2_arb_in_wlast   [i] = l1_arb[i].wlast;
+      assign l2_arb_in_wstrb   [i] = l1_arb[i].wstrb;
+      assign l2_arb_in_wvalid  [i] = l1_arb[i].wvalid;
+      assign l1_arb[i].wready  = l2_arb_in_wready [i];
 
-      assign l1_arb[i].bid    = l2_bid    [i];
-      assign l1_arb[i].bresp  = l2_bresp  [i];
-      assign l1_arb[i].bvalid = l2_bvalid [i];
-      assign l2_bready  [i] = l1_arb[i].bready;
+      assign l1_arb[i].bid    = l2_arb_in_bid    [i];
+      assign l1_arb[i].bresp  = l2_arb_in_bresp  [i];
+      assign l1_arb[i].bvalid = l2_arb_in_bvalid [i];
+      assign l2_arb_in_bready  [i] = l1_arb[i].bready;
       
-      assign l2_arid    [i] = l1_arb[i].arid;
-      assign l2_araddr  [i] = l1_arb[i].araddr;
-      assign l2_arsize  [i] = l1_arb[i].arsize;
-      assign l2_arlen   [i] = l1_arb[i].arlen;
-      assign l2_arvalid [i] = l1_arb[i].arvalid;
-      assign l1_arb[i].arready = l2_arready [i];
+      assign l2_arb_in_arid    [i] = l1_arb[i].arid;
+      assign l2_arb_in_araddr  [i] = l1_arb[i].araddr;
+      assign l2_arb_in_arsize  [i] = l1_arb[i].arsize;
+      assign l2_arb_in_arlen   [i] = l1_arb[i].arlen;
+      assign l2_arb_in_arvalid [i] = l1_arb[i].arvalid;
+      assign l1_arb[i].arready = l2_arb_in_arready [i];
 
-      assign l1_arb[i].rid     = l2_rid    [i];
-      assign l1_arb[i].rresp   = l2_rresp  [i];
-      assign l1_arb[i].rvalid  = l2_rvalid [i];
-      assign l1_arb[i].rdata   = l2_rdata  [i];
-      assign l1_arb[i].rlast   = l2_rlast  [i];
-      assign l2_rready  [i] = l1_arb[i].rready;
+      assign l1_arb[i].rid     = l2_arb_in_rid    [i];
+      assign l1_arb[i].rresp   = l2_arb_in_rresp  [i];
+      assign l1_arb[i].rvalid  = l2_arb_in_rvalid [i];
+      assign l1_arb[i].rdata   = l2_arb_in_rdata  [i];
+      assign l1_arb[i].rlast   = l2_arb_in_rlast  [i];
+      assign l2_arb_in_rready  [i] = l1_arb[i].rready;
+   end
+   for (i=0;i<L2_BANKS;i=i+1) begin
+      assign arb_l2_p[i].awid     = l2_arb_out_awid    [i];
+      assign arb_l2_p[i].awaddr   = l2_arb_out_awaddr  [i];
+      assign arb_l2_p[i].awsize   = l2_arb_out_awsize  [i];
+      assign arb_l2_p[i].awlen    = l2_arb_out_awlen   [i];
+      assign arb_l2_p[i].awvalid  = l2_arb_out_awvalid [i];
+      assign l2_arb_out_awready[i] = arb_l2_p[i].awready ;
+
+      assign arb_l2_p[i].wid      = l2_arb_out_wid;
+      assign arb_l2_p[i].wdata    = l2_arb_out_wdata;
+      assign arb_l2_p[i].wlast    = l2_arb_out_wlast;
+      assign arb_l2_p[i].wstrb    = l2_arb_out_wstrb;
+      assign arb_l2_p[i].wvalid   = l2_arb_out_wvalid;
+      assign l2_arb_out_wready[i]  = arb_l2_p[i].wready; 
+
+      assign l2_arb_out_bid   [i] = arb_l2_p[i].bid    ;
+      assign l2_arb_out_bresp [i] = arb_l2_p[i].bresp  ;
+      assign l2_arb_out_bvalid[i] = arb_l2_p[i].bvalid ;
+      assign arb_l2_p[i].bready  = l2_arb_out_bready[i];
+      
+      assign arb_l2_p[i].arid     = l2_arb_out_arid    [i];
+      assign arb_l2_p[i].araddr   = l2_arb_out_araddr  [i];
+      assign arb_l2_p[i].arsize   = l2_arb_out_arsize  [i];
+      assign arb_l2_p[i].arlen    = l2_arb_out_arlen   [i];
+      assign arb_l2_p[i].arvalid  = l2_arb_out_arvalid [i];
+      assign l2_arb_out_arready [i] = arb_l2_p[i].arready ;
+
+      assign l2_arb_out_rid   [i]  = arb_l2_p[i].rid    ;
+      assign l2_arb_out_rresp [i]  = arb_l2_p[i].rresp  ;
+      assign l2_arb_out_rvalid[i]  = arb_l2_p[i].rvalid ;
+      assign l2_arb_out_rdata [i]  = arb_l2_p[i].rdata  ;
+      assign l2_arb_out_rlast [i]  = arb_l2_p[i].rlast  ;
+      assign arb_l2_p[i].rready  = l2_arb_out_rready[i];
    end
 endgenerate
 
@@ -490,45 +493,79 @@ endgenerate
 
 
 l2_arbiter 
-#(.NUM_SI(L2_PORTS)) L2_ARBITER (
+#(
+   .NUM_SI(L2_PORTS),
+   .NUM_MI(1<<LOG_L2_BANKS)
+) L2_ARBITER (
   .clk(clk_main_a0),
   .rstn(rst_main_n_sync),
 
-   .s_awid        (  l2_awid      ),  
-   .s_awaddr      (  l2_awaddr    ),
-   .s_awlen       (  l2_awlen     ),
-   .s_awsize      (  l2_awsize    ),
-   .s_awvalid     (  l2_awvalid   ),
-   .s_awready     (  l2_awready   ),
+   .s_awid        (  l2_arb_in_awid      ),  
+   .s_awaddr      (  l2_arb_in_awaddr    ),
+   .s_awlen       (  l2_arb_in_awlen     ),
+   .s_awsize      (  l2_arb_in_awsize    ),
+   .s_awvalid     (  l2_arb_in_awvalid   ),
+   .s_awready     (  l2_arb_in_awready   ),
    
-   .s_wid         (  l2_wid       ),
-   .s_wdata       (  l2_wdata     ),
-   .s_wstrb       (  l2_wstrb     ),
-   .s_wlast       (  l2_wlast     ),   
-   .s_wvalid      (  l2_wvalid    ),
-   .s_wready      (  l2_wready    ),
-                             
-   .s_bid         (  l2_bid       ),
-   .s_bresp       (  l2_bresp     ),
-   .s_bvalid      (  l2_bvalid    ),
-   .s_bready      (  l2_bready    ),
-                              
-   .s_arid        (  l2_arid      ),
-   .s_araddr      (  l2_araddr    ),   
-   .s_arlen       (  l2_arlen     ),
-   .s_arsize      (  l2_arsize    ),
-   .s_arvalid     (  l2_arvalid   ),
-   .s_arready     (  l2_arready   ),
-                             
-   .s_rid         (  l2_rid       ),
-   .s_rdata       (  l2_rdata     ),
-   .s_rresp       (  l2_rresp     ),
-   .s_rlast       (  l2_rlast     ),
-   .s_rvalid      (  l2_rvalid    ),   
-   .s_rready      (  l2_rready    ),      
+   .s_wid         (  l2_arb_in_wid       ),
+   .s_wdata       (  l2_arb_in_wdata     ),
+   .s_wstrb       (  l2_arb_in_wstrb     ),
+   .s_wlast       (  l2_arb_in_wlast     ),   
+   .s_wvalid      (  l2_arb_in_wvalid    ),
+   .s_wready      (  l2_arb_in_wready    ),
+   
+   .s_bid         (  l2_arb_in_bid       ),
+   .s_bresp       (  l2_arb_in_bresp     ),
+   .s_bvalid      (  l2_arb_in_bvalid    ),
+   .s_bready      (  l2_arb_in_bready    ),
+                        
+   .s_arid        (  l2_arb_in_arid      ),
+   .s_araddr      (  l2_arb_in_araddr    ),   
+   .s_arlen       (  l2_arb_in_arlen     ),
+   .s_arsize      (  l2_arb_in_arsize    ),
+   .s_arvalid     (  l2_arb_in_arvalid   ),
+   .s_arready     (  l2_arb_in_arready   ),
+                        
+   .s_rid         (  l2_arb_in_rid       ),
+   .s_rdata       (  l2_arb_in_rdata     ),
+   .s_rresp       (  l2_arb_in_rresp     ),
+   .s_rlast       (  l2_arb_in_rlast     ),
+   .s_rvalid      (  l2_arb_in_rvalid    ),   
+   .s_rready      (  l2_arb_in_rready    ),      
 
   
-   .l2(arb_l2_p)
+   .m_awid        (  l2_arb_out_awid      ),  
+   .m_awaddr      (  l2_arb_out_awaddr    ),
+   .m_awlen       (  l2_arb_out_awlen     ),
+   .m_awsize      (  l2_arb_out_awsize    ),
+   .m_awvalid     (  l2_arb_out_awvalid   ),
+   .m_awready     (  l2_arb_out_awready   ),
+   
+   .m_wid         (  l2_arb_out_wid       ),
+   .m_wdata       (  l2_arb_out_wdata     ),
+   .m_wstrb       (  l2_arb_out_wstrb     ),
+   .m_wlast       (  l2_arb_out_wlast     ),   
+   .m_wvalid      (  l2_arb_out_wvalid    ),
+   .m_wready      (  l2_arb_out_wready    ),
+                            
+   .m_bid         (  l2_arb_out_bid       ),
+   .m_bresp       (  l2_arb_out_bresp     ),
+   .m_bvalid      (  l2_arb_out_bvalid    ),
+   .m_bready      (  l2_arb_out_bready    ),
+                             
+   .m_arid        (  l2_arb_out_arid      ),
+   .m_araddr      (  l2_arb_out_araddr    ),   
+   .m_arlen       (  l2_arb_out_arlen     ),
+   .m_arsize      (  l2_arb_out_arsize    ),
+   .m_arvalid     (  l2_arb_out_arvalid   ),
+   .m_arready     (  l2_arb_out_arready   ),
+                            
+   .m_rid         (  l2_arb_out_rid       ),
+   .m_rdata       (  l2_arb_out_rdata     ),
+   .m_rresp       (  l2_arb_out_rresp     ),
+   .m_rlast       (  l2_arb_out_rlast     ),
+   .m_rvalid      (  l2_arb_out_rvalid    ),   
+   .m_rready      (  l2_arb_out_rready    )      
 );
 
 
@@ -575,8 +612,8 @@ axi_pipe
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
 
-   .in(arb_l2_p),
-   .out(arb_l2)
+   .in(arb_l2_p[0]),
+   .out(arb_l2[0])
 );
 
 l2 
@@ -586,7 +623,7 @@ l2
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
 
-   .l1(arb_l2),
+   .l1(arb_l2[0]),
    .mem_bus(mem_bus),
 
    .reg_bus(reg_bus[ID_L2]),

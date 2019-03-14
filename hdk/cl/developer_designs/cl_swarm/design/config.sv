@@ -50,7 +50,8 @@ package swarm;
    parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;
    parameter TQ_STAGES = 13; 
-   parameter LOG_READY_LIST_SIZE = 5;
+   parameter LOG_READY_LIST_SIZE = 3;
+   parameter LOG_L2_BANKS = 0;
 
    parameter LOG_LAST_DEQ_VT_CACHE = 8; // must be >=4, 0 to turn off
 
@@ -79,6 +80,8 @@ package swarm;
    parameter CACHE_TAG_WIDTH = ADDR_BITS - CACHE_BYTE_WIDTH - CACHE_INDEX_WIDTH; //18
                                     
    parameter LOG_N_MSHR = 4;
+
+   parameter L2_BANKS = (1<<LOG_L2_BANKS);
    
    // 'Core' is any module that gets tasks from CC. OCL is a special case 
    // APP_COREs have IDs {1..N_APP_CORES}
@@ -97,13 +100,14 @@ package swarm;
    parameter CM_PORTS = ID_SPLITTER + 1;
    // end all modules with an L2 port
    parameter ID_L2 = N_CORES + 4;
-   parameter ID_MEM_ARB = N_CORES + 5;
-   parameter ID_PCI_ARB = N_CORES + 6;
-   parameter ID_TSB     = N_CORES + 7;
-   parameter ID_CQ      = N_CORES + 8;
-   parameter ID_CM      = N_CORES + 9;
-   parameter ID_SERIALIZER    = N_CORES + 10;
-   parameter ID_LAST = N_CORES + 11;
+   parameter ID_L2_LAST = ID_L2 + (1<<LOG_L2_BANKS -1);
+   parameter ID_MEM_ARB = ID_L2_LAST + 1;
+   parameter ID_PCI_ARB = ID_L2_LAST + 2;
+   parameter ID_TSB     = ID_L2_LAST + 3;
+   parameter ID_CQ      = ID_L2_LAST + 4;
+   parameter ID_CM      = ID_L2_LAST + 5;
+   parameter ID_SERIALIZER    = ID_L2_LAST + 6;
+   parameter ID_LAST = ID_L2_LAST + 7;
    
    parameter ID_ALL_CORES = 32;
    parameter ID_ALL_APP_CORES = 33;
@@ -269,6 +273,7 @@ package swarm;
    parameter OCL_PARAM_LOG_SPILL_Q_SIZE    = 8'h64;
    parameter OCL_PARAM_NON_SPEC            = 8'h68;
    parameter OCL_PARAM_LOG_READY_LIST_SIZE = 8'h6c;
+   parameter OCL_PARAM_LOG_L2_BANKS        = 8'h70;
 
    parameter CORE_START               = 8'ha0; //  wdata - bitmap of which cores are activated 
    parameter CORE_N_DEQUEUES          = 8'hb0;

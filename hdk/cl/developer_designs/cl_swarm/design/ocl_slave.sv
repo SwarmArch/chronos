@@ -223,6 +223,10 @@ module ocl_slave
                         state <= OCL_SEND_R;
                         data <= UNORDERED + NON_SPEC;
                      end
+                     OCL_PARAM_LOG_L2_BANKS: begin
+                        state <= OCL_SEND_R;
+                        data <= LOG_L2_BANKS;
+                     end
                      OCL_DONE: begin
                         state <= OCL_SEND_R;
                         data <= {31'b0, done};

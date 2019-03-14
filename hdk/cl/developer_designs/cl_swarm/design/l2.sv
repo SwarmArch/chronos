@@ -1148,20 +1148,18 @@ module l2_stage_3
       stall_out = 1'b0;
       case (i_op) 
          READ: begin
+            c_rdata = d_rdata;
+            c_rvalid = 1'b1;
+            c_rid = i_cid;
             if (!c_rready) begin
                stall_out = 1'b1;
-            end else begin
-               c_rdata = d_rdata;
-               c_rvalid = 1'b1;
-               c_rid = i_cid;
-            end
+            end 
          end
          WRITE: begin
+            c_bvalid = 1'b1;
+            c_bid = i_cid;
             if (!c_bready) begin
                stall_out = 1'b1;
-            end else begin
-               c_bvalid = 1'b1;
-               c_bid = i_cid;
             end
          end
          EVICT: begin
