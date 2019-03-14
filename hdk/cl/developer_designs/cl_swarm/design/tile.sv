@@ -184,6 +184,8 @@ end
 
 axi_bus_t arb_l2_p[L2_BANKS]();
 axi_bus_t arb_l2[L2_BANKS]();
+axi_bus_t l2_out[L2_BANKS]();
+axi_bus_t l2_out_d[L2_BANKS]();
 axi_bus_t ocl_bus_q();
    
    axi_pipe 
@@ -461,11 +463,11 @@ generate;
       assign arb_l2_p[i].awvalid  = l2_arb_out_awvalid [i];
       assign l2_arb_out_awready[i] = arb_l2_p[i].awready ;
 
-      assign arb_l2_p[i].wid      = l2_arb_out_wid;
-      assign arb_l2_p[i].wdata    = l2_arb_out_wdata;
-      assign arb_l2_p[i].wlast    = l2_arb_out_wlast;
-      assign arb_l2_p[i].wstrb    = l2_arb_out_wstrb;
-      assign arb_l2_p[i].wvalid   = l2_arb_out_wvalid;
+      assign arb_l2_p[i].wid      = l2_arb_out_wid  [i];
+      assign arb_l2_p[i].wdata    = l2_arb_out_wdata[i];
+      assign arb_l2_p[i].wlast    = l2_arb_out_wlast[i];
+      assign arb_l2_p[i].wstrb    = l2_arb_out_wstrb[i];
+      assign arb_l2_p[i].wvalid   = l2_arb_out_wvalid[i];
       assign l2_arb_out_wready[i]  = arb_l2_p[i].wready; 
 
       assign l2_arb_out_bid   [i] = arb_l2_p[i].bid    ;
@@ -624,12 +626,97 @@ l2
    .rstn(rst_main_n_sync),
 
    .l1(arb_l2[0]),
-   .mem_bus(mem_bus),
+   .mem_bus(l2_out[0]),
 
    .reg_bus(reg_bus[ID_L2]),
 
    .pci_debug(pci_debug[ID_L2])
 );
+
+generate 
+if (L2_BANKS == 1) begin
+   
+   axi_pipe 
+   #(
+      .STAGES(1),
+      .NO_RESP(1)
+   ) L2_PIPE (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+
+      .in(l2_out[0]),
+      .out(mem_bus)
+   );
+end else begin : bank_1
+   axi_pipe 
+   #(
+      .STAGES(1),
+      .NO_RESP(1)
+   ) L2_PIPE_1 (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+
+      .in(arb_l2_p[1]),
+      .out(arb_l2[1])
+   );
+
+   l2 
+   #(
+      .TILE_ID(TILE_ID),
+      .BANK_ID(1)
+   ) L2_B1 (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+
+      .l1(arb_l2[1]),
+      .mem_bus(l2_out[1]),
+
+      .reg_bus(reg_bus[ID_L2+1]),
+
+      .pci_debug(pci_debug[ID_L2+1])
+   );
+  
+   // can't connect l2_out to the mux directly because of l2's valid signals
+   // depend on the ready's
+   axi_pipe 
+   #(
+      .STAGES(1),
+      .NO_RESP(1)
+   ) L2_OUT_PIPE_0 (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+
+      .in(l2_out[0]),
+      .out(l2_out_d[0])
+   );
+   axi_pipe 
+   #(
+      .STAGES(1),
+      .NO_RESP(1)
+   ) L2_OUT_PIPE_1 (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+
+      .in(l2_out[1]),
+      .out(l2_out_d[1])
+   );
+
+   axi_mux
+   #( 
+      .ID_BIT(8),
+      .DELAY(1)
+   ) L2_OUT_MUX (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+      .a(l2_out_d[0]),
+      .b(l2_out_d[1]),
+
+      .out_q(mem_bus)
+   );
+
+end
+
+endgenerate
 
 logic tq_empty;
 logic tsb_empty;

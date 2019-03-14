@@ -459,6 +459,7 @@ end
    
    // Faster simulation by capping flushing to DIST array
    tb.card.fpga.CL.\tile[0].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   tb.card.fpga.CL.\tile[0].TILE .\bank_1.L2_B1 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[1].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[2].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[3].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
@@ -473,6 +474,13 @@ end
       ocl_addr[ 7:0] = L2_FLUSH;
       tb.poke(.addr(ocl_addr), .data(1),
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      if (L2_BANKS == 2) begin
+         ocl_addr[23:16] = i;
+         ocl_addr[15:8] = ID_L2 + 1;
+         ocl_addr[ 7:0] = L2_FLUSH;
+         tb.poke(.addr(ocl_addr), .data(1),
+                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      end
    end
    do begin
       for (i=0;i<N_TILES;i++) begin
@@ -482,6 +490,16 @@ end
          tb.peek(.addr(ocl_addr), .data(ocl_data),
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
          if (ocl_data ==1) break;
+
+         if (L2_BANKS == 2) begin
+            ocl_addr[23:16] = i;
+            ocl_addr[15:8] = ID_L2 +1;
+            ocl_addr[ 7:0] = L2_FLUSH;
+            tb.peek(.addr(ocl_addr), .data(ocl_data),
+                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+            if (ocl_data ==1) break;
+
+         end
       end
       #300ns;
    end while (ocl_data==1);

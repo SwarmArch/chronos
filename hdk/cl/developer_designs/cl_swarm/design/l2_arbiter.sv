@@ -97,7 +97,7 @@ axi_strb_t [NUM_MI-1:0] r_wstrb;
 
 generate
 for (i=0;i<NUM_SI;i++) begin
-   assign s_aw_port[i] = (NUM_MI == 1) ? 0 : s_awaddr[i][9];
+   assign s_aw_port[i] = (NUM_MI == 1) ? 0 : ^(s_awaddr[i][31:6]);
 end
 
 for (i=0;i<NUM_MI;i++) begin : aw_sched
@@ -211,7 +211,7 @@ logic                [NUM_MI-1:0] ar_can_take_new;
 
 generate
 for (i=0;i<NUM_SI;i++) begin
-   assign s_ar_port[i] = (NUM_MI == 1) ? 0 : s_araddr[i][9];
+   assign s_ar_port[i] = (NUM_MI == 1) ? 0 : ^(s_araddr[i][31:6]);
 end
 for (i=0;i<NUM_MI;i++) begin : ar_sched
    for (j=0;j<NUM_SI;j++) begin

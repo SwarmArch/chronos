@@ -42,16 +42,19 @@ package swarm;
    // how many tiles go directly into the axi xbar. has to be a power of two
    parameter XBAR_IN_TILES = 1;
    parameter NO_SPILLING = 0; 
-   parameter NON_SPEC = 1;
-   parameter UNORDERED = 1;
-   `define TASK_UNIT_MODULE task_unit_unordered
-   //`define TASK_UNIT_MODULE task_unit
+   parameter NON_SPEC = 0;
+
+   // both of the following should be changed together. Unfortunately cannot 
+   // `define inside and if block in SV.
+   parameter UNORDERED = 0;
+   //`define TASK_UNIT_MODULE task_unit_unordered
+   `define TASK_UNIT_MODULE task_unit
 
    parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;
    parameter TQ_STAGES = 13; 
    parameter LOG_READY_LIST_SIZE = 3;
-   parameter LOG_L2_BANKS = 0;
+   parameter LOG_L2_BANKS = 1;
 
    parameter LOG_LAST_DEQ_VT_CACHE = 8; // must be >=4, 0 to turn off
 

@@ -29,7 +29,8 @@ typedef struct packed {
 
 module l2
 #( 
-   parameter TILE_ID = 1
+   parameter TILE_ID = 1,
+   parameter BANK_ID = 0
 ) (
 	input clk,
 	input rstn,
@@ -118,6 +119,42 @@ module l2
    always_comb begin
       log_word.repl_addr = tag_rdata[ log_word.way ].tag;
    end
+
+`ifdef XILINX_SIMULATOR
+   if (1) begin
+      logic [63:0] cycle;
+      integer file,r;
+      string file_name;
+      initial begin
+         $sformat(file_name, "l2_%0d_%0d.log", TILE_ID, BANK_ID);
+         file = $fopen(file_name,"w");
+      end
+      always_ff @(posedge clk) begin
+         if (!rstn) cycle <=0;
+         else cycle <= cycle + 1;
+      end
+
+      always_ff @(posedge clk) begin
+         if ((p12_op != NONE) & !stall_in[2] & !stall_out[2]) begin
+            $fwrite(file,"[%5d] [l2-%2d-%1d] [%4x] %d %s %1d %2d %8x (tag:%5x index:%3x) %6x wstrb:%8x_%8x \n", 
+               cycle, TILE_ID, BANK_ID, log_word.id,
+               log_word.op,
+               log_word.hit ? "H" : "M",
+               log_word.retry,
+               log_word.way,
+               log_word.addr,
+               log_word.addr >> 18,
+               (log_word.addr >> 6) & 32'hfff,
+               log_word.repl_addr,
+               log_word.wstrb[63:32],
+               log_word.wstrb[31:0]
+            ) ;
+         end
+         $fflush(file);
+      end
+   end
+`endif
+
 
    logic [31:0] stat_read_hits;
    logic [31:0] stat_read_misses;
@@ -250,7 +287,8 @@ endgenerate
   
    l2_stage_1  
    #( 
-      .TILE_ID(TILE_ID)
+      .TILE_ID(TILE_ID),
+      .BANK_ID(BANK_ID)
    ) L2_STAGE_1 (
       .clk(clk),
       .rstn(rstn),
@@ -337,7 +375,8 @@ endgenerate
 
    l2_stage_2
    #( 
-      .TILE_ID(TILE_ID)
+      .TILE_ID(TILE_ID),
+      .BANK_ID(BANK_ID)
    ) L2_STAGE_2 (
       .clk(clk),
       .rstn(rstn),
@@ -410,7 +449,8 @@ endgenerate
 
    l2_stage_3
    #( 
-      .TILE_ID(TILE_ID)
+      .TILE_ID(TILE_ID),
+      .BANK_ID(BANK_ID)
    ) L2_STAGE_3 (
       .clk(clk),
       .rstn(rstn),
@@ -545,7 +585,8 @@ endmodule
 
 module l2_stage_1
 #( 
-   parameter TILE_ID = 1
+   parameter TILE_ID = 1,
+   parameter BANK_ID = 0
 ) (
    input clk,
    input rstn,
@@ -796,7 +837,8 @@ endmodule
 
 module l2_stage_2
 #( 
-   parameter TILE_ID = 1
+   parameter TILE_ID = 1,
+   parameter BANK_ID = 0
 ) (
    input clk,
    input rstn,
@@ -943,7 +985,7 @@ module l2_stage_2
             FLUSH : begin
                if (!flush_advance_tag & writeback_required) begin
                   m_awaddr = {tag_entry[way].tag, i_addr.index, 6'b0};
-                  m_awid = (TILE_ID << 10) + (1<<15) + write_buf_id;
+                  m_awid = (TILE_ID << 10) + (1<<15) + (BANK_ID<<8) + write_buf_id;
 
                   m_awvalid = write_buf_available; 
                   if (m_awready & m_awvalid) begin
@@ -1022,10 +1064,10 @@ module l2_stage_2
                      retry_wdata.wstrb = i_wstrb;
                   end else begin
                      m_awaddr = {tag_entry[way].tag, i_addr.index, 6'b0};
-                     m_awid = (TILE_ID <<10)+ (1<<15)+ write_buf_id;
+                     m_awid = (TILE_ID <<10)+ (1<<15)+ (BANK_ID<<8) + write_buf_id;
 
                      m_araddr = i_addr;
-                     m_arid = (TILE_ID << 10)+ (1<<15) +mshr_next_id;
+                     m_arid = (TILE_ID << 10)+ (1<<15) + (BANK_ID<<8) + mshr_next_id;
                     
                      mshr_data.incoming_id = i_cid;
                      mshr_data.is_read = (i_op == READ);
@@ -1100,7 +1142,8 @@ endmodule
 
 module l2_stage_3
 #( 
-   parameter TILE_ID = 1
+   parameter TILE_ID = 1,
+   parameter BANK_ID = 0
 ) (
    input clk,
    input rstn,
@@ -1168,7 +1211,7 @@ module l2_stage_3
             end else begin
                m_wdata = d_rdata;
                m_wvalid = 1'b1;
-               m_wid = (TILE_ID << 10) + (1<<15) + i_mid;
+               m_wid = (TILE_ID << 10) + (1<<15) + (BANK_ID<<8) + i_mid;
             end
          end
          default: begin
