@@ -584,7 +584,7 @@ always_comb begin
       end
       RECEIVE_WRITE_BITMAP: begin
          m_axi_l1_V_AWADDR = (base_scratch + (cur_task.hint << 3));
-         m_axi_l1_V_WDATA = bitmap_color | (1<<cur_arg_0);
+         m_axi_l1_V_WDATA = bitmap | (1<<cur_arg_0);
          m_axi_l1_V_AWLEN = 1; 
          m_axi_l1_V_AWVALID = 1'b1;
          m_axi_l1_V_WVALID = 1'b1;
