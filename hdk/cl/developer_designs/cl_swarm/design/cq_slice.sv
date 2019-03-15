@@ -1014,6 +1014,8 @@ if (CQ_STATS) begin
       end
    end
 
+   // Turn these off because they are in the critical path
+   /*
    always_ff @(posedge clk) begin
       if (!rstn) begin
          n_tasks_no_conflict <= 0;
@@ -1038,6 +1040,7 @@ if (CQ_STATS) begin
          end
       end
    end
+   */
 
 
 
