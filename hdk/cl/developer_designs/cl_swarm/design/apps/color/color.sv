@@ -141,7 +141,6 @@ logic [31:0] eo_begin, eo_end;
 logic [31:0] bitmap;
 logic [31:0] join_counter;
 
-logic [31:0] edge_dest;
 logic [31:0] neighbor_offset;
 logic [31:0] neighbor_degree;
 
@@ -152,6 +151,11 @@ logic [31:0] cur_arg_0;
 
 logic [4:0] bitmap_color;
 logic [5:0] assign_color;
+
+logic [31:0] cur_neighbor;
+always_comb begin
+   cur_neighbor = edge_dest[neighbor_offset[3:0]];
+end
 
 lowbit #(
    .OUT_WIDTH(5),
@@ -171,7 +175,7 @@ always_comb begin
    end
 end
 
-// becasue exctracting a variable bit is not a thing
+// because extracting a variable bit is not a thing
 logic [31:0] new_bitmap;
 assign new_bitmap = (bitmap | (1<<cur_arg_0));
 logic cur_bit_set;
@@ -179,6 +183,7 @@ always_comb begin
    cur_bit_set = (bitmap == new_bitmap);
 end
 
+logic [31:0] edge_dest [0:15];
 
 always_ff @(posedge clk) begin
    if (m_axi_l1_V_RVALID) begin
@@ -203,7 +208,7 @@ always_ff @(posedge clk) begin
          end
          CALC_WAIT_NEIGHBOR, 
          COLOR_WAIT_NEIGHBOR : begin
-            edge_dest <= m_axi_l1_V_RDATA;
+            edge_dest[word_id] <= m_axi_l1_V_RDATA;
          end
          CALC_WAIT_NEIGHBOR_OFFSET, 
          COLOR_WAIT_NEIGHBOR_OFFSET : begin
@@ -229,7 +234,7 @@ always_ff @(posedge clk) begin
       join_counter <= 0;
    end else if (state == CALC_INC_IN_DEGREE) begin
       if ( (neighbor_degree > degree) ||
-           ((neighbor_degree == degree) & (edge_dest < cur_task.hint))) begin
+           ((neighbor_degree == degree) & (cur_neighbor < cur_task.hint))) begin
          join_counter <= join_counter + 1;
       end
    end
@@ -248,11 +253,10 @@ always_ff @(posedge clk) begin
       if (task_out_V_TVALID & task_out_V_TREADY) begin
          neighbor_offset <= neighbor_offset + 1;
       end
-   end else if (state ==  CALC_INC_IN_DEGREE
-      && state_next == CALC_READ_NEIGHBOR) begin
+   end else if (state ==  CALC_INC_IN_DEGREE) begin
       neighbor_offset <= neighbor_offset + 1;
    end else if (state == COLOR_ENQ_RECEIVE 
-      && state_next == COLOR_READ_NEIGHBOR) begin
+      && state_next == COLOR_READ_NEIGHBOR_OFFSET) begin
       neighbor_offset <= neighbor_offset + 1;
    end
 end
@@ -413,7 +417,7 @@ always_comb begin
             state_next = CALC_READ_JOIN_COUNTER;
          end else begin
             m_axi_l1_V_ARADDR = base_neighbors + ( (eo_begin + neighbor_offset) << 2);
-            m_axi_l1_V_ARLEN = 0;
+            m_axi_l1_V_ARLEN = (degree-neighbor_offset) > 16 ? 15 : (degree - neighbor_offset-1);  
             m_axi_l1_V_ARVALID = 1'b1;
             if (m_axi_l1_V_ARREADY) begin
                state_next = CALC_WAIT_NEIGHBOR;
@@ -426,7 +430,7 @@ always_comb begin
          end
       end
       CALC_READ_NEIGHBOR_OFFSET: begin
-         m_axi_l1_V_ARADDR = base_edge_offset + (edge_dest << 2);
+         m_axi_l1_V_ARADDR = base_edge_offset + (cur_neighbor << 2);
          m_axi_l1_V_ARLEN = 1;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -439,7 +443,9 @@ always_comb begin
          end
       end
       CALC_INC_IN_DEGREE: begin
-         state_next = CALC_READ_NEIGHBOR;
+         state_next = ((neighbor_offset[3:0] == '1) |
+                        (neighbor_offset == degree -1))
+                  ? CALC_READ_NEIGHBOR : CALC_READ_NEIGHBOR_OFFSET;
       end
       CALC_READ_JOIN_COUNTER: begin
          m_axi_l1_V_ARADDR = (base_scratch + (cur_task.hint << 3)) | VID_COUNTER_OFFSET;
@@ -527,11 +533,11 @@ always_comb begin
          end
       end
       COLOR_READ_NEIGHBOR: begin
-         if (neighbor_offset == enq_end) begin
+         if (degree == 0) begin
             state_next = FINISH_TASK;
          end else begin
             m_axi_l1_V_ARADDR = base_neighbors + ( (eo_begin + neighbor_offset) << 2);
-            m_axi_l1_V_ARLEN = 0;
+            m_axi_l1_V_ARLEN = (enq_end-enq_start) -1;
             m_axi_l1_V_ARVALID = 1'b1;
             if (m_axi_l1_V_ARREADY) begin
                state_next = COLOR_WAIT_NEIGHBOR;
@@ -544,11 +550,15 @@ always_comb begin
          end
       end
       COLOR_READ_NEIGHBOR_OFFSET: begin
-         m_axi_l1_V_ARADDR = base_edge_offset + (edge_dest << 2);
-         m_axi_l1_V_ARLEN = 1;
-         m_axi_l1_V_ARVALID = 1'b1;
-         if (m_axi_l1_V_ARREADY) begin
-            state_next = COLOR_WAIT_NEIGHBOR_OFFSET;
+         if (neighbor_offset == enq_end) begin
+            state_next = FINISH_TASK;
+         end else begin
+            m_axi_l1_V_ARADDR = base_edge_offset + (cur_neighbor << 2);
+            m_axi_l1_V_ARLEN = 1;
+            m_axi_l1_V_ARVALID = 1'b1;
+            if (m_axi_l1_V_ARREADY) begin
+               state_next = COLOR_WAIT_NEIGHBOR_OFFSET;
+            end
          end
       end
       COLOR_WAIT_NEIGHBOR_OFFSET: begin
@@ -558,17 +568,17 @@ always_comb begin
       end
       COLOR_ENQ_RECEIVE: begin
          if( (neighbor_degree < degree )  ||
-             ((neighbor_degree == degree) & (edge_dest > cur_task.hint))) begin
+             ((neighbor_degree == degree) & (cur_neighbor > cur_task.hint))) begin
             task_wdata.ttype = RECEIVE_TASK;
-            task_wdata.hint = edge_dest;
+            task_wdata.hint = cur_neighbor;
             task_wdata.args = assign_color;
             task_wdata.ts = 0; 
             task_out_V_TVALID = 1'b1;
             if (task_out_V_TREADY) begin
-               state_next = COLOR_READ_NEIGHBOR;
+               state_next = COLOR_READ_NEIGHBOR_OFFSET;
             end 
          end else begin
-            state_next = COLOR_READ_NEIGHBOR;
+            state_next = COLOR_READ_NEIGHBOR_OFFSET;
          end
       end
       
