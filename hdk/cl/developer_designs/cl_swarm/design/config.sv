@@ -397,6 +397,11 @@ package swarm;
    parameter L2_WRITE_HITS    = 8'h28;
    parameter L2_WRITE_MISSES  = 8'h2c;
    parameter L2_EVICTIONS     = 8'h30;
+   parameter L2_RETRY_STALL   = 8'h34;
+   parameter L2_RETRY_NOT_EMPTY   = 8'h38;
+   parameter L2_RETRY_COUNT   = 8'h3c;
+   parameter L2_STALL_IN      = 8'h40;
+   
 
    parameter CM_BLOCKED_VALID = 8'h20;
    parameter CM_REG_REQUEST   = 8'h24;

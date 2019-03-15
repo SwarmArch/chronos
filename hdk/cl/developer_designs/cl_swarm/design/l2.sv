@@ -161,6 +161,11 @@ module l2
    logic [31:0] stat_write_hits;
    logic [31:0] stat_write_misses;
    logic [31:0] stat_evictions;
+
+   logic [31:0] stat_stall_retry_full;
+   logic [31:0] stat_retry_not_empty;
+   logic [31:0] stat_retry_count;
+   logic [31:0] stat_stall_in;
    
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -169,6 +174,11 @@ module l2
          stat_write_hits   <= 0;
          stat_write_misses <= 0;
          stat_evictions    <= 0; 
+         stat_stall_retry_full <= 0;
+         stat_retry_not_empty <= 0;
+         stat_retry_count <= 0;
+         stat_stall_in <= 0;
+
       end else begin
          if (p12_op == READ & log_word.hit & !retry_fifo_wr_en & !stall_in[2]) begin
            stat_read_hits <= stat_read_hits + 1; 
@@ -186,6 +196,18 @@ module l2
          end
          if (p23_op == EVICT & !stall_out[3]) begin
             stat_evictions <= stat_evictions + 1;
+         end
+         if (retry_fifo_almost_full) begin
+            stat_stall_retry_full <= stat_stall_retry_full + 1; 
+         end
+         if (!retry_fifo_empty) begin
+            stat_retry_not_empty <= stat_retry_not_empty + 1;
+         end
+         if (retry_fifo_wr_en) begin
+            stat_retry_count <= stat_retry_count + 1;
+         end
+         if (stall_in[1]) begin
+            stat_stall_in <= stat_stall_in + 1;
          end
 
       end
@@ -205,6 +227,10 @@ module l2
             L2_WRITE_HITS   : reg_bus.rdata <= stat_write_hits;
             L2_WRITE_MISSES : reg_bus.rdata <= stat_write_misses;
             L2_EVICTIONS    : reg_bus.rdata <= stat_evictions;
+            L2_RETRY_STALL    : reg_bus.rdata <= stat_stall_retry_full;
+            L2_RETRY_NOT_EMPTY    : reg_bus.rdata <= stat_retry_not_empty;
+            L2_RETRY_COUNT    : reg_bus.rdata <= stat_retry_count;
+            
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;
