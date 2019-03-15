@@ -58,8 +58,8 @@ localparam CALC_TASK = 1;
 localparam COLOR_TASK = 2;
 localparam RECEIVE_TASK = 3;
 
-localparam VID_BITMAP_OFFSET = 0;
-localparam VID_COUNTER_OFFSET = 4;
+localparam VID_COUNTER_OFFSET = 0;
+localparam VID_BITMAP_OFFSET = 4;
 
 typedef enum logic[5:0] {
       NEXT_TASK,
@@ -88,8 +88,8 @@ typedef enum logic[5:0] {
       
       // 28
       RECEIVE_READ_SCRATCH, RECEIVE_WAIT_SCRATCH, // bitmap, counter 
-      RECEIVE_WRITE_BITMAP,
-      RECEIVE_WRITE_COUNTER, // if (scratch[vid] was not already set
+      RECEIVE_WRITE_COUNTER, 
+      RECEIVE_WRITE_BITMAP, // if (scratch[vid] was not already set
       RECEIVE_ENQ_CALC,
       FINISH_TASK
    } color_state_t;
@@ -171,6 +171,15 @@ always_comb begin
    end
 end
 
+// becasue exctracting a variable bit is not a thing
+logic [31:0] new_bitmap;
+assign new_bitmap = (bitmap | (1<<cur_arg_0));
+logic cur_bit_set;
+always_comb begin
+   cur_bit_set = (bitmap == new_bitmap);
+end
+
+
 always_ff @(posedge clk) begin
    if (m_axi_l1_V_RVALID) begin
       case (state) 
@@ -211,15 +220,10 @@ always_ff @(posedge clk) begin
          end
          RECEIVE_WAIT_SCRATCH: begin
             case (word_id)
-               0: bitmap <= m_axi_l1_V_RDATA;
-               1: join_counter <= m_axi_l1_V_RDATA;
+               0: join_counter <= m_axi_l1_V_RDATA;
+               1: bitmap <= m_axi_l1_V_RDATA;
             endcase
          end
-      endcase
-   end else if (m_axi_l1_V_AWVALID & m_axi_l1_V_AWREADY) begin
-      case (state) 
-         CALC_WRITE_JOIN_COUNTER: join_counter <= m_axi_l1_V_WDATA;
-         RECEIVE_WRITE_COUNTER: join_counter <= m_axi_l1_V_WDATA;
       endcase
    end else if (state == CALC_READ_OFFSET) begin
       join_counter <= 0;
@@ -579,23 +583,29 @@ always_comb begin
       end
       RECEIVE_WAIT_SCRATCH: begin
          if (m_axi_l1_V_RVALID & m_axi_l1_V_RLAST) begin
-            state_next = RECEIVE_WRITE_BITMAP;
-         end
-      end
-      RECEIVE_WRITE_BITMAP: begin
-         m_axi_l1_V_AWADDR = (base_scratch + (cur_task.hint << 3));
-         m_axi_l1_V_WDATA = bitmap | (1<<cur_arg_0);
-         m_axi_l1_V_AWLEN = 1; 
-         m_axi_l1_V_AWVALID = 1'b1;
-         m_axi_l1_V_WVALID = 1'b1;
-         if (m_axi_l1_V_AWREADY) begin
             state_next = RECEIVE_WRITE_COUNTER;
          end
       end
       RECEIVE_WRITE_COUNTER: begin
+         m_axi_l1_V_AWADDR = (base_scratch + (cur_task.hint << 3));
          m_axi_l1_V_WDATA = join_counter - 1;
+         m_axi_l1_V_AWLEN = (cur_bit_set) ? 0 : 1; 
+         m_axi_l1_V_AWVALID = 1'b1;
+         m_axi_l1_V_WVALID = 1'b1;
          m_axi_l1_V_WVALID = 1;
-         m_axi_l1_V_WLAST = 1;
+         m_axi_l1_V_WLAST = (cur_bit_set);
+         if (m_axi_l1_V_AWREADY) begin
+            if (cur_bit_set) begin
+               state_next = (join_counter == 1) ? RECEIVE_ENQ_CALC : FINISH_TASK;
+            end else begin
+               state_next = RECEIVE_WRITE_BITMAP;
+            end
+         end
+      end
+      RECEIVE_WRITE_BITMAP: begin
+         m_axi_l1_V_WVALID = 1;
+         m_axi_l1_V_WDATA = new_bitmap;
+         m_axi_l1_V_WLAST = 1'b1;
          if (m_axi_l1_V_WREADY) begin
             state_next = (join_counter == 1) ? RECEIVE_ENQ_CALC : FINISH_TASK;
          end
