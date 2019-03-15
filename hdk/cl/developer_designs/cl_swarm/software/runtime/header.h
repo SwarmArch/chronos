@@ -63,6 +63,8 @@
 #define OCL_PARAM_N_SSSP_CORES        0x60
 #define OCL_PARAM_LOG_SPILL_Q_SIZE    0x64
 #define OCL_PARAM_NON_SPEC            0x68
+#define OCL_PARAM_LOG_READY_LIST_SIZE 0x6c
+#define OCL_PARAM_LOG_L2_BANKS        0x70
 
 #define CORE_START                0xa0 //  wdata - bitmap of which cores are activated
 #define CORE_N_DEQUEUES           0xb0
