@@ -101,7 +101,9 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
    for (int i=0;i<log_size ;i++) {
         unsigned int seq = buf[i*16 + 0];
         unsigned int cycle = buf[i*16 + 1];
-        //printf(" \t \t %x %x %x %x\n", buf[i*16], buf[i*16+1], buf[i*16+14], buf[i*16+11]);
+        //fprintf(fw, " \t \t %x %8x %8x %8x %8x %8x %8x %8x\n",
+        //        buf[i*16], buf[i*16+1], buf[i*16+2], buf[i*16+3],
+        //        buf[i*16+4], buf[i*16+5], buf[i*16+6], buf[i*16+7]);
 
         //fprintf(fw,"%d %d %d\n",i, seq, cycle);
         if (seq == -1) {
@@ -155,16 +157,26 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
             fill_msg_type( &commit_task    , buf[i*16 +11]);
         }
 
+
          if (enq_task.valid & enq_task.ready) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%8x hint:%4x ttype:%1d arg0:%4d arg1:%4d tied:%d epoch:%3d\n",
- //resp:(ack:%d tile:%2d tsb:%2d)
-               seq, cycle,
-               gvt_ts, gvt_tb,
-               n_tasks, n_tied_tasks, heap_capacity,
-               enq_task.slot, enq_ts, enq_hint, enq_ttype, deq_hint, deq_ts,
-               enq_task.tied, enq_task.epoch_1
-   //            resp_ack,resp_tile_id, resp_tsb_id
-            ) ;
+             if (NON_SPEC) {
+
+                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%8x hint:%4x ttype:%1d arg0:%4d\n",
+                   seq, cycle,
+                   gvt_ts, gvt_tb,
+                   n_tasks, n_tied_tasks, heap_capacity,
+                   enq_task.slot, enq_ts, enq_hint, enq_ttype, deq_hint);
+             } else {
+                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%8x hint:%4x ttype:%1d arg0:%4d arg1:%4d tied:%d epoch:%3d\n",
+     //resp:(ack:%d tile:%2d tsb:%2d)
+                   seq, cycle,
+                   gvt_ts, gvt_tb,
+                   n_tasks, n_tied_tasks, heap_capacity,
+                   enq_task.slot, enq_ts, enq_hint, enq_ttype, deq_hint, deq_ts,
+                   enq_task.tied, enq_task.epoch_1
+       //            resp_ack,resp_tile_id, resp_tsb_id
+                ) ;
+             }
          }
 
          if (coal_child.valid & coal_child.ready) {
@@ -181,7 +193,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
                n_tasks, n_tied_tasks, heap_capacity,
                overflow_task.slot) ;
          }
-         if (deq_task.valid & deq_task.ready) {
+         if (deq_task.valid & deq_task.ready  ) {
             fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_deq     slot:%4d ts:%4x hint:%4d cq_slot %2d, epoch:%3d \n",
                seq, cycle,
                gvt_ts, gvt_tb,
@@ -219,7 +231,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
                 fprintf(fw," abort child mismatch\n");
              }
          }
-         if (commit_task.valid & commit_task.ready) {
+         if (commit_task.valid & commit_task.ready &!NON_SPEC) {
             fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) commit_task  slot:%4d epoch:(%3d,%3d) tied:%1d \n",
                seq, cycle,
                gvt_ts, gvt_tb,
@@ -821,7 +833,12 @@ pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_ABORT_TASK           ,&stat_TASK_U
 pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_COAL_CHILD           ,&stat_TASK_UNIT_STAT_N_COAL_CHILD          );
 pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_OVERFLOW             ,&stat_TASK_UNIT_STAT_N_OVERFLOW            );
 
-
+if (NON_SPEC) {
+printf("STAT_N_UNTIED_ENQ           %9d\n",stat_TASK_UNIT_STAT_N_UNTIED_ENQ          );
+printf("STAT_N_DEQ_TASK             %9d\n",stat_TASK_UNIT_STAT_N_DEQ_TASK            );
+printf("STAT_N_COAL_CHILD           %9d\n",stat_TASK_UNIT_STAT_N_COAL_CHILD          );
+printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW            );
+} else {
 printf("STAT_N_UNTIED_ENQ           %9d\n",stat_TASK_UNIT_STAT_N_UNTIED_ENQ          );
 printf("STAT_N_TIED_ENQ_ACK         %9d\n",stat_TASK_UNIT_STAT_N_TIED_ENQ_ACK        );
 printf("STAT_N_TIED_ENQ_NACK        %9d\n",stat_TASK_UNIT_STAT_N_TIED_ENQ_NACK       );
@@ -840,7 +857,7 @@ printf("STAT_N_ABORT_CHILD_MISMATCH %9d\n",stat_TASK_UNIT_STAT_N_ABORT_CHILD_MIS
 printf("STAT_N_ABORT_TASK           %9d\n",stat_TASK_UNIT_STAT_N_ABORT_TASK          );
 printf("STAT_N_COAL_CHILD           %9d\n",stat_TASK_UNIT_STAT_N_COAL_CHILD          );
 printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW            );
-
+}
     uint32_t state_stats[8] = {0};
     for (int i=0;i<8;i++) {
         pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STATE_STATS + (i*4) ,&(state_stats[i])            );

@@ -32,6 +32,8 @@ uint32_t N_TILES;
 uint32_t ID_OCL_SLAVE;
 uint32_t N_SSSP_CORES;
 uint32_t N_CORES;
+uint32_t READY_LIST_SIZE;
+uint32_t L2_BANKS;
 
 uint32_t ID_SPLITTER;
 uint32_t ID_COALESCER;
@@ -93,10 +95,15 @@ void init_params() {
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_CQ_SIZE, &LOG_CQ_SIZE);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_N_SSSP_CORES, &N_SSSP_CORES);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_SPILL_Q_SIZE, &SPILLQ_STAGES);
+    pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_READY_LIST_SIZE, &READY_LIST_SIZE);
+    pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_L2_BANKS, &L2_BANKS);
+    L2_BANKS = (1<<L2_BANKS);
+    READY_LIST_SIZE = (1<<READY_LIST_SIZE);
 
     printf("%d tiles, %d cores each\n", N_TILES, N_SSSP_CORES);
     printf("Non spec %d\n", NON_SPEC);
     printf("TQ Size %d CQ Size %d\n", LOG_TQ_SIZE, LOG_CQ_SIZE);
+    printf("L2 banks: %d Ready list size: %d\n", L2_BANKS, READY_LIST_SIZE);
 
     N_CORES             =       (N_SSSP_CORES + 1);
 
@@ -106,13 +113,14 @@ void init_params() {
     ID_UNDO_LOG         =       (N_CORES + 2);
     ID_TASK_UNIT        =       (N_CORES + 3);
     ID_L2               =       (N_CORES + 4);
-    ID_MEM_ARB          =       (N_CORES + 5);
-    ID_PCI_ARB          =       (N_CORES + 6);
-    ID_TSB              =       (N_CORES + 7);
-    ID_CQ               =       (N_CORES + 8);
-    ID_CM               =       (N_CORES + 9);
-    ID_SERIALIZER       =       (N_CORES + 10);
-    ID_LAST             =       (N_CORES + 11);
+    uint32_t ID_L2_LAST = ID_L2 + L2_BANKS - 1;
+    ID_MEM_ARB          =       (ID_L2_LAST + 1);
+    ID_PCI_ARB          =       (ID_L2_LAST + 2);
+    ID_TSB              =       (ID_L2_LAST + 3);
+    ID_CQ               =       (ID_L2_LAST + 4);
+    ID_CM               =       (ID_L2_LAST + 5);
+    ID_SERIALIZER       =       (ID_L2_LAST + 6);
+    ID_LAST             =       (ID_L2_LAST + 7);
 
     ID_OCL_SLAVE = 0;
 
@@ -550,7 +558,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq hint/ts
         //pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 5);
         //pci_poke(i, ID_COALESCER, CORE_START, 0xffffffff);
-        pci_poke(i, ID_SERIALIZER, SERIALIZER_SIZE_CONTROL, 24);
+        pci_poke(i, ID_SERIALIZER, SERIALIZER_SIZE_CONTROL, READY_LIST_SIZE - 4);
         //pci_poke(i, ID_CQ, CQ_USE_TS_CACHE, 0);
 
         if (app == APP_MAXFLOW) {
@@ -791,7 +799,17 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                // under non-spec, the exact gvt cannot be computed,
                // and the pseudo-gvt is not non-decreasing.
                // Hence sample a few times before terminating
+               for (int i=0;i<16;i++) {
+                   usleep(10);
+                   if (task_unit_logging_on) {
+                       pci_poke(0, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0x1);
+                   }
+                   bool tile_done;
+                   pci_peek( i % (1<<log_active_tiles), ID_OCL_SLAVE, OCL_DONE, &tile_done);
 
+                   if (!tile_done) done = false;
+               }
+                /*
                for (int i=0;i<15;i++) {
                    usleep(10);
                    if (task_unit_logging_on) {
@@ -964,16 +982,18 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       */
    cycles = endCycle64 - startCycle64;
    for (int i=0;i<(1<<log_active_tiles);i++) {
-       core_stats(i, cycles);
+       //core_stats(i, cycles);
        task_unit_stats(i);
        if (!NON_SPEC) cq_stats(i, cycles);
    }
    log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
 
 
-   printf("SSSP completed, flushing cache..\n");
+   printf("Completed, flushing cache..\n");
    for (int i=0;i<N_TILES;i++) {
-       pci_poke(i, ID_L2, L2_FLUSH , 1 );
+       for (int j=0;j<L2_BANKS;j++) {
+          pci_poke(i, ID_L2 + j, L2_FLUSH , 1 );
+       }
    }
 
    uint32_t task_unit_ops=0;
@@ -1002,26 +1022,44 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       if ( (j%4==0)) printf("\n");
       }
       } */
+   uint32_t sum_l2_read_miss =0;
+   uint32_t sum_l2_write_miss =0;
+   uint32_t sum_l2_evictions=0;
+   uint32_t sum_l2_read_hit=0;
+   uint32_t sum_l2_write_hit=0;
    uint32_t l2_read_hits, l2_read_miss, l2_write_hits, l2_write_miss, l2_evictions;
-   pci_peek(0, ID_L2, L2_READ_HITS   ,  &l2_read_hits);
-   pci_peek(0, ID_L2, L2_READ_MISSES ,  &l2_read_miss);
-   pci_peek(0, ID_L2, L2_WRITE_HITS  ,  &l2_write_hits);
-   pci_peek(0, ID_L2, L2_WRITE_MISSES,  &l2_write_miss);
-   pci_peek(0, ID_L2, L2_EVICTIONS   ,  &l2_evictions);
-   l2_read_hits -= init_l2_read_hits;
-   l2_write_hits -= init_l2_write_hits;
-   l2_read_miss -= init_l2_read_miss;
-   l2_write_miss -= init_l2_write_miss;
-   l2_evictions -= init_l2_evictions;
-   printf("L2 Read  hits:%9d misses:%9d \n",
-           l2_read_hits, l2_read_miss);
-   printf("L2 Write hits:%9d misses:%9d \n",
-           l2_write_hits, l2_write_miss);
-   printf("L2 Evictions :%9d \n",
-           l2_evictions);
-   double hit_rate = (l2_read_hits + l2_write_hits + 0.0) * 100 /
-       (l2_read_hits + l2_read_miss + l2_write_hits + l2_write_miss);
-   printf("L2 hit-rate %5.2f%%\n", hit_rate);
+   for (int i=0;i<L2_BANKS;i++) {
+       for (int t=0; t<(1<<log_active_tiles);t++) {
+           pci_peek(t, ID_L2+i, L2_READ_HITS   ,  &l2_read_hits);
+           pci_peek(t, ID_L2+i, L2_READ_MISSES ,  &l2_read_miss);
+           pci_peek(t, ID_L2+i, L2_WRITE_HITS  ,  &l2_write_hits);
+           pci_peek(t, ID_L2+i, L2_WRITE_MISSES,  &l2_write_miss);
+           pci_peek(t, ID_L2+i, L2_EVICTIONS   ,  &l2_evictions);
+           l2_read_hits -= init_l2_read_hits;
+           l2_write_hits -= init_l2_write_hits;
+           l2_read_miss -= init_l2_read_miss;
+           l2_write_miss -= init_l2_write_miss;
+           l2_evictions -= init_l2_evictions;
+           if (t==0) {
+               printf("Tile:%d L2 bank %d\n",t, i);
+               printf("\tL2 Read  hits:%9d misses:%9d \n",
+                       l2_read_hits, l2_read_miss);
+               printf("\tL2 Write hits:%9d misses:%9d \n",
+                       l2_write_hits, l2_write_miss);
+               printf("\tL2 Evictions :%9d \n",
+                       l2_evictions);
+               double hit_rate = (l2_read_hits + l2_write_hits + 0.0) * 100 /
+                   (l2_read_hits + l2_read_miss + l2_write_hits + l2_write_miss);
+               printf("\tL2 hit-rate %5.2f%%\n", hit_rate);
+           }
+
+           sum_l2_read_hit += l2_read_hits;
+           sum_l2_read_miss += l2_read_miss;
+           sum_l2_write_hit += l2_write_hits;
+           sum_l2_write_miss += l2_write_miss;
+           sum_l2_evictions += l2_evictions;
+       }
+   }
    printf("Task Unit Ops %d, num_edges %d\n", task_unit_ops, numE);
 
    //uint32_t n_gvt_going_back;
@@ -1031,8 +1069,8 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
 
    double time_ms = (cycles + 0.0) * 8/1e6;
-   double read_bandwidth_MBPS = (l2_read_miss + l2_write_miss) * 64 / (time_ms * 1000) ;
-   double write_bandwidth_MBPS = (l2_evictions) * 64 / (time_ms * 1000) ;
+   double read_bandwidth_MBPS = (sum_l2_read_miss + sum_l2_write_miss) * 64 / (time_ms * 1000) ;
+   double write_bandwidth_MBPS = (sum_l2_evictions) * 64 / (time_ms * 1000) ;
 
    printf("FPGA cycles %ld  (%f ms) (%3f cycles per task)\n",
            cycles,
@@ -1043,16 +1081,27 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    printf("Write BW   %7.2f MB/s\n",write_bandwidth_MBPS);
 
    double l2_tag_contention =
-       ((l2_read_hits + l2_write_hits) + 2* (l2_read_miss + l2_write_miss) + 0.0)*100/cycles;
+       ((l2_read_hits + l2_write_hits) + 2* (l2_read_miss + l2_write_miss) + 0.0)*100/(cycles * (1<<log_active_tiles)*L2_BANKS);
    double task_unit_contention = (task_unit_ops + 0.0)*100/cycles;
    printf("L2 Tag contention %5.2f%%\n", l2_tag_contention);
+   //printf("%d %d %d %d\n", sum_l2_read_hit, sum_l2_read_miss, sum_l2_write_hit, sum_l2_write_miss);
+   printf("L2 accesses per task %5.2f\n",
+           (sum_l2_read_hit + sum_l2_read_miss + sum_l2_write_miss + sum_l2_write_hit+0.0)/
+             total_tasks);
    printf("Task Unit contention %5.2f%%\n", task_unit_contention);
 
+
    ocl_data = 1;
+   uint32_t iter=0;
    while(ocl_data==1) {
+       if (iter++ > 10) {
+           printf("Flush did not complete.. Reading anyway\n");
+           break;
+       }
        for (int i=0;i<N_TILES;i++) {
            pci_peek(i, ID_L2, L2_FLUSH, &ocl_data);
            if (ocl_data == 1) break;
+           usleep(1000);
        }
    }
    printf("Flush completed, reading results..\n");
@@ -1160,7 +1209,20 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                uint32_t eo_end =csr_offset[i+1];
                uint32_t i_deg = eo_end - eo_begin;
                uint32_t i_color = csr_color[i];
-               fprintf(fc,"i=%d d=%d c=%d\n",i, i_deg, i_color);
+
+                // read_join_counter and scratch;
+               uint32_t addr = headers[7] * 4 + (i*8);
+               uint32_t bitmap, join_counter;
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB        , (addr));
+               pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &bitmap );
+               pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB        , (addr+4));
+               pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &join_counter);
+
+               fprintf(fc,"i=%d d=%d c=%d (%8x) bitmap=%8x counter=%d\n",
+                       i, i_deg, i_color,
+                       addr,
+                       bitmap,
+                        join_counter);
                bool error = (i_color == -1);
                uint32_t join_cnt = 0;
                for (int j=eo_begin;j<eo_end;j++) {
