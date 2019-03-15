@@ -156,13 +156,21 @@ always_ff @(posedge clk) begin
 end
 
 task_t task_in;
-always_ff @(posedge clk) begin
-   if (task_arvalid & task_rvalid) begin
-      task_in <= task_rdata;
+generate 
+if (!NON_SPEC) begin
+   always_ff @(posedge clk) begin
+      if (task_arvalid & task_rvalid) begin
+         task_in <= task_rdata;
+      end
    end
-end
 
-assign ap_start = ((state == START_CORE) & !abort_running_task_q) | ((state == WAIT_CORE) & ap_rst_n);
+   assign ap_start = ((state == START_CORE) & !abort_running_task_q) | ((state == WAIT_CORE) & ap_rst_n);
+end else begin
+   assign task_in = task_rdata;
+   assign ap_start = (task_arvalid & task_rvalid);
+
+end
+endgenerate
 
 assign task_arvalid = (state == NEXT_TASK) & start & (dequeues_remaining >0) & ap_rst_n;
 
@@ -172,7 +180,7 @@ always_comb begin
    case(state)
       NEXT_TASK: begin
          if (task_arvalid & task_rvalid) begin
-            state_next = INFORM_CQ;
+            state_next = (!NON_SPEC) ? WAIT_CORE : INFORM_CQ;
          end
       end
       INFORM_CQ: begin
