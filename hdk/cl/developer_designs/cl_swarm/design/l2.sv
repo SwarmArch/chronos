@@ -230,6 +230,7 @@ module l2
             L2_RETRY_STALL    : reg_bus.rdata <= stat_stall_retry_full;
             L2_RETRY_NOT_EMPTY    : reg_bus.rdata <= stat_retry_not_empty;
             L2_RETRY_COUNT    : reg_bus.rdata <= stat_retry_count;
+            L2_STALL_IN       : reg_bus.rdata <= stat_stall_in;
             
          endcase
       end else begin
