@@ -950,6 +950,8 @@ module task_unit
                         n_tied_tasks_dec_cut_ties -
                         n_tied_tasks_dec_abort_child - 
                         n_tied_tasks_dec_commit_task;
+
+
    always_ff @(posedge clk) begin
       if (!rstn) begin
          n_tied_tasks <= 0;
@@ -1023,8 +1025,8 @@ module task_unit
 
       always_ff @(posedge clk) begin
          if (task_enq_valid & task_enq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_enqueue slot:%4d ts:%8x hint:%8x ttype:%1x args:(%4d %4d) tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, next_free_tq_slot, 
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) task_enqueue slot:%4d ts:%8x hint:%8x ttype:%1x args:(%4d %4d) tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, next_free_tq_slot, 
                modified_task_enq_ts, task_enq_data.hint, 
                task_enq_data.ttype,
                task_enq_data.args[63:32], task_enq_data[31:0],
@@ -1033,44 +1035,44 @@ module task_unit
             ) ;
          end
          if (coal_child_valid & coal_child_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) coal_child   slot:%4d ts:%8x hint:%8x \n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, next_free_tq_slot,
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) coal_child   slot:%4d ts:%8x hint:%8x \n",
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, next_free_tq_slot,
                coal_child_data.ts, coal_child_data.hint) ;
          end
          if (overflow_valid & overflow_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) overflow     slot:%4d ts:%8x hint:%8x \n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, add_free_tq_slot,
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) overflow     slot:%4d ts:%8x hint:%8x \n",
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, add_free_tq_slot,
                overflow_data.ts, overflow_data.hint) ;
          end
          if (task_deq_valid & task_deq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_deq     slot:%4d ts:%8x hint:%8x cq_slot:%2d\n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, task_deq_tq_slot,
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) task_deq     slot:%4d ts:%8x hint:%8x cq_slot:%2d\n",
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, task_deq_tq_slot,
                task_deq_data.ts, task_deq_data.hint, task_deq_cq_slot) ;
          end
          if (splitter_deq_valid & splitter_deq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) splitter_deq slot:%4d ts:%8x hint:%8x \n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, splitter_deq_slot,
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) splitter_deq slot:%4d ts:%8x hint:%8x \n",
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, splitter_deq_slot,
                splitter_deq_task.ts, splitter_deq_task.hint ) ;
          end
          if (cut_ties_valid & cut_ties_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) cut_ties     slot:%4d epoch(%3d,%3d) tied:%d \n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, cut_ties_tq_slot,
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) cut_ties     slot:%4d epoch(%3d,%3d) tied:%d \n",
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, cut_ties_tq_slot,
                epoch[cut_ties_tq_slot], cut_ties_epoch, tied_task[cut_ties_tq_slot] ) ;
          end
          if (commit_task_valid & commit_task_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) commit_task  slot:%4d epoch(%3d,%3d) tied:%d \n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, commit_task_slot,
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) commit_task  slot:%4d epoch(%3d,%3d) tied:%d \n",
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, commit_task_slot,
                epoch[commit_task_slot], commit_task_epoch, tied_task[commit_task_slot] ) ;
          end
          if (abort_child_valid & abort_child_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) abort_child  slot:%4d epoch(%3d,%3d) tied:%d dequeued:%d \n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, abort_child_tq_slot,
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) abort_child  slot:%4d epoch(%3d,%3d) tied:%d dequeued:%d \n",
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, abort_child_tq_slot,
                epoch[abort_child_tq_slot], abort_child_epoch, tied_task[abort_child_tq_slot],
                dequeued_task[abort_child_tq_slot] ) ;
          end
          if (abort_task_valid & abort_task_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) abort_task   slot:%4d epoch(%3d,%3d) tied:%d \n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, abort_task_slot,
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) abort_task   slot:%4d epoch(%3d,%3d) tied:%d \n",
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, abort_task_slot,
                epoch[abort_task_slot], abort_task_epoch, tied_task[abort_task_slot] ) ;
          end
          $fflush(file);
@@ -1098,6 +1100,12 @@ module task_unit
 
    logic [31:0] state_stats [0:7];
 
+   logic [31:0] n_heap_enq;
+   logic [31:0] n_heap_replace;
+   logic [31:0] n_heap_deq;
+
+   logic [47:0] cum_tasks;
+   logic [47:0] cum_heap_util;
 generate
 if(TQ_STATS) begin // Approximate cost: 1000 LUTs/500 FFs
    initial begin
@@ -1139,6 +1147,13 @@ if(TQ_STATS) begin // Approximate cost: 1000 LUTs/500 FFs
          n_overflow <= 0;
 
          n_cycles_task_deq_valid <= 0;
+
+         n_heap_enq <= 0;
+         n_heap_deq <= 0;
+         n_heap_replace <= 0;
+
+         cum_tasks <= 0;
+         cum_heap_util <= 0;
       end else begin
          if (task_enq_valid & task_enq_ready) begin
             if (!task_enq_tied) begin
@@ -1150,6 +1165,19 @@ if(TQ_STATS) begin // Approximate cost: 1000 LUTs/500 FFs
                   n_tied_enq_nack <= n_tied_enq_nack + 1;
                end
             end
+         end
+
+         cum_tasks <= cum_tasks + n_tasks;
+         cum_heap_util <= cum_heap_util + (2**TQ_STAGES - 1 - heap_capacity);
+
+         if (heap_in_op == ENQ) begin
+            n_heap_enq <= n_heap_enq+1;
+         end
+         if (heap_in_op == DEQ_MIN) begin
+            n_heap_deq <= n_heap_deq+1;
+         end
+         if (heap_in_op == REPLACE) begin
+            n_heap_replace <= n_heap_replace+1;
          end
 
          if (task_deq_valid & task_deq_ready) begin
@@ -1283,7 +1311,14 @@ endgenerate
             TASK_UNIT_STAT_N_COAL_CHILD          : reg_bus.rdata <= n_coal_child;
             TASK_UNIT_STAT_N_OVERFLOW            : reg_bus.rdata <= n_overflow;
             TASK_UNIT_STAT_N_CYCLES_DEQ_VALID    : reg_bus.rdata <= n_cycles_task_deq_valid;
-
+   
+            TASK_UNIT_STAT_N_HEAP_ENQ   : reg_bus.rdata <= n_heap_enq;
+            TASK_UNIT_STAT_N_HEAP_DEQ   : reg_bus.rdata <= n_heap_deq;
+            TASK_UNIT_STAT_N_HEAP_REPLACE   : reg_bus.rdata <= n_heap_replace;
+            
+            TASK_UNIT_STAT_AVG_TASKS   : reg_bus.rdata <= cum_tasks[47:16];
+            TASK_UNIT_STAT_AVG_HEAP_UTIL   : reg_bus.rdata <= cum_heap_util[47:16];
+            
             TASK_UNIT_STATS_0_BEGIN : reg_bus.rdata <= state_stats[{1'b0, reg_bus.araddr[3:2]}];
             TASK_UNIT_STATS_1_BEGIN : reg_bus.rdata <= state_stats[{1'b1, reg_bus.araddr[3:2]}];
 

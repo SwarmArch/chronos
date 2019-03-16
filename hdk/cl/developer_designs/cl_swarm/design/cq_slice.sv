@@ -1678,7 +1678,7 @@ module bloom_bank
 
    // random 32-bit numbers generated from 
    // https://www.browserling.com/tools/random-hex
-   localparam logic [31:0][0:15] hash_keys = {
+   localparam logic [0:15] [31:0] hash_keys = {
     32'h2cccc93a,
     32'h05c4357e,
     32'h95bd7e36,
@@ -1695,12 +1695,13 @@ module bloom_bank
     32'hecd2efd0,
     32'h3a2c194f,
     32'h3aa2ce85
-   };
+   };  // not used anymore
+   localparam BIT_OFFSET = BANK_ID * $clog2(FILTER_DEPTH);
 
    generate genvar j;
       for (j=0;j<$clog2(FILTER_DEPTH);j+=1) begin
-         assign query_addr[j] = ^(query_hint & hash_keys[BANK_ID * $clog2(FILTER_DEPTH)] +j);
-         assign write_addr[j] = ^(write_hint & hash_keys[BANK_ID * $clog2(FILTER_DEPTH)] +j);
+         assign query_addr[j] = query_hint[BIT_OFFSET +j] ^ query_hint[ 12+ BIT_OFFSET+j];
+         assign write_addr[j] = query_hint[BIT_OFFSET +j] ^ query_hint[ 12+ BIT_OFFSET+j];
       end
    endgenerate
    always_comb begin

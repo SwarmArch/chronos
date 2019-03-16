@@ -317,6 +317,9 @@ package swarm;
    parameter TASK_UNIT_TIED_CAPACITY   = 8'h40;
    parameter TASK_UNIT_LVT             = 8'h44;
    
+   parameter TASK_UNIT_STAT_AVG_TASKS              = 8'h48; // << 16
+   parameter TASK_UNIT_STAT_AVG_HEAP_UTIL          = 8'h4c; // << 16
+   
    parameter TASK_UNIT_IS_TRANSACTIONAL           = 8'h50;
    // if start_mask == 0, increment tx id by start_inc
    parameter TASK_UNIT_GLOBAL_RELABEL_START_MASK = 8'h54;
@@ -335,10 +338,18 @@ package swarm;
    parameter TASK_UNIT_STAT_N_COMMIT_TIED          = 8'h90;
    parameter TASK_UNIT_STAT_N_COMMIT_UNTIED        = 8'h94;
    parameter TASK_UNIT_STAT_N_COMMIT_MISMATCH      = 8'h98;
+
+
    parameter TASK_UNIT_STAT_N_ABORT_CHILD_DEQ      = 8'ha0;
    parameter TASK_UNIT_STAT_N_ABORT_CHILD_NOT_DEQ  = 8'ha4;
    parameter TASK_UNIT_STAT_N_ABORT_CHILD_MISMATCH = 8'ha8;
    parameter TASK_UNIT_STAT_N_ABORT_TASK           = 8'hb0;
+
+   parameter TASK_UNIT_STAT_N_HEAP_ENQ             = 8'hb4;
+   parameter TASK_UNIT_STAT_N_HEAP_DEQ             = 8'hb8;
+   parameter TASK_UNIT_STAT_N_HEAP_REPLACE         = 8'hbc;
+
+
    parameter TASK_UNIT_STAT_N_COAL_CHILD           = 8'hc0;
    parameter TASK_UNIT_STAT_N_OVERFLOW             = 8'hc4;
    parameter TASK_UNIT_STAT_N_CYCLES_DEQ_VALID     = 8'hc8;
