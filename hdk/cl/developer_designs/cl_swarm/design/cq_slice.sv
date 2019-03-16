@@ -1701,7 +1701,7 @@ module bloom_bank
    generate genvar j;
       for (j=0;j<$clog2(FILTER_DEPTH);j+=1) begin
          assign query_addr[j] = query_hint[BIT_OFFSET +j] ^ query_hint[ 12+ BIT_OFFSET+j];
-         assign write_addr[j] = query_hint[BIT_OFFSET +j] ^ query_hint[ 12+ BIT_OFFSET+j];
+         assign write_addr[j] = write_hint[BIT_OFFSET +j] ^ write_hint[ 12+ BIT_OFFSET+j];
       end
    endgenerate
    always_comb begin
