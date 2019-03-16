@@ -111,6 +111,7 @@ module cq_slice
    output vt_t                            lvt,
 
    output ts_t                            max_vt_ts,
+   output logic                           cq_full, 
 
    input logic [63:0]                     cur_cycle,
    pci_debug_bus_t.master                 pci_debug,
@@ -462,7 +463,7 @@ assign gvt_induced_abort_start = (state == IDLE) & can_abort_core_1_task & gvt_t
                            (cq_state[core_1_running_task_slot] == RUNNING) & 
                            tsb_almost_full ;
 
-
+assign cq_full = (cq_next_idle_in == 0);
 
 always_comb begin
    if (state==IDLE) begin
@@ -1151,8 +1152,10 @@ always_ff @(posedge clk) begin
          CQ_N_TASK_CONFLICT_MISS : reg_bus.rdata <= n_tasks_conflict_miss;
          CQ_N_TASK_REAL_CONFLICT : reg_bus.rdata <= n_tasks_real_conflict;
 
-         CQ_N_CUM_COMMIT_CYCLES : reg_bus.rdata <= cum_commit_cycles;
-         CQ_N_CUM_ABORT_CYCLES : reg_bus.rdata <= cum_abort_cycles;
+         CQ_N_CUM_COMMIT_CYCLES_H : reg_bus.rdata <= cum_commit_cycles[63:32];
+         CQ_N_CUM_COMMIT_CYCLES_L : reg_bus.rdata <= cum_commit_cycles[31: 0];
+         CQ_N_CUM_ABORT_CYCLES_H : reg_bus.rdata <= cum_abort_cycles[63:32];
+         CQ_N_CUM_ABORT_CYCLES_L : reg_bus.rdata <= cum_abort_cycles[31: 0];
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;

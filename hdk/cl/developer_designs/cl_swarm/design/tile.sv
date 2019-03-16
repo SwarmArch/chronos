@@ -1005,6 +1005,7 @@ endgenerate
 logic no_idle_cores;
 assign no_idle_cores = (cc_cores_arvalid[N_APP_CORES:1] ==0); 
 logic cc_almost_full;
+logic cq_full;
 
 cq_slice #(
    .TILE_ID(TILE_ID)
@@ -1091,6 +1092,7 @@ cq_slice #(
    .lvt(lvt_cq_out),
 
    .max_vt_ts(cq_max_vt_ts),
+   .cq_full(cq_full),
 
    .cur_cycle(cur_cycle),
    .pci_debug(pci_debug[ID_CQ]),
@@ -1144,7 +1146,8 @@ conflict_serializer #(
    .m_cq_slot     ( fifo_cc_slot      ),
    .m_valid       ( fifo_cc_valid      ),
    .m_ready       ( fifo_cc_ready      ),
-
+   
+   .cq_full       ( cq_full         ),
    .almost_full   ( cc_almost_full ),
    .all_cores_idle( all_cores_idle ),
    

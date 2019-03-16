@@ -25,6 +25,8 @@ module conflict_serializer #(
 
    output logic almost_full,
 
+   input cq_full,
+
    output all_cores_idle,  // for termination checking
    pci_debug_bus_t.master                 pci_debug,
    reg_bus_t.master                       reg_bus
@@ -338,6 +340,27 @@ module conflict_serializer #(
       end
    end
 
+
+   // Stats
+   logic [4:0] num_arvalid_cores;
+   always_comb begin
+      num_arvalid_cores = '0;
+      for (integer i=1;i<=N_APP_CORES;i=i+1) begin
+         num_arvalid_cores += s_arvalid[i];
+      end
+   end
+   logic [39:0] cum_cq_stall_cycles;
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         cum_cq_stall_cycles <= 0;
+      end else begin
+         if (cq_full) begin
+            cum_cq_stall_cycles <= cum_cq_stall_cycles + num_arvalid_cores;
+         end
+      end
+   end
+
+
 // Debug
 logic [LOG_LOG_DEPTH:0] log_size; 
    always_ff @(posedge clk) begin
@@ -361,6 +384,7 @@ logic [LOG_LOG_DEPTH:0] log_size;
             SERIALIZER_CAN_TAKE_REQ_3 : reg_bus.rdata <=
                {can_take_request[15], can_take_request[14], can_take_request[13], can_take_request[12]};
             SERIALIZER_SIZE_CONTROL : reg_bus.rdata <= ready_list_size;
+            SERIALIZER_CQ_STALL_COUNT : reg_bus.rdata <= cum_cq_stall_cycles[39:8];
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;

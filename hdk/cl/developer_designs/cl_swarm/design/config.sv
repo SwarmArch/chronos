@@ -385,8 +385,10 @@ package swarm;
    parameter CQ_N_TASK_CONFLICT_MISS   = 8'hc8;
    parameter CQ_N_TASK_REAL_CONFLICT   = 8'hcc;
 
-   parameter CQ_N_CUM_COMMIT_CYCLES    = 8'hd0;
-   parameter CQ_N_CUM_ABORT_CYCLES    = 8'hd0;
+   parameter CQ_N_CUM_COMMIT_CYCLES_H    = 8'hd0;
+   parameter CQ_N_CUM_COMMIT_CYCLES_L    = 8'hd4;
+   parameter CQ_N_CUM_ABORT_CYCLES_H    = 8'hd8;
+   parameter CQ_N_CUM_ABORT_CYCLES_L    = 8'hdc;
 
    
    parameter DEQ_FIFO_FULL_THRESHOLD   = 8'h10;
@@ -419,6 +421,7 @@ package swarm;
    parameter SERIALIZER_CAN_TAKE_REQ_2 = 8'h38;
    parameter SERIALIZER_CAN_TAKE_REQ_3 = 8'h3c;
    parameter SERIALIZER_SIZE_CONTROL = 8'h40;
+   parameter SERIALIZER_CQ_STALL_COUNT = 8'h44; // bits [39:8]
 
    parameter CQ_HINT_DATA_BASE_ADDR = 8'h10;
    
