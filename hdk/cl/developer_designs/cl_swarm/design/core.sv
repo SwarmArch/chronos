@@ -180,7 +180,7 @@ always_comb begin
    case(state)
       NEXT_TASK: begin
          if (task_arvalid & task_rvalid) begin
-            state_next = (!NON_SPEC) ? WAIT_CORE : INFORM_CQ;
+            state_next = (NON_SPEC) ? WAIT_CORE : INFORM_CQ;
          end
       end
       INFORM_CQ: begin

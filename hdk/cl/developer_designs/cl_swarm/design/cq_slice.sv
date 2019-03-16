@@ -994,6 +994,12 @@ lowbit #(
 logic [31:0] cycles_in_resource_abort;
 logic [31:0] cycles_in_gvt_abort;
 
+logic [63:0] cum_commit_cycles;
+logic [63:0] cum_abort_cycles;
+
+logic [31:0] start_task_cycle [0:2**LOG_CQ_SLICE_SIZE-1];
+logic [31:0] task_cycles [0:2**LOG_CQ_SLICE_SIZE-1];
+
 if (CQ_STATS) begin
    initial begin
       for (integer i=0;i<8;i++) begin
@@ -1011,6 +1017,27 @@ if (CQ_STATS) begin
       if (commit_task_valid & commit_task_ready) begin
          commit_stats[ cq_ttype[commit_task_slot] ] <= 
             commit_stats[ cq_ttype[commit_task_slot] ] + 1; 
+      end
+   end
+
+   always_ff @(posedge clk) begin
+      if (start_task_valid[start_core_select] & start_task_ready[start_core_select]) begin
+         start_task_cycle[start_task_slot_select] <= cur_cycle;
+      end
+      if (finish_task_valid & finish_task_ready & !finish_task_is_undo_log_restore) begin
+         task_cycles[ finish_task_slot] <= (cur_cycle - start_task_cycle[finish_task_slot]); 
+      end
+      if (!rstn) begin
+         cum_commit_cycles <= 0;
+         cum_abort_cycles <= 0;
+      end else begin
+         if (commit_task_valid & commit_task_ready) begin
+            cum_commit_cycles <= cum_commit_cycles + task_cycles[commit_task_slot];
+         end
+         if (to_tq_abort_valid & to_tq_abort_ready | 
+                  ( in_tq_abort & (reg_from_tq_abort_slot == ts_check_id)) ) begin
+            cum_abort_cycles <= cum_abort_cycles + task_cycles[ts_check_id]; 
+         end
       end
    end
 
@@ -1123,6 +1150,9 @@ always_ff @(posedge clk) begin
          CQ_N_TASK_CONFLICT_MITIGATED : reg_bus.rdata <= n_tasks_conflict_mitigated;
          CQ_N_TASK_CONFLICT_MISS : reg_bus.rdata <= n_tasks_conflict_miss;
          CQ_N_TASK_REAL_CONFLICT : reg_bus.rdata <= n_tasks_real_conflict;
+
+         CQ_N_CUM_COMMIT_CYCLES : reg_bus.rdata <= cum_commit_cycles;
+         CQ_N_CUM_ABORT_CYCLES : reg_bus.rdata <= cum_abort_cycles;
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;

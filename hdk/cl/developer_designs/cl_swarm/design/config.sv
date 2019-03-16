@@ -385,6 +385,9 @@ package swarm;
    parameter CQ_N_TASK_CONFLICT_MISS   = 8'hc8;
    parameter CQ_N_TASK_REAL_CONFLICT   = 8'hcc;
 
+   parameter CQ_N_CUM_COMMIT_CYCLES    = 8'hd0;
+   parameter CQ_N_CUM_ABORT_CYCLES    = 8'hd0;
+
    
    parameter DEQ_FIFO_FULL_THRESHOLD   = 8'h10;
    parameter DEQ_FIFO_SIZE             = 8'h14;
