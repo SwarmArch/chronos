@@ -101,6 +101,9 @@
 #define TASK_UNIT_TIED_CAPACITY    0x40
 #define TASK_UNIT_LVT              0x44
 
+#define TASK_UNIT_STAT_AVG_TASKS   0x48
+#define TASK_UNIT_STAT_AVG_HEAP_UTIL   0x4c
+
 // if start_mask == 0, increment tx id by start_inc
 #define TASK_UNIT_IS_TRANSACTIONAL          0x50
 #define TASK_UNIT_GLOBAL_RELABEL_START_MASK 0x54
@@ -123,6 +126,9 @@
 #define TASK_UNIT_STAT_N_ABORT_CHILD_NOT_DEQ  0xa4
 #define TASK_UNIT_STAT_N_ABORT_CHILD_MISMATCH 0xa8
 #define TASK_UNIT_STAT_N_ABORT_TASK           0xb0
+#define TASK_UNIT_STAT_N_HEAP_ENQ             0xb4
+#define TASK_UNIT_STAT_N_HEAP_DEQ             0xb8
+#define TASK_UNIT_STAT_N_HEAP_REPLACE         0xbc
 #define TASK_UNIT_STAT_N_COAL_CHILD           0xc0
 #define TASK_UNIT_STAT_N_OVERFLOW             0xc4
 #define TASK_UNIT_STAT_N_CYCLES_DEQ_VALID     0xc8
@@ -167,6 +173,11 @@
 #define CQ_N_TASK_CONFLICT_MISS         0xc8
 #define CQ_N_TASK_REAL_CONFLICT         0xcc
 
+#define CQ_N_CUM_COMMIT_CYCLES_H  0xd0
+#define CQ_N_CUM_COMMIT_CYCLES_L  0xd4
+#define CQ_N_CUM_ABORT_CYCLES_H  0xd8
+#define CQ_N_CUM_ABORT_CYCLES_L  0xdc
+
 #define SERIALIZER_ARVALID 0x20
 #define SERIALIZER_READY_LIST 0x24
 #define SERIALIZER_REG_VALID 0x28
@@ -175,6 +186,8 @@
 #define SERIALIZER_CAN_TAKE_REQ_2 0x38
 #define SERIALIZER_CAN_TAKE_REQ_3 0x3c
 #define SERIALIZER_SIZE_CONTROL 0x40
+#define SERIALIZER_CQ_STALL_COUNT 0x44
+#define SERIALIZER_STAT_READ 0x48
 
 #define L2_FLUSH          0x10
 #define L2_READ_HITS      0x20
@@ -182,6 +195,11 @@
 #define L2_WRITE_HITS     0x28
 #define L2_WRITE_MISSES   0x2c
 #define L2_EVICTIONS      0x30
+
+#define L2_RETRY_STALL     0x34
+#define L2_RETRY_NOT_EMPTY 0x38
+#define L2_RETRY_COUNT     0x3c
+#define L2_STALL_IN        0x40
 
 #define DEBUG_CAPACITY    0xf0 // For any component that does logging
 
@@ -199,7 +217,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
 void init_params();
 void pci_poke(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t data);
 void pci_peek(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t* data);
-void task_unit_stats(uint32_t tile);
+void task_unit_stats(uint32_t tile, uint32_t);
 void cq_stats (uint32_t tile, uint32_t);
 void core_stats (uint32_t tile, uint32_t);
 extern pci_bar_handle_t pci_bar_handle;

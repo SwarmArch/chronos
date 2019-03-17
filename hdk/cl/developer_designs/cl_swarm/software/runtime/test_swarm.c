@@ -68,6 +68,8 @@ FILE* fhex;
 int write_fd;
 int read_fd;
 
+uint32_t serializer_stats [256];
+
 void pci_peek(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t* data) {
     uint32_t ocl_addr = (tile << 16) + (comp << 8) + addr;
     int rc = fpga_pci_peek(pci_bar_handle, ocl_addr, data);
@@ -103,6 +105,8 @@ void init_params() {
     printf("%d tiles, %d cores each\n", N_TILES, N_SSSP_CORES);
     printf("Non spec %d\n", NON_SPEC);
     printf("TQ Size %d CQ Size %d\n", LOG_TQ_SIZE, LOG_CQ_SIZE);
+    //L2_BANKS = 1;
+    //READY_LIST_SIZE = 32;
     printf("L2 banks: %d Ready list size: %d\n", L2_BANKS, READY_LIST_SIZE);
 
     N_CORES             =       (N_SSSP_CORES + 1);
@@ -425,6 +429,11 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         // uncomment for ordered edges
         //write_buffer[13*4] = 1;
     }
+    if (app == APP_COLOR) {
+        headers[9] = 16 ;
+        write_buffer[9*4] = headers[9];
+
+    }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
     printf("File Len %d\n", n);
@@ -553,12 +562,17 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TSB, TSB_LOG_N_TILES        ,log_active_tiles );
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_THRESHOLD, spill_threshold);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_CLEAN_THRESHOLD, clean_threshold);
-        //   pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap* 100);
+        //  pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap* 100);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_SIZE, spill_size);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq hint/ts
         //pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 5);
         //pci_poke(i, ID_COALESCER, CORE_START, 0xffffffff);
-        pci_poke(i, ID_SERIALIZER, SERIALIZER_SIZE_CONTROL, READY_LIST_SIZE - 4);
+        uint32_t serializer_almost_full = (READY_LIST_SIZE -56);
+        uint32_t serializer_full = serializer_almost_full;
+        uint32_t serializer_stall = (serializer_full);
+        uint32_t serializer_size_word = (serializer_stall << 16) +
+            (serializer_full << 8) + serializer_almost_full;
+        pci_poke(i, ID_SERIALIZER, SERIALIZER_SIZE_CONTROL, serializer_size_word);
         //pci_poke(i, ID_CQ, CQ_USE_TS_CACHE, 0);
 
         if (app == APP_MAXFLOW) {
@@ -591,6 +605,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_peek(0, ID_L2, L2_WRITE_HITS  ,  &init_l2_write_hits);
         pci_peek(0, ID_L2, L2_WRITE_MISSES,  &init_l2_write_miss);
         pci_peek(0, ID_L2, L2_EVICTIONS   ,  &init_l2_evictions);
+
         for (int i=1;i<N_SSSP_CORES+3;i++) {
             pci_peek(0, i, CORE_NUM_ENQ,  &(init_num_enq[i]));
             pci_peek(0, i, CORE_NUM_DEQ,  &(init_num_deq[i]));
@@ -926,12 +941,17 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                                 n, cap, flow, cap<flow ? "overflow":"");
                    }
                }
-           }
+           } */
        }
        iters++;
 
    }
+   // disable new dequeues from cores; for accurate counting of no tasks stalls
+   pci_poke(0, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0x0);
+
+
    usleep(2800);
+   usleep(300000);
    if (task_unit_logging_on) {
        log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
        if (log_active_tiles > 0) {
@@ -944,9 +964,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            log_task_unit(pci_bar_handle, read_fd, fwtu3, log_buffer,
                ID_TASK_UNIT | (3<<8));
        }
-       log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
-       log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
-       log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
+       //log_cache(pci_bar_handle, read_fd, fwl2, ID_L2);
+       //log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
+       //log_undo_log(pci_bar_handle, read_fd, fwul, log_buffer, ID_UNDO_LOG);
    }
 
    {
@@ -981,18 +1001,41 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       coal_tasks);
       */
    cycles = endCycle64 - startCycle64;
-   for (int i=0;i<(1<<log_active_tiles);i++) {
-       //core_stats(i, cycles);
-       task_unit_stats(i);
-       if (!NON_SPEC) cq_stats(i, cycles);
+   core_stats(0, cycles);
+   task_unit_stats(0, cycles);
+   if (!NON_SPEC) {
+       cq_stats(0, cycles);
    }
-   log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
+    for (int i=0;i<256;i++) {
+        pci_poke(0, ID_SERIALIZER, SERIALIZER_STAT_READ , i);
+        pci_peek(0, ID_SERIALIZER, SERIALIZER_STAT_READ , &serializer_stats[i]);
+    }
+    printf("      %9s %9s %9s %9s %9s %9s %9s\n",
+            "num_enq", "num_deq", "othercore" ,"cq_full", "no_task", "what?", "no_ready" );
+    for (int i=1;i<= N_SSSP_CORES;i++) {
+        uint32_t num_enq, num_deq;
+        pci_peek(0, i, CORE_NUM_ENQ,  &num_enq);
+        pci_peek(0, i, CORE_NUM_DEQ,  &num_deq);
+        // asset that num_deq == stats[i*8+1]
+        printf("%2d: %11d %9d %9d %9d %9d %9d %9d\n",
+                i,
+                num_enq, serializer_stats[i*8+1],
+                serializer_stats[i*8+2], serializer_stats[i*8+3],
+                serializer_stats[i*8+4], serializer_stats[i*8+5],
+                serializer_stats[i*8+6]);
+    }
+   uint32_t cq_stall_count;
+   pci_peek(0, ID_SERIALIZER, SERIALIZER_CQ_STALL_COUNT, &cq_stall_count);
+   printf("cum CQ stall cycles %d\n", cq_stall_count << 8);
+
+   //log_riscv(pci_bar_handle, read_fd, fws1, log_buffer, 1);
 
 
    printf("Completed, flushing cache..\n");
    for (int i=0;i<N_TILES;i++) {
        for (int j=0;j<L2_BANKS;j++) {
           pci_poke(i, ID_L2 + j, L2_FLUSH , 1 );
+          usleep(1000);
        }
    }
 
@@ -1008,7 +1051,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            task_unit_ops += num_enq;
            task_unit_ops += num_deq;
            if (i<= N_SSSP_CORES) total_tasks += num_deq;
-           if (t==0) printf("Core %2d num_enq:%9u num_deq:%9u\n", i, num_enq, num_deq);
+           //if (t==0) printf("Core %2d num_enq:%9u num_deq:%9u\n", i, num_enq, num_deq);
        }
    }
    printf("total tasks:  %d\n", total_tasks);
@@ -1051,6 +1094,16 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                double hit_rate = (l2_read_hits + l2_write_hits + 0.0) * 100 /
                    (l2_read_hits + l2_read_miss + l2_write_hits + l2_write_miss);
                printf("\tL2 hit-rate %5.2f%%\n", hit_rate);
+
+               uint32_t retry_stall, retry_not_empty, retry_count, stall_in;
+               pci_peek(t, ID_L2+i, L2_RETRY_STALL   ,  &retry_stall);
+               pci_peek(t, ID_L2+i, L2_RETRY_NOT_EMPTY ,  &retry_not_empty);
+               pci_peek(t, ID_L2+i, L2_RETRY_COUNT ,  &retry_count);
+               pci_peek(t, ID_L2+i, L2_STALL_IN ,  &stall_in);
+
+               printf("\tretry:  stall:%9d, not_empty:%9d, count:%9d\n",
+                       retry_stall, retry_not_empty, retry_count);
+               printf("\tstall_in     :%9d\n", stall_in);
            }
 
            sum_l2_read_hit += l2_read_hits;
@@ -1081,7 +1134,11 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    printf("Write BW   %7.2f MB/s\n",write_bandwidth_MBPS);
 
    double l2_tag_contention =
-       ((l2_read_hits + l2_write_hits) + 2* (l2_read_miss + l2_write_miss) + 0.0)*100/(cycles * (1<<log_active_tiles)*L2_BANKS);
+       (
+        (sum_l2_read_hit + sum_l2_write_hit) +
+            2* (sum_l2_read_miss + sum_l2_write_miss) + 0.0)*100
+                   /
+                (cycles * (1<<log_active_tiles)*L2_BANKS);
    double task_unit_contention = (task_unit_ops + 0.0)*100/cycles;
    printf("L2 Tag contention %5.2f%%\n", l2_tag_contention);
    //printf("%d %d %d %d\n", sum_l2_read_hit, sum_l2_read_miss, sum_l2_write_hit, sum_l2_write_miss);
@@ -1430,4 +1487,5 @@ out:
     /* if there is an error code, exit with status 1 */
     return (rc != 0 ? 1 : 0);
 }
+
 

@@ -790,7 +790,7 @@ int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
    return 0;
 }
 
-void task_unit_stats(uint32_t tile) {
+void task_unit_stats(uint32_t tile, uint32_t tot_cycles) {
 
     printf("Tile %d stats:\n",tile);
 
@@ -883,7 +883,25 @@ printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW       
                     stat_TASK_UNIT_STAT_N_CUT_TIES_COM_ABO);
 
     uint32_t n_cycles_deq_valid;
-    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_CYCLES_DEQ_VALID,&n_cycles_deq_valid);
+    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_CYCLES_DEQ_VALID
+            ,&n_cycles_deq_valid);
+    uint32_t avg_tasks;
+    uint32_t avg_heap_util;
+    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_AVG_TASKS, &avg_tasks);
+    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_AVG_HEAP_UTIL, &avg_heap_util);
+    printf("Cum Tasks:%10d heap_util:%10d\n", avg_tasks, avg_heap_util);
+    if (tot_cycles > 0) {
+        printf("avg Tasks:%5.2f heap_util:%5.2f\n",
+                ((avg_tasks +0.0) / tot_cycles)*65536,
+                ((avg_heap_util +0.0) / tot_cycles)*65536);
+    }
+
+    uint32_t heap_op_enq, heap_op_deq, heap_op_replace;
+    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_HEAP_ENQ, &heap_op_enq);
+    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_HEAP_DEQ, &heap_op_deq);
+    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_HEAP_REPLACE, &heap_op_replace);
+    printf("heap enq:%9d deq:%9d replace:%9d\n", heap_op_enq, heap_op_deq, heap_op_replace);
+
     printf("cycles deq_valid:%9d\n", n_cycles_deq_valid);
 
 }
@@ -953,6 +971,22 @@ void cq_stats (uint32_t tile, uint32_t tot_cycles) {
         printf("stall_cq:         %9d\n", cq_stall);
         printf("stall_no_core:    %9d\n", no_core);
         printf("stall_no_task:    %9d\n", no_task);
+
+        uint32_t commit_cycles_h, commit_cycles_l;
+        uint32_t abort_cycles_h, abort_cycles_l;
+        pci_peek(tile, ID_CQ, CQ_N_CUM_COMMIT_CYCLES_H, &commit_cycles_h);
+        pci_peek(tile, ID_CQ, CQ_N_CUM_COMMIT_CYCLES_L, &commit_cycles_l);
+        pci_peek(tile, ID_CQ, CQ_N_CUM_ABORT_CYCLES_H, &abort_cycles_h);
+        pci_peek(tile, ID_CQ, CQ_N_CUM_ABORT_CYCLES_L, &abort_cycles_l);
+        uint64_t commit_cycles = commit_cycles_h;
+        commit_cycles = (commit_cycles << 32) + commit_cycles_l;
+        uint64_t abort_cycles = abort_cycles_h;
+        abort_cycles = (abort_cycles << 32) + abort_cycles_l;
+
+        printf("cum commit_cycles:%15ld cum_abort_cycles:%15ld\n",
+                commit_cycles, abort_cycles
+                );
+
     }
 
     return;
@@ -980,12 +1014,14 @@ void cq_stats (uint32_t tile, uint32_t tot_cycles) {
 uint32_t maxflow_wait_states[] = {2, 9, 11, 13, 19, 22, 25, 29, 31, 33, 48, 51, 59, 65, 67, 69, 71, 73};
 uint32_t maxflow_enq_states[] = {5, 6, 7, 20, 23, 35, 46, 57, 74};
 void core_stats(uint32_t tile, uint32_t tot_cycles) {
+    const int NON_IDLE_TIME_INDEX = 79;
     const int SUM_INDEX = 80;
     const int MEM_STALL_INDEX = 81;
     const int ENQ_STALL_INDEX = 82;
     const int CQ_STALL_INDEX = 83;
     const int USEFUL_WORK_INDEX = 84;
-    uint32_t core_state_stats[16][128];
+    uint32_t core_state_stats[20][128];
+    uint32_t wrapper_state_stats[20][8];
     for (int i=0;i<=N_SSSP_CORES;i++) {
         uint32_t sum_all = 0;
         uint32_t mem_stall =0;
@@ -993,8 +1029,10 @@ void core_stats(uint32_t tile, uint32_t tot_cycles) {
         for (int j=0;j<128;j++) {
             pci_poke(tile, i+1, CORE_QUERY_STATE , j);
             pci_peek(tile, i+1, CORE_AP_STATE_STATS , &(core_state_stats[i][j]));
+            if (j<8) pci_peek(tile, i+1, CORE_STATE_STATS , &(wrapper_state_stats[i][j]));
             sum_all += core_state_stats[i][j];
         }
+        core_state_stats[i][NON_IDLE_TIME_INDEX] = sum_all - core_state_stats[i][0];
         core_state_stats[i][SUM_INDEX] = sum_all;
         for (int k=0;k<18;k++) {
             mem_stall += core_state_stats[i][maxflow_wait_states[k]];
@@ -1021,6 +1059,13 @@ void core_stats(uint32_t tile, uint32_t tot_cycles) {
         printf("%2d:", j);
         for (int i=0;i<N_SSSP_CORES;i++) {
             printf("%10d ", core_state_stats[i][j]);
+        }
+        printf("\n");
+    }
+    for (int j=0;j<8;j++) {
+        printf("W %2d:", j);
+        for (int i=0;i<N_SSSP_CORES;i++) {
+            printf("%10d ", wrapper_state_stats[i][j]);
         }
         printf("\n");
     }
