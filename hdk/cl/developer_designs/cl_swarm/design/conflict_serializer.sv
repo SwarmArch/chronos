@@ -57,7 +57,8 @@ module conflict_serializer #(
    logic [LOG_READY_LIST_SIZE-1:0] reg_task_select, task_select;
 
    // runtime configurable parameter on ready list
-   logic [LOG_READY_LIST_SIZE-1:0] ready_list_size_control;
+   logic [LOG_READY_LIST_SIZE-1:0] almost_full_threshold;
+   logic [LOG_READY_LIST_SIZE-1:0] full_threshold;
 
    hint_t [NUM_CORES-1:0] running_task_hint; // Hint of the current task running on each core.
                                     // Packed array because all entries are
@@ -176,7 +177,8 @@ module conflict_serializer #(
       .out(next_insert_location)
    );
 
-   assign m_ready = (m_valid & !ready_list_valid[next_insert_location]);
+   assign m_ready = (m_valid & !ready_list_valid[next_insert_location]) & 
+      (ready_list_size <= full_threshold);
 
    task_t new_enq_task;
    always_comb begin
@@ -311,7 +313,7 @@ module conflict_serializer #(
          ready_list_size <= ready_list_size + ready_list_size_inc - ready_list_size_dec;
       end
    end
-   assign almost_full = (ready_list_size >= ready_list_size_control);
+   assign almost_full = (ready_list_size >= almost_full_threshold);
    
    
    generate
@@ -392,11 +394,15 @@ logic [LOG_LOG_DEPTH:0] log_size;
    end
    always_ff @(posedge clk) begin
       if (!rstn) begin
-         ready_list_size_control <= READY_LIST_SIZE - 4;
+         almost_full_threshold    <= READY_LIST_SIZE - 4;
+         full_threshold    <= READY_LIST_SIZE - 1;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
-               SERIALIZER_SIZE_CONTROL : ready_list_size_control <= reg_bus.wdata;
+               SERIALIZER_SIZE_CONTROL : begin
+                  almost_full_threshold <= reg_bus.wdata[15:0];
+                  full_threshold <= reg_bus.wdata[31:16];
+               end
             endcase
          end
       end

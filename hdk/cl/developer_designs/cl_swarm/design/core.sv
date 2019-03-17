@@ -288,7 +288,7 @@ logic [31:0] ap_state_stats [0:127];
 logic [7:0] query_state;
 
 generate
-if (CORE_STATE_STATS) begin
+if (CORE_STATE_STATS[TILE_ID]) begin
    initial begin
       for (integer i=0;i<8;i++) begin
          core_state_stats[i] = 0;

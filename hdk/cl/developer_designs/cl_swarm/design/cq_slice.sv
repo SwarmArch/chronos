@@ -1001,7 +1001,7 @@ logic [63:0] cum_abort_cycles;
 logic [31:0] start_task_cycle [0:2**LOG_CQ_SLICE_SIZE-1];
 logic [31:0] task_cycles [0:2**LOG_CQ_SLICE_SIZE-1];
 
-if (CQ_STATS) begin
+if (CQ_STATS[TILE_ID]) begin
    initial begin
       for (integer i=0;i<8;i++) begin
          cq_state_stats[i] = 0;

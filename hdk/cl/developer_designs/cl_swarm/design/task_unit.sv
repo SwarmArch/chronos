@@ -1107,7 +1107,7 @@ module task_unit
    logic [47:0] cum_tasks;
    logic [47:0] cum_heap_util;
 generate
-if(TQ_STATS) begin // Approximate cost: 1000 LUTs/500 FFs
+if(TQ_STATS[TILE_ID]) begin // Approximate cost: 1000 LUTs/500 FFs
    initial begin
       for (integer i=0;i<8;i++) begin
          state_stats[i] = 0;
