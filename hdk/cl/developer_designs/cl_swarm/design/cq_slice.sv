@@ -558,8 +558,8 @@ always_ff @(posedge clk) begin
    end else begin
       case (state) 
          IDLE: begin
+            reg_conflict <= cq_conflict;
             if (from_tq_abort_valid & from_tq_abort_ready) begin
-               reg_conflict <= cq_conflict;
                state <= DEQ_CHECK_TS;
                in_tq_abort <= 1'b1;
                ref_tb <= check_vt.tb; 
@@ -569,7 +569,6 @@ always_ff @(posedge clk) begin
                reg_from_tq_abort_slot <= from_tq_abort_slot;
             end else 
             if (gvt_induced_abort_start) begin
-               reg_conflict <= cq_conflict;
                state <= DEQ_CHECK_TS;
                in_gvt_induced_abort <= 1'b1;
                ref_tb <= gvt.tb;
@@ -592,7 +591,6 @@ always_ff @(posedge clk) begin
                      // bypass conflict checks if dequeing a task with a larger
                      // ts than the previous dequeued task of the same hint
                      state <= DEQ_CHECK_TS;
-                     reg_conflict <= cq_conflict;
                   end else begin
                      state <= DEQ_PUSH_TASK;
                   end
@@ -601,7 +599,6 @@ always_ff @(posedge clk) begin
                      (deq_task.ttype == TASK_TYPE_TERMINATE);
             end else 
             if (resource_abort_start) begin
-               reg_conflict <= cq_conflict;
                state <= DEQ_CHECK_TS;
                in_resource_abort <= 1'b1;
                ref_tb <= max_vt_fixed.tb;
@@ -1619,7 +1616,7 @@ module hint_bloom_filters
 );
 
    localparam N_FILTERS = 4;
-   localparam FILTER_DEPTH = 8;
+   localparam FILTER_DEPTH = 16;
 
 
    filter_entry_t [N_FILTERS-1:0]  filter_out;
