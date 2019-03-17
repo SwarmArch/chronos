@@ -208,11 +208,51 @@ cq_slice_slot_t ts_check_id;
 vt_t check_vt;
 vt_t [0:2**LOG_CQ_TS_BANKS-1] rdata_lvt;
 
+logic lookup_mode;
+cq_slice_slot_t lookup_entry;
+
 initial begin
    for (integer i=0;i<2**LOG_CQ_SLICE_SIZE;i=i+1) begin
       cq_hint[i] = 0;
    end
 end
+
+cq_slice_slot_t cq_hint_raddr_0;
+cq_slice_slot_t cq_hint_raddr_1;
+
+hint_t cq_hint_rdata_0;
+hint_t cq_hint_rdata_1;
+always_comb begin
+   cq_hint_rdata_0 = cq_hint[cq_hint_raddr_0];
+   cq_hint_rdata_1 = cq_hint[cq_hint_raddr_1];
+end
+
+always_comb begin
+   if (state == IDLE) begin
+      cq_hint_raddr_0 = deq_task_cq_slot;
+   end else begin
+      cq_hint_raddr_0 = out_task_slot;
+   end
+end
+always_comb begin
+   cq_hint_raddr_1 = 'x;
+   if (lookup_mode) begin
+      cq_hint_raddr_1 = lookup_entry; 
+   end else begin
+      if (state == IDLE) begin
+         if (from_tq_abort_valid) begin
+            cq_hint_raddr_1 = from_tq_abort_slot;
+         end else if (resource_abort_start) begin
+            cq_hint_raddr_1 = max_vt_pos_fixed;
+         end else if (gvt_induced_abort_start) begin
+            cq_hint_raddr_1 = core_1_running_task_slot; 
+         end
+      end else begin
+         cq_hint_raddr_1 = ts_check_id;
+      end
+   end
+end
+
 vt_t ts_write_data;
 logic ts_write_valid;
 
@@ -240,8 +280,6 @@ logic should_terminate;
 
 cq_slice_slot_t max_vt_pos_fixed, max_vt_pos_rolling;
 vt_t max_vt_fixed, max_vt_rolling;
-cq_slice_slot_t lookup_entry;
-logic lookup_mode;
 assign max_vt_ts = max_vt_fixed.ts;
 always_comb begin
    if (lookup_mode) begin
@@ -349,13 +387,11 @@ vt_array TS_ARRAY
    .rstn(rstn),
 
    .r_addr_1(ts_array_raddr),
-   .r_addr_2(),
    .r_lvt_index(lvt_cycle),
 
    .w_addr(out_task_slot),
 
    .rdata_1(check_vt),
-   .rdata_2(),
 
    .rdata_lvt(rdata_lvt), 
 
@@ -417,7 +453,7 @@ always_comb begin
    bloom_wr_cq_slot = 'x;
    if (state == IDLE) begin
       bloom_wr_cq_slot = deq_task_cq_slot;
-      bloom_wr_hint = cq_hint[deq_task_cq_slot];
+      bloom_wr_hint = cq_hint_rdata_0;
       bloom_wr_set = 0;
       if (deq_task_valid & deq_task_ready) begin
          bloom_wr_en = 1'b1;
@@ -468,11 +504,11 @@ assign cq_full = (cq_next_idle_in == 0);
 always_comb begin
    if (state==IDLE) begin
       if (from_tq_abort_valid) begin
-         ref_hint = { 1'b0, cq_hint[from_tq_abort_slot][30:0]};
+         ref_hint = { 1'b0, cq_hint_rdata_1[30:0]};
       end else if (resource_abort_start) begin
-         ref_hint = { 1'b0, cq_hint[max_vt_pos_fixed][30:0]};
+         ref_hint = { 1'b0, cq_hint_rdata_1[30:0]};
       end else if (gvt_induced_abort_start) begin
-         ref_hint = { 1'b0, cq_hint[core_1_running_task_slot][30:0]}; 
+         ref_hint = { 1'b0, cq_hint_rdata_1[30:0]}; 
       end else begin
          ref_hint = deq_task.hint;
       end      
@@ -726,7 +762,7 @@ core_id_t start_core_select;
 
 assign abort_ts_check_task = (state == DEQ_CHECK_TS) 
    & (check_vt >= ref_vt) 
-   & (cur_task.hint[30:0] == cq_hint[ts_check_id][30:0]) // not a false hit in BF 
+   & (cur_task.hint[30:0] == cq_hint_rdata_1[30:0]) // not a false hit in BF 
    & (reg_conflict != 0);
 for (i=0;i<N_THREADS;i++) begin
    assign abort_running_task[i] = (abort_ts_check_task & 
@@ -961,7 +997,7 @@ always_ff @(posedge clk) begin
    if (state==DEQ_PUSH_TASK & out_task_valid & out_task_ready) begin
       tq_epoch  [out_task_slot] <= cur_task_epoch;
       cq_tq_slot[out_task_slot] <= cur_task_tq_slot;
-      cq_hint [out_task_slot] <= out_task.hint;
+      cq_hint [cq_hint_raddr_0] <= out_task.hint;
       cq_read_only_task [out_task_slot] <= out_task.hint[31];
       cq_ttype[out_task_slot] <= out_task.ttype;
 
@@ -1120,7 +1156,7 @@ always_ff @(posedge clk) begin
          DEBUG_CAPACITY : reg_bus.rdata <= log_size;
          CQ_STATE  : reg_bus.rdata <= state;
          CQ_LOOKUP_STATE : reg_bus.rdata <= cq_state[lookup_entry];
-         CQ_LOOKUP_HINT  : reg_bus.rdata <= cq_hint[lookup_entry];
+         CQ_LOOKUP_HINT  : reg_bus.rdata <= cq_hint_rdata_1;
          CQ_LOOKUP_TS    : reg_bus.rdata <= check_vt.ts;
          CQ_LOOKUP_TB    : reg_bus.rdata <= check_vt.tb;
          CQ_GVT_TS       : reg_bus.rdata <= gvt.ts;
@@ -1481,13 +1517,11 @@ module vt_array
    input rstn,
 
    input logic [LOG_CQ_SLICE_SIZE-1:0] r_addr_1,
-   input logic [LOG_CQ_SLICE_SIZE-1:0] r_addr_2,
    input logic [LOG_GVT_PERIOD-1:0] r_lvt_index,
 
    input logic [LOG_CQ_SLICE_SIZE-1:0] w_addr,
 
    output vt_t rdata_1,
-   output vt_t rdata_2,
 
    output vt_t [0:2**LOG_CQ_TS_BANKS-1] rdata_lvt, 
 
@@ -1501,14 +1535,11 @@ typedef tb_t [0:2**LOG_GVT_PERIOD -1] tb_bank;
 ts_bank arr_ts [0:2**LOG_CQ_TS_BANKS -1];
 tb_bank arr_tb [0:2**LOG_CQ_TS_BANKS -1];
 vt_t read_out_1 [0:2**LOG_CQ_TS_BANKS-1];
-vt_t read_out_2 [0:2**LOG_CQ_TS_BANKS-1];
 generate genvar i;
 
 for (i=0;i<2**LOG_CQ_TS_BANKS;i++) begin
    assign read_out_1[i].ts = arr_ts[i][r_addr_1[LOG_GVT_PERIOD-1:0]];
    assign read_out_1[i].tb = arr_tb[i][r_addr_1[LOG_GVT_PERIOD-1:0]];
-   assign read_out_2[i].ts = arr_ts[i][r_addr_2[LOG_GVT_PERIOD-1:0]];
-   assign read_out_2[i].tb = arr_tb[i][r_addr_2[LOG_GVT_PERIOD-1:0]];
    if (LOG_CQ_TS_BANKS ==0) begin
       always @(posedge clk) begin
          if (w_valid) begin
@@ -1530,10 +1561,8 @@ end
 
 if (LOG_CQ_TS_BANKS ==0 ) begin
    assign rdata_1 = read_out_1[0];
-   assign rdata_2 = read_out_2[0];
 end else begin
    assign rdata_1 = read_out_1[r_addr_1[LOG_CQ_SLICE_SIZE-1:LOG_GVT_PERIOD]];
-   assign rdata_2 = read_out_2[r_addr_2[LOG_CQ_SLICE_SIZE-1:LOG_GVT_PERIOD]];
 end
 endgenerate
 endmodule
