@@ -345,13 +345,20 @@ module conflict_serializer #(
 
    // Stats
    logic [4:0] num_arvalid_cores;
+   logic [4:0] ready_list_stall_threshold;
+
+   logic [31:0] core_stats [N_THREADS * 8];
+   logic [7:0] stat_read_addr;
+
+   logic [39:0] cum_cq_stall_cycles;
+generate 
+if (SERIALIZER_STATS) begin
    always_comb begin
       num_arvalid_cores = '0;
-      for (integer i=1;i<=N_APP_CORES;i=i+1) begin
+      for (integer i=1;i<=N_THREADS;i=i+1) begin
          num_arvalid_cores += s_arvalid[i];
       end
    end
-   logic [39:0] cum_cq_stall_cycles;
    always_ff @(posedge clk) begin
       if (!rstn) begin
          cum_cq_stall_cycles <= 0;
@@ -361,6 +368,49 @@ module conflict_serializer #(
          end
       end
    end
+   initial begin
+      for (integer i=0;i<N_THREADS*8;i++) begin
+         core_stats[i] = 0;
+      end
+   end
+   for (i=0;i<N_THREADS;i+=1) begin
+      always_ff @(posedge clk) begin
+         if (!s_arvalid[i]) begin
+            // core is busy.
+            core_stats[i*8 +0] <= core_stats[i*8 +0] + 1;
+         end else begin
+            if (can_take_request[core_select]) begin
+               if (core_select == i) begin
+                  // servicing request for core i
+                  core_stats[i*8 +1] <= core_stats[i*8 +1] + 1;
+               end else begin
+                  // servicing request for another core
+                  core_stats[i*8 +2] <= core_stats[i*8 +2] + 1;
+               end
+            end else if ( ready_list_size < ready_list_stall_threshold) begin
+               if (cq_full) begin
+                  // stalled because CQ is full
+                  core_stats[i*8 +3] <= core_stats[i*8 +3] + 1;
+               end else begin
+                  // Stalled because no task
+                  core_stats[i*8 +4] <= core_stats[i*8 +4] + 1;
+               end  
+            end else begin
+               if ( (ready_list_valid & !ready_list_conflict) ) begin
+                  // there is a non-conflict valid task but for whatever reason
+                  // it is not being dequeued. weird
+                  core_stats[i*8 +5] <= core_stats[i*8 +5] + 1;
+               end else begin
+                  // all ready tasks are conflicting with a running task
+                  core_stats[i*8 +6] <= core_stats[i*8 +6] + 1;
+               end
+            end
+         end
+      end
+   end
+
+end 
+endgenerate
 
 
 // Debug
@@ -387,6 +437,7 @@ logic [LOG_LOG_DEPTH:0] log_size;
                {can_take_request[15], can_take_request[14], can_take_request[13], can_take_request[12]};
             SERIALIZER_SIZE_CONTROL : reg_bus.rdata <= ready_list_size;
             SERIALIZER_CQ_STALL_COUNT : reg_bus.rdata <= cum_cq_stall_cycles[39:8];
+            SERIALIZER_STAT_READ: reg_bus.rdata <= core_stats[stat_read_addr];
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;
@@ -396,13 +447,17 @@ logic [LOG_LOG_DEPTH:0] log_size;
       if (!rstn) begin
          almost_full_threshold    <= READY_LIST_SIZE - 4;
          full_threshold    <= READY_LIST_SIZE - 1;
+         ready_list_stall_threshold <= READY_LIST_SIZE - 4;
+         stat_read_addr <= 0;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
                SERIALIZER_SIZE_CONTROL : begin
-                  almost_full_threshold <= reg_bus.wdata[15:0];
-                  full_threshold <= reg_bus.wdata[31:16];
+                  almost_full_threshold <= reg_bus.wdata[7:0];
+                  full_threshold <= reg_bus.wdata[15:8];
+                  ready_list_stall_threshold <= reg_bus.wdata[23:16];
                end
+               SERIALIZER_STAT_READ: stat_read_addr <= reg_bus.wdata;
             endcase
          end
       end

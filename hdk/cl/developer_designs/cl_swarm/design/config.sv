@@ -27,20 +27,22 @@ package swarm;
    `include "config_app.vh"
    parameter N_TILES = 1;
 
-   parameter TASK_UNIT_LOGGING = 1;
-   parameter COMMIT_QUEUE_LOGGING = 1;
-   parameter SPLITTER_LOGGING = 1;
-   parameter UNDO_LOG_LOGGING = 1;
-   parameter SERIALIZER_LOGGING = 1;
-   parameter L2_LOGGING = 1;
-   parameter CORE_LOGGING = 1;
-   parameter CORE_STATE_STATS = 1;
+   parameter TASK_UNIT_LOGGING = 0;
+   parameter COMMIT_QUEUE_LOGGING = 0;
+   parameter SPLITTER_LOGGING = 0;
+   parameter UNDO_LOG_LOGGING = 0;
+   parameter SERIALIZER_LOGGING = 0;
+   parameter L2_LOGGING = 0;
+   parameter CORE_LOGGING = 0;
+   parameter CORE_STATE_STATS = 0;
+   parameter SERIALIZER_STATS = 1;
    parameter TQ_STATS = 1;
    parameter CQ_STATS = 1;
    parameter CQ_CONFIG = 1;
 
    // how many tiles go directly into the axi xbar. has to be a power of two
    parameter XBAR_IN_TILES = 1;
+
    parameter NO_SPILLING = 0; 
    parameter NON_SPEC = 0;
 
@@ -431,8 +433,9 @@ package swarm;
    parameter SERIALIZER_CAN_TAKE_REQ_1 = 8'h34;
    parameter SERIALIZER_CAN_TAKE_REQ_2 = 8'h38;
    parameter SERIALIZER_CAN_TAKE_REQ_3 = 8'h3c;
-   parameter SERIALIZER_SIZE_CONTROL = 8'h40;
+   parameter SERIALIZER_SIZE_CONTROL = 8'h40; // {0, stall, full, almost_full}
    parameter SERIALIZER_CQ_STALL_COUNT = 8'h44; // bits [39:8]
+   parameter SERIALIZER_STAT_READ = 8'h48; // write to set addr, followed by read
 
    parameter CQ_HINT_DATA_BASE_ADDR = 8'h10;
    
