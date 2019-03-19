@@ -23,6 +23,7 @@ module terminate_core
         
    output logic [UNDO_LOG_ADDR_WIDTH + UNDO_LOG_DATA_WIDTH -1:0] undo_log_entry,
    output logic undo_log_entry_ap_vld,
+   input undo_log_entry_ap_rdy,
    
    output logic         m_axi_l1_V_AWVALID ,
    input                m_axi_l1_V_AWREADY,
@@ -48,7 +49,9 @@ module terminate_core
    input                m_axi_l1_V_BVALID ,
    output logic         m_axi_l1_V_BREADY ,
    input [1:0]          m_axi_l1_V_BRESP  ,
-   input                m_axi_l1_V_BID    
+   input                m_axi_l1_V_BID    ,
+   
+   output logic [31:0]  ap_state
 );
 
 typedef enum logic[1:0] {
@@ -99,6 +102,8 @@ assign m_axi_l1_V_BREADY  = 1'b0;;
 assign undo_log_entry_ap_vld = 1'b0;
 assign m_axi_l1_V_AWVALID = 1'b0;
 assign m_axi_l1_V_WVALID = 1'b0;
+
+assign ap_state = 0;
 
 
 always_ff @(posedge clk) begin

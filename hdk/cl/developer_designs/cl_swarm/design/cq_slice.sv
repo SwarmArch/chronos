@@ -203,7 +203,7 @@ logic      cq_undo_log_write [0:2**LOG_CQ_SLICE_SIZE-1];
 
 logic      cq_undo_log_ack_pending[0:2**LOG_CQ_SLICE_SIZE-1];
 
-cq_slice_slot_t ts_array_raddr;
+cq_slice_slot_t ts_array_addr;
 cq_slice_slot_t ts_check_id;
 vt_t check_vt;
 vt_t [0:2**LOG_CQ_TS_BANKS-1] rdata_lvt;
@@ -283,15 +283,17 @@ vt_t max_vt_fixed, max_vt_rolling;
 assign max_vt_ts = max_vt_fixed.ts;
 always_comb begin
    if (lookup_mode) begin
-      ts_array_raddr = lookup_entry;
+      ts_array_addr = lookup_entry;
    end else begin
-      ts_array_raddr = ts_check_id;
+      ts_array_addr = ts_check_id;
       if (state == IDLE) begin
          if (from_tq_abort_valid) begin
-            ts_array_raddr = from_tq_abort_slot;
+            ts_array_addr = from_tq_abort_slot;
          end
       end else if (state == UNDO_LOG_WAITING) begin
-         ts_array_raddr = undo_log_abort_next_cand;
+         ts_array_addr = undo_log_abort_next_cand;
+      end else if (state == DEQ_PUSH_TASK) begin
+         ts_array_addr = out_task_slot;
       end
    end
 end
@@ -386,12 +388,10 @@ vt_array TS_ARRAY
    .clk(clk),
    .rstn(rstn),
 
-   .r_addr_1(ts_array_raddr),
+   .rw_addr(ts_array_addr),
    .r_lvt_index(lvt_cycle),
 
-   .w_addr(out_task_slot),
-
-   .rdata_1(check_vt),
+   .rdata(check_vt),
 
    .rdata_lvt(rdata_lvt), 
 
@@ -1516,12 +1516,12 @@ module vt_array
    input clk,
    input rstn,
 
-   input logic [LOG_CQ_SLICE_SIZE-1:0] r_addr_1,
+   input logic [LOG_CQ_SLICE_SIZE-1:0] rw_addr,
    input logic [LOG_GVT_PERIOD-1:0] r_lvt_index,
 
    input logic [LOG_CQ_SLICE_SIZE-1:0] w_addr,
 
-   output vt_t rdata_1,
+   output vt_t rdata,
 
    output vt_t [0:2**LOG_CQ_TS_BANKS-1] rdata_lvt, 
 
@@ -1537,21 +1537,24 @@ tb_bank arr_tb [0:2**LOG_CQ_TS_BANKS -1];
 vt_t read_out_1 [0:2**LOG_CQ_TS_BANKS-1];
 generate genvar i;
 
+logic [LOG_GVT_PERIOD-1:0] addr;
+assign addr = rw_addr[LOG_GVT_PERIOD-1:0];
+
 for (i=0;i<2**LOG_CQ_TS_BANKS;i++) begin
-   assign read_out_1[i].ts = arr_ts[i][r_addr_1[LOG_GVT_PERIOD-1:0]];
-   assign read_out_1[i].tb = arr_tb[i][r_addr_1[LOG_GVT_PERIOD-1:0]];
+   assign read_out_1[i].ts = arr_ts[i][addr];
+   assign read_out_1[i].tb = arr_tb[i][addr];
    if (LOG_CQ_TS_BANKS ==0) begin
       always @(posedge clk) begin
          if (w_valid) begin
-            arr_ts[i][w_addr[LOG_GVT_PERIOD-1:0]] <= wdata.ts;
-            arr_tb[i][w_addr[LOG_GVT_PERIOD-1:0]] <= wdata.tb;
+            arr_ts[i][addr] <= wdata.ts;
+            arr_tb[i][addr] <= wdata.tb;
          end
       end
    end else begin
       always @(posedge clk) begin
-         if (w_valid & (w_addr[LOG_CQ_SLICE_SIZE-1:LOG_GVT_PERIOD]==i)) begin
-            arr_ts[i][w_addr[LOG_GVT_PERIOD-1:0]] <= wdata.ts;
-            arr_tb[i][w_addr[LOG_GVT_PERIOD-1:0]] <= wdata.tb;
+         if (w_valid & (rw_addr[LOG_CQ_SLICE_SIZE-1:LOG_GVT_PERIOD]==i)) begin
+            arr_ts[i][addr] <= wdata.ts;
+            arr_tb[i][addr] <= wdata.tb;
          end
       end
    end
@@ -1560,9 +1563,9 @@ for (i=0;i<2**LOG_CQ_TS_BANKS;i++) begin
 end
 
 if (LOG_CQ_TS_BANKS ==0 ) begin
-   assign rdata_1 = read_out_1[0];
+   assign rdata = read_out_1[0];
 end else begin
-   assign rdata_1 = read_out_1[r_addr_1[LOG_CQ_SLICE_SIZE-1:LOG_GVT_PERIOD]];
+   assign rdata = read_out_1[rw_addr[LOG_CQ_SLICE_SIZE-1:LOG_GVT_PERIOD]];
 end
 endgenerate
 endmodule

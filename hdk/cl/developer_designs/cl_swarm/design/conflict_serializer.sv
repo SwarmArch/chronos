@@ -375,10 +375,10 @@ if (SERIALIZER_STATS) begin
    end
    for (i=0;i<N_THREADS;i+=1) begin
       always_ff @(posedge clk) begin
-         if (!s_arvalid[i]) begin
+         if (!s_arvalid[i] || (reg_valid & (i==reg_core_id))) begin
             // core is busy.
             core_stats[i*8 +0] <= core_stats[i*8 +0] + 1;
-         end else begin
+         end else begin 
             if (can_take_request[core_select]) begin
                if (core_select == i) begin
                   // servicing request for core i

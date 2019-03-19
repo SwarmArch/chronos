@@ -30,7 +30,7 @@ for line in configs:
         [core_type, n_cores] = line.split()[1:3]
         task_type = n_types;
         if (line.find("terminate")>=0):
-            task_type = 13; # hack
+            task_type = 12; # hack
         if (line.find("all_tasks")>=0):
             task_type = 13; # hack
         for i in range(int(n_cores)):
