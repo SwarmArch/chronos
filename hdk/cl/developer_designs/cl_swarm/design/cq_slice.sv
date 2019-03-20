@@ -272,14 +272,14 @@ logic [LOG_LOG_DEPTH:0] log_size;
 if (CQ_CONFIG) begin
    always_ff @(posedge clk) begin
       if (!rstn) begin
-         //cq_size <= 2**LOG_CQ_SLICE_SIZE;
+         cq_size <= 2**LOG_CQ_SLICE_SIZE;
          lookup_entry <= 'x;
          lookup_mode <= 1'b0;
          use_ts_cache <= 1'b1;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
-           //    CQ_SIZE : cq_size <= reg_bus.wdata;
+               CQ_SIZE : cq_size <= reg_bus.wdata;
                CQ_LOOKUP_MODE : lookup_mode <= reg_bus.wdata;
                CQ_LOOKUP_ENTRY : lookup_entry <= reg_bus.wdata;
                CQ_USE_TS_CACHE : use_ts_cache <= reg_bus.wdata[0];
@@ -287,7 +287,7 @@ if (CQ_CONFIG) begin
          end
       end 
    end
-   assign cq_size = 2**LOG_CQ_SLICE_SIZE;
+   //assign cq_size = 2**LOG_CQ_SLICE_SIZE;
 
 
    always_ff @(posedge clk) begin
@@ -455,7 +455,7 @@ assign resource_abort_start = (state == IDLE)
                   // do not start resource abort if max_vt task just changed
                   // tq asserted force signal based on its previous value
                                  (deq_task_force & !(lvt_cycle == (LOG_CQ_TS_BANKS+1)))  )
-            & (cq_next_idle_in ==0) 
+            & cq_full 
             & (     (cq_state[max_vt_pos_fixed] == RUNNING) 
                   | (cq_state[max_vt_pos_fixed] == FINISHED)); 
 assign gvt_induced_abort_start = (state == IDLE) & can_abort_core_1_task & gvt_task_slot_valid & 
@@ -463,7 +463,7 @@ assign gvt_induced_abort_start = (state == IDLE) & can_abort_core_1_task & gvt_t
                            (cq_state[core_1_running_task_slot] == RUNNING) & 
                            tsb_almost_full ;
 
-assign cq_full = (cq_next_idle_in == 0);
+assign cq_full =  (deq_task_cq_slot >= cq_size) ||  (cq_next_idle_in == 0);
 
 always_comb begin
    if (state==IDLE) begin
@@ -490,7 +490,7 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
             // RO tasks
             &  !(cq_read_only_task[i] & ref_hint[31])
             & (cq_state[i] != ABORTED) & (cq_state[i] != UNDO_LOG_WAITING);
-   assign cq_next_idle_in[i] = !cq_valid[i] & (i < cq_size) ;
+   assign cq_next_idle_in[i] = !cq_valid[i];
 end
 
 
@@ -751,7 +751,7 @@ assign commit_children_count = cq_num_children[commit_task_slot];
 
 
 assign deq_task_ready = (state == IDLE) & !from_tq_abort_valid & 
-            (cq_next_idle_in != 0) &
+            !cq_full &
             // if cc is almost full, only let the gvt task proceed
             (!cc_almost_full | (deq_task_valid & ((deq_task.ts == gvt.ts) | deq_task_force))) &
             !gvt_induced_abort_start; 
@@ -1095,7 +1095,7 @@ if (CQ_STATS[TILE_ID]) begin
             cq_state_stats[state] <= cq_state_stats[state] + 1;
             if (state == IDLE) begin
                if (!from_tq_abort_valid) begin
-                  if (cq_next_idle_in == 0) begin
+                  if (cq_full) begin
                      stall_cycles_cq_full <= stall_cycles_cq_full + 1;
                   end else if (!deq_task_valid) begin 
                      stall_cycles_no_task <= stall_cycles_no_task + 1;
