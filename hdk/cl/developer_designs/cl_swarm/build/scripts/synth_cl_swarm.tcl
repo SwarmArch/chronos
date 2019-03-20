@@ -112,7 +112,7 @@ if { $failval==0 } {
 
 puts "AWS FPGA: ([clock format [clock seconds] -format %T]) writing post synth checkpoint.";
 write_checkpoint -force $CL_DIR/build/checkpoints/${timestamp}.CL.post_synth.dcp
-report_utilization -file $CL_DIR/build/reports/${timestamp}.utilization_post_synth.rpt
+report_utilization -hierarchical -file $CL_DIR/build/reports/${timestamp}.utilization_post_synth.rpt
 
 close_project
 #Set param back to default value
