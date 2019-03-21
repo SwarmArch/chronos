@@ -188,8 +188,13 @@ initial begin
       ocl_data = 48;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-*/  
 
+      ocl_addr[15:8] = ID_CQ;
+      ocl_addr [7:0] = CQ_SIZE;
+      ocl_data = 16;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+*/  
       // Start coalesecer early
       ocl_addr[15:8] = ID_COAL;
       ocl_addr [7:0] = CORE_START;
@@ -311,7 +316,7 @@ if (APP_NAME == "color") begin
    tb.poke(.addr(ocl_addr), .data(0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
-   tb.poke(.addr(ocl_addr), .data(32'h20000),
+   tb.poke(.addr(ocl_addr), .data(32'h0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
    tb.poke(.addr(ocl_addr), .data(0),
@@ -351,14 +356,7 @@ if (APP_NAME == "astar") begin
 end
 if (APP_NAME == "maxflow") begin
    ocl_addr = 0;
-   ocl_addr[23:16] = 0; // tile
-   if (N_TILES == 2) begin
-      ocl_addr[23:16] = file[7][4]; // Component
-   end else if (N_TILES == 4) begin
-      ocl_addr[23:16] = file[7][5:4]; // Component
-   end else if (N_TILES == 8) begin
-      ocl_addr[23:16] = file[7][6:4]; // Component
-   end
+   ocl_addr[23:16] = file[7][30:4] % N_TILES; // tile
    ocl_addr[15:8] = 0; // Component
    ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
    tb.poke(.addr(ocl_addr), .data(file[7]),
@@ -451,7 +449,6 @@ end
       #300ns;
    end while (ocl_data!='1);
 
-   
    $display("Run Complete. Flushing Cache ...");
 
 

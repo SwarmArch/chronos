@@ -451,7 +451,7 @@ tile_xbar
 
 
 // -- Memory --
-axi_bus_t axi_tree[2*N_TILES](); // 0 is for pci_decoder
+axi_bus_t axi_tree[2*C_N_TILES](); // 0 is for pci_decoder
 axi_bus_t tile_mem[N_TILES](); // 0 is for pci_decoder
 axi_bus_t xbar_ddr_bus[4](); 
 axi_bus_t xbar_ddr_bus_p[4](); 
@@ -491,11 +491,11 @@ logic       [XBAR_IN_TILES:0] mem_xbar_in_rvalid;
 logic       [XBAR_IN_TILES:0] mem_xbar_in_rready;
 
 generate 
-for (i=XBAR_IN_TILES;i<N_TILES;i++) begin : axi_mux
+for (i=XBAR_IN_TILES;i<C_N_TILES;i++) begin : axi_mux
 
       axi_mux
       #( 
-         .ID_BIT(10 + $clog2(N_TILES) -  $clog2(i+1))
+         .ID_BIT(10 + $clog2(C_N_TILES) -  $clog2(i+1))
       ) AXI_MUX (
          .clk(clk_main_a0),
          .rstn(rst_main_n_sync),
@@ -514,8 +514,17 @@ for (i=0;i<N_TILES;i++) begin
       .rstn(rst_main_n_sync),
 
       .in(tile_mem[i]),
-      .out(axi_tree[N_TILES+i])
+      .out(axi_tree[C_N_TILES+i])
    );
+end
+
+for (i=C_N_TILES+N_TILES; i<2*C_N_TILES;i++) begin
+  assign axi_tree[i].awvalid = 1'b0;
+  assign axi_tree[i].arvalid = 1'b0;
+  assign axi_tree[i].wvalid = 1'b0;
+  assign axi_tree[i].rready = 1'b1;
+  assign axi_tree[i].bready = 1'b1;
+  assign axi_tree[i].arlen = 10;
 end
 
 for (i=0;i<1;i++) begin : xbar_in_pci
@@ -850,7 +859,7 @@ for (i=0;i<N_TILES;i=i+1) begin
 end
 endgenerate
 
-vt_t [N_TILES-1:0] lvt;
+vt_t [C_N_TILES-1:0] lvt;
 vt_t gvt;
 
 gvt_arbiter GVT_ARBITER (
@@ -894,8 +903,10 @@ for (i=0;i<N_TILES;i++) begin : tile
 
       .lvt(lvt[i]),
       .gvt(gvt)
-
    );
+end
+for (i=N_TILES; i<C_N_TILES;i++) begin
+  assign lvt[i] = '1;
 end
 endgenerate
 

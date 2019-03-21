@@ -59,23 +59,27 @@ module tsb
 );
    logic [3:0] dest_tile;
    always_comb begin
-      case (log_n_tiles) 
-         0: dest_tile = 0;
-         1: dest_tile = s_wdata.hint[4];
-         2: dest_tile = s_wdata.hint[5:4];
-         3: dest_tile = s_wdata.hint[6:4];
+      case (n_tiles) 
+         1: dest_tile = 0;
+         2: dest_tile = s_wdata.hint[4];
+         3: dest_tile = (s_wdata.hint[30:4])%3;
+         4: dest_tile = s_wdata.hint[5:4];
+         5: dest_tile = (s_wdata.hint[30:4])%5;
+         6: dest_tile = (s_wdata.hint[30:4])%6;
+         7: dest_tile = (s_wdata.hint[30:4])%7;
+         8: dest_tile = s_wdata.hint[6:4];
          default: dest_tile = s_wdata.hint[7:4];
       endcase
    end
-   logic [1:0] log_n_tiles;
+   logic [4:0] n_tiles;
    
    always_ff @(posedge clk) begin
       if (!rstn) begin
-         log_n_tiles <= $clog2(N_TILES);
+         n_tiles <= N_TILES;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
-               TSB_LOG_N_TILES : log_n_tiles <= reg_bus.wdata;
+               TSB_LOG_N_TILES : n_tiles <= reg_bus.wdata;
             endcase
          end
       end 

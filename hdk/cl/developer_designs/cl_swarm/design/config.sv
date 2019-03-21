@@ -80,13 +80,14 @@ package swarm;
    // Total Address Space Size = 16GB = 34 bits 
    parameter ADDR_BITS = 34;
    parameter CACHE_BYTE_WIDTH = 6; // 64 bytes per line
-   parameter CACHE_INDEX_WIDTH = 12; // 1K lines
+   parameter CACHE_INDEX_WIDTH = 11; // 1K lines
    parameter CACHE_NUM_WAYS = 4; 
    parameter CACHE_TAG_WIDTH = ADDR_BITS - CACHE_BYTE_WIDTH - CACHE_INDEX_WIDTH; //18
                                     
    parameter LOG_N_MSHR = 4;
 
    parameter L2_BANKS = (1<<LOG_L2_BANKS);
+   parameter C_N_TILES = (2**$clog2(N_TILES));
    
    // 'Core' is any module that gets tasks from CC. OCL is a special case 
    // APP_COREs have IDs {1..N_APP_CORES}

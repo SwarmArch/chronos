@@ -4,22 +4,22 @@ module gvt_arbiter (
    input clk,
    input rstn,
 
-   input vt_t [N_TILES-1:0] lvt,
+   input vt_t [C_N_TILES-1:0] lvt,
    output vt_t gvt
 );
 // Tree of comparators
-vt_t tree [$clog2(N_TILES):0][N_TILES-1:0];
+vt_t tree [$clog2(C_N_TILES):0][C_N_TILES-1:0];
 
 genvar i,j;
 
 generate 
-for (i=0;i<N_TILES;i++) begin
-   assign tree[$clog2(N_TILES)][i] = lvt[i];
+for (i=0;i<C_N_TILES;i++) begin
+   assign tree[$clog2(C_N_TILES)][i] = lvt[i];
 end
 endgenerate
 
 generate
-   for (i=$clog2(N_TILES)-1;i>=0;i--) begin
+   for (i=$clog2(C_N_TILES)-1;i>=0;i--) begin
       for (j=0;j< 2**i;  j++) begin
          always_ff @(posedge clk) begin
             tree[i][j] <= (tree[i+1][j*2] < tree[i+1][j*2+1]) ? 
