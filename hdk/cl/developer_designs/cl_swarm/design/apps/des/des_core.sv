@@ -120,6 +120,7 @@ assign m_axi_l1_V_RREADY = (
                      (state == WAIT_EDGE_OFFSET) |
                      (state == WAIT_NEIGHBOR & task_out_V_TREADY) );
 
+assign ap_state = state;
 logic initialized;
 
 always_ff @(posedge clk) begin
