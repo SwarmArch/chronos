@@ -727,15 +727,13 @@ task load_riscv_program;
                status = $sscanf( line.substr(9+i*2,9+i*2+1), "%x", data);
                //$display("addr %x data %x", addr, data);
                mem_ctrl_addr = {addr[31:8], addr[5:0]};
+               `ifdef SIMPLE_MEMORY
                case (addr[7:6])
                   0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                   1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                   2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                   3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                endcase
-               `ifndef FAST_MEM_INIT
-                  $dislay("Code-loading supported only under FAST_MEM_INIT");
-                  $finish();
                `endif
             end
          end
@@ -757,6 +755,7 @@ task load_riscv_program;
    boot_code[1] = {_main[11:0], 5'd1, 3'b000, 5'd1, 7'b0010011};  // addi x1, x1,  _main[11:0]
    boot_code[2] = 32'h73000137; // li sp, 0x7e000
    boot_code[3] = {12'b0, 5'd1, 3'b000, 5'd0, 7'b1100111};  // jalr x1, 0
+`ifdef SIMPLE_MEMORY
    for (integer i=0;i<4; i+=1) begin
       addr = 32'h80000000 + (i*4);
       //$display("addr %x data %x", addr, data);
@@ -771,6 +770,7 @@ task load_riscv_program;
          endcase
       end
    end
+`endif
 endtask
 
 

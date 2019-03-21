@@ -344,6 +344,8 @@ end else begin
    
    assign cores_cm_wvalid[ID_SPLITTER] = 1'b0; // so as not to confuse the tsb
    assign splitter_deq_ready = 1'b0;
+
+   assign splitter_lvt_out = '1;
    
 end
 
