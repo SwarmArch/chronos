@@ -286,7 +286,9 @@ module task_unit
    ts_t      spill_next_deque_elem_ts ;
    tq_slot_t spill_next_deque_elem_slot;
    logic [LOG_TQ_SPILL_SIZE-1:0] spill_heap_capacity;
-   
+
+generate
+if (!NO_SPILLING) begin
    min_heap #(
       .N_STAGES(LOG_TQ_SPILL_SIZE),
       .PRIORITY_WIDTH(TS_WIDTH),
@@ -310,6 +312,13 @@ module task_unit
       .max_out_data(),
       .max_out_valid()
    );
+end else begin
+   assign spill_next_deque_elem_ts = '0;
+   assign spill_next_deque_elem_slot = 0;
+   assign spill_heap_ready = 1;
+   assign spill_heap_capacity = 0;
+end   
+endgenerate
 
    // 7. Free List
    
@@ -414,7 +423,7 @@ module task_unit
             // if the same enq triggers both spill and clean, do spill first and
             // then check for clean. This might cause capacity to overshoot
             // clean_threshold, hence do a '<' comparison 
-               if (n_tasks == task_spill_threshold) begin
+               if (n_tasks == task_spill_threshold & !NO_SPILLING) begin
                   tq_state <= TQ_SPILL_ENQ_READ_ARRAY;
                   tq_walk_addr <= 0;
                end else if (heap_capacity < task_unit_clean_threshold) begin
@@ -533,7 +542,7 @@ module task_unit
                // conflict in the invalid_before_deq write
                coal_child_ready = 1'b1;   
             end else if (task_enq_valid & !reg_next_insert_elem_valid & !task_resp_valid &
-                !(abort_child_ready & !(dequeued_task[abort_child_tq_slot]))  ) begin
+                !(abort_child_ready & !(dequeued_task[abort_child_tq_slot])) & !almost_full ) begin
                task_enq_ready = 1'b1;
             end else begin
                if (cut_ties_valid) begin
@@ -970,6 +979,7 @@ module task_unit
       last_op_was_enq <= (heap_in_op==ENQ);
    assign empty = (heap_capacity ==  2**(TQ_STAGES) -1) & !last_op_was_enq;
    assign full =  (heap_capacity == 0);
+   assign almost_full = ((heap_capacity < 10) & task_enq_tied) | (full & !task_enq_tied);
 
    ts_t lvt_heap;
    ts_t lvt_abort;

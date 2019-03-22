@@ -68,6 +68,10 @@ module tsb
          6: dest_tile = (s_wdata.hint[30:4])%6;
          7: dest_tile = (s_wdata.hint[30:4])%7;
          8: dest_tile = s_wdata.hint[6:4];
+         9: dest_tile = (s_wdata.hint[30:4])%9;
+         10: dest_tile = (s_wdata.hint[30:4])%10;
+         11: dest_tile = (s_wdata.hint[30:4])%11;
+         12: dest_tile = (s_wdata.hint[30:4])%12;
          default: dest_tile = s_wdata.hint[7:4];
       endcase
    end
