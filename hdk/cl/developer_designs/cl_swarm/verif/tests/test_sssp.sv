@@ -112,14 +112,20 @@ initial begin
    
    `ifdef FAST_MEM_INIT   
       for (int i=0;i< n_lines*4; i++) begin
-         addr = {i[31:8], i[5:0]};
-         data = {24'b0, tb.hm_get_byte(i)};
-         case (i[7:6])
-            0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ addr ] = data;
-            1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ addr ] = data;
-            2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
-            3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
-         endcase
+         if (SH_DDR_EN) begin
+            addr = {i[31:8], i[5:0]};
+            data = {24'b0, tb.hm_get_byte(i)};
+            case (i[7:6])
+               0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ addr ] = data;
+               1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ addr ] = data;
+               2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
+               3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
+            endcase
+         end else begin
+            addr = {i[31:6], i[5:0]};
+            data = {24'b0, tb.hm_get_byte(i)};
+            tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
+         end
       end
    `else
       tb.que_buffer_to_cl(.chan(0), .src_addr(0),
@@ -505,12 +511,16 @@ end
    `ifdef FAST_VERIFY
       for (int i=0;i<file[1]*4;i++) begin
          addr = file[5]*4 + i;
-         case (addr[7:6])
-            0: data = tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
-            1: data = tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
-            2: data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
-            3: data = tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
-         endcase
+         if (SH_DDR_EN) begin
+            case (addr[7:6])
+               0: data = tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
+               1: data = tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
+               2: data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
+               3: data = tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
+            endcase
+         end else begin
+            data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], addr[5:0]} ];
+         end
          tb.hm_put_byte(.addr(BASE_END* 4 + i), .d(data));
       end
    `else
@@ -723,14 +733,19 @@ task load_riscv_program;
                addr = nextAddr + i;
                status = $sscanf( line.substr(9+i*2,9+i*2+1), "%x", data);
                //$display("addr %x data %x", addr, data);
-               mem_ctrl_addr = {addr[31:8], addr[5:0]};
-               `ifdef SIMPLE_MEMORY
-               case (addr[7:6])
-                  0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                  1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                  2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                  3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-               endcase
+                `ifdef SIMPLE_MEMORY
+               if (SH_DDR_EN) begin
+                  mem_ctrl_addr = {addr[31:8], addr[5:0]};
+                  case (addr[7:6])
+                     0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                     1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                     2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                     3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                  endcase
+               end else begin
+                  mem_ctrl_addr = {addr[31:6], addr[5:0]};
+                  tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+               end
                `endif
             end
          end
@@ -756,15 +771,20 @@ task load_riscv_program;
    for (integer i=0;i<4; i+=1) begin
       addr = 32'h80000000 + (i*4);
       //$display("addr %x data %x", addr, data);
-      mem_ctrl_addr = {addr[31:8], addr[5:0]};
       for (integer j=0;j<4;j++) begin
          data = boot_code[i][j*8 +: 8];
-         case (addr[7:6])
-            0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
-            1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ mem_ctrl_addr +j] = data; 
-            2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
-            3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
-         endcase
+         if (SH_DDR_EN) begin
+            mem_ctrl_addr = {addr[31:8], addr[5:0]};
+            case (addr[7:6])
+               0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
+               1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ mem_ctrl_addr +j] = data; 
+               2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
+               3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
+            endcase
+         end else begin
+            mem_ctrl_addr = {addr[31:6], addr[5:0]};
+            tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
+         end
       end
    end
 `endif

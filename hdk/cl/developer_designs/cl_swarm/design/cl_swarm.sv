@@ -1111,10 +1111,10 @@ assign cl_sh_ddr_rready_2d = {xbar_ddr_bus[3].rready, xbar_ddr_bus[1].rready, xb
 (* dont_touch = "true" *) logic sh_ddr_sync_rst_n;
 lib_pipe #(.WIDTH(1), .STAGES(4)) SH_DDR_SLC_RST_N (.clk(clk_main_a0), .rst_n(1'b1), .in_bus(rst_main_n_sync), .out_bus(sh_ddr_sync_rst_n));
 sh_ddr #(
-         .DDR_A_PRESENT(1),
+         .DDR_A_PRESENT(SH_DDR_EN),
          .DDR_A_IO(1),
-         .DDR_B_PRESENT(1),
-         .DDR_D_PRESENT(1)
+         .DDR_B_PRESENT(SH_DDR_EN),
+         .DDR_D_PRESENT(SH_DDR_EN)
    ) SH_DDR
    (
    .clk(clk_main_a0),

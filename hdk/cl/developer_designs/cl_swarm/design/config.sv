@@ -52,6 +52,8 @@ package swarm;
    //`define TASK_UNIT_MODULE task_unit_unordered
    `define TASK_UNIT_MODULE task_unit
 
+   parameter SH_DDR_EN = 0;
+
    parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;
    parameter TQ_STAGES = 13; 
