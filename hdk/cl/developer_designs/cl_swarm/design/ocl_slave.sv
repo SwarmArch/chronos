@@ -1,7 +1,9 @@
 import swarm::*;
 
 module ocl_slave 
-(
+#(
+   parameter TILE_ID=0
+) (
    input clk,
    input rstn,
 
@@ -33,6 +35,8 @@ module ocl_slave
 
    
 );
+
+   localparam OCL_ON = (ALL_OCL || (TILE_ID == 0));
 
    typedef enum logic [3:0] { OCL_IDLE, OCL_SEND_AW, OCL_WAIT_W, OCL_SEND_W,
                               OCL_WAIT_B, OCL_SEND_B,
@@ -93,7 +97,7 @@ module ocl_slave
                end
             end
             OCL_SEND_W: begin
-               if (addr[15:8] != 0 ) begin
+               if ( (addr[15:8] != 0) || (!OCL_ON)) begin
                   state <= OCL_SEND_B;
                end else begin
                   case (addr[7:0]) 
@@ -149,7 +153,9 @@ module ocl_slave
                end
             end
             OCL_WAIT_R: begin
-               if (addr [15:8] != 0) begin
+               if (!OCL_ON) begin
+                  state <= OCL_SEND_R;
+               end else if (addr [15:8] != 0 ) begin
                   if (reg_bus_rvalid[addr[15:8]]) begin
                      state <= OCL_SEND_R;
                      data <= reg_bus_rdata[addr[15:8]];
@@ -251,12 +257,24 @@ module ocl_slave
          cur_cycle <= cur_cycle + 1;
       end
    end
-   
+
+generate 
    assign l1.rready = (state == OCL_WAIT_R);
    assign l1.bready = 1'b1;
    
+if (OCL_ON) begin
    assign l1.awvalid = (state == OCL_SEND_W) & (addr[15:0] == {8'b0, OCL_ACCESS_MEM});
    assign l1.wvalid = (state == OCL_SEND_W) & (addr[15:0] == {8'b0, OCL_ACCESS_MEM});
+   assign l1.arvalid = (state == OCL_SEND_AR) & (addr[15:0] == {8'b0, OCL_ACCESS_MEM});
+   assign task_wvalid = (state == OCL_SEND_W) & (addr[15:0] == {8'b0, OCL_TASK_ENQ});
+   assign task_arvalid = (state == OCL_SEND_AR | state == OCL_WAIT_R) & (addr[15:0] == {8'b0, OCL_TASK_ENQ});
+end else begin
+   assign l1.awvalid = 0;
+   assign l1.wvalid = 0;
+   assign l1.arvalid = 0;
+   assign task_wvalid = 0;
+   assign task_arvalid = 0;
+end
    assign l1.awaddr = mem_addr;
    assign l1.awlen = 0;
    assign l1.awsize = 2;
@@ -266,7 +284,6 @@ module ocl_slave
    assign l1.wstrb = 4'b1111;
    assign l1.wlast = 1;
 
-   assign l1.arvalid = (state == OCL_SEND_AR) & (addr[15:0] == {8'b0, OCL_ACCESS_MEM});
    assign l1.araddr = mem_addr;
    assign l1.arlen = 0;
    assign l1.arsize = 2;
@@ -278,24 +295,24 @@ module ocl_slave
    assign ocl.bvalid = (state == OCL_SEND_B);
    assign ocl.bresp = 2'b00;
    assign ocl.rvalid = (state == OCL_SEND_R);
-   assign ocl.rdata = data;
+   assign ocl.rdata = OCL_ON ? data : 0;
    assign ocl.rresp = 2'b00;
    
-   assign task_wvalid = (state == OCL_SEND_W) & (addr[15:0] == {8'b0, OCL_TASK_ENQ});
    assign task_wdata.ttype = task_ttype;
    assign task_wdata.hint  = task_hint;
    assign task_wdata.args  = task_args;
    assign task_wdata.ts    = data;
 
-   assign task_arvalid = (state == OCL_SEND_AR | state == OCL_WAIT_R) & (addr[15:0] == {8'b0, OCL_TASK_ENQ});
    assign task_araddr = task_ttype;
 
    genvar i;
-   generate
       for (i=0;i<ID_LAST;i++) begin
          assign reg_bus_wvalid[i] = wr_comp_bit_vector[i] & (state == OCL_SEND_W);
-
-         assign reg_bus_arvalid[i] = (i==addr[15:8]) & (state == OCL_SEND_AR);
+         if (OCL_ON) begin
+            assign reg_bus_arvalid[i] = (i==addr[15:8]) & (state == OCL_SEND_AR);
+         end else begin
+            assign reg_bus_arvalid[i] = 0;
+         end
       end
    endgenerate
    assign reg_bus_waddr = addr[7:0];

@@ -55,7 +55,7 @@ package swarm;
    parameter N_DDR_CTRL = 1;
    
    // has to be set for des
-   parameter ALL_OCL    = 0; 
+   parameter ALL_OCL    = 1; 
 
    parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;

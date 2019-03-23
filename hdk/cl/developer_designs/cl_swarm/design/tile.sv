@@ -200,10 +200,10 @@ axi_bus_t ocl_bus_q();
    );
 
 logic done;
-generate
-if (ALL_OCL || (TILE_ID == 0)) begin
-ocl_slave OCL_SLAVE (
-
+ocl_slave  
+#(
+   .TILE_ID(TILE_ID)
+) OCL_SLAVE (
   .clk(clk_main_a0),
   .rstn(rst_main_n_sync),
 
@@ -233,29 +233,6 @@ ocl_slave OCL_SLAVE (
   .cur_cycle(cur_cycle)
 
 );
-end else begin
-   assign ocl_bus_q.awready = 1'b1;
-   assign ocl_bus_q.wready = 1'b1;
-   assign ocl_bus_q.arready = 1'b1;
-   assign ocl_bus_q.bvalid = ocl_bus_q.awvalid;
-   assign ocl_bus_q.bresp = 2'b00;
-   assign ocl_bus_q.rvalid = ocl_bus_q.arvalid;
-   assign ocl_bus_q.rdata = 0;
-   assign ocl_bus_q.rresp = 2'b00;
-   
-   assign reg_bus_wvalid = 0;
-   assign reg_bus_arvalid = 0;
-
-   assign cc_cores_arvalid[0] = 0;
-   assign cores_cm_wvalid[0] = 0;
-   
-   assign l1_arb[0].awvalid = 1'b0;
-   assign l1_arb[0].arvalid = 1'b0;
-   assign l1_arb[0].wvalid = 1'b0;
-   assign l1_arb[0].bready = 1'b1;
-   assign l1_arb[0].rready = 1'b1;
-end
-endgenerate
 
 axi_decoder #(
    .ID_BASE( (TILE_ID<<11) + (0<<4)),
