@@ -112,7 +112,13 @@ slave_index_t        [NUM_MI-1:0] w_sched_out;
 
 generate
 for (i=0;i<NUM_SI;i++) begin
-   assign s_aw_port[i] = SH_DDR_EN ? s_awaddr[i][7:6] : 2;
+   if (N_DDR_CTRL == 1) begin
+      assign s_aw_port[i] = 2;
+   end else if (N_DDR_CTRL == 2) begin
+      assign s_aw_port[i] = {1'b1, s_awaddr[i][6]};
+   end else begin
+      assign s_aw_port[i] = s_awaddr[i][7:6];
+   end
 end
 
 for (i=0;i<NUM_MI;i++) begin : aw_sched
@@ -142,10 +148,12 @@ for (i=0;i<NUM_MI;i++) begin : aw_sched
          if (s_awvalid[aw_sched_out[i]] & s_awready[aw_sched_out[i]] &
                (s_aw_port[ aw_sched_out[i] ] == i) ) begin 
             m_awid   [i] <= s_awid   [aw_sched_out[i]];
-            if (SH_DDR_EN) begin
-               m_awaddr [i] <= {2'b0, s_awaddr [aw_sched_out[i]][63:8], 6'b0};
-            end else begin
+            if (N_DDR_CTRL == 1) begin
                m_awaddr [i] <= {s_awaddr [aw_sched_out[i]][63:6], 6'b0};
+            end else if (N_DDR_CTRL == 2) begin
+               m_awaddr [i] <= {1'b0, s_awaddr [aw_sched_out[i]][63:7], 6'b0};
+            end else begin
+               m_awaddr [i] <= {2'b0, s_awaddr [aw_sched_out[i]][63:8], 6'b0};
             end
             m_awlen  [i] <= s_awlen  [aw_sched_out[i]];
             m_awsize [i] <= s_awsize [aw_sched_out[i]];
@@ -250,7 +258,13 @@ logic                [NUM_MI-1:0] ar_can_take_new;
 
 generate
 for (i=0;i<NUM_SI;i++) begin
-   assign s_ar_port[i] = SH_DDR_EN ? s_araddr[i][7:6] : 2;
+   if (N_DDR_CTRL == 1) begin
+      assign s_ar_port[i] = 2;
+   end else if (N_DDR_CTRL == 2) begin
+      assign s_ar_port[i] = {1'b1, s_araddr[i][6]};
+   end else begin
+      assign s_ar_port[i] = s_araddr[i][7:6];
+   end
 end
 for (i=0;i<NUM_MI;i++) begin : ar_sched
    for (j=0;j<NUM_SI;j++) begin
@@ -278,10 +292,12 @@ for (i=0;i<NUM_MI;i++) begin : ar_sched
          if (s_arvalid[ar_sched_out[i]] & s_arready[ar_sched_out[i]] & 
                (s_ar_port[ ar_sched_out[i] ] == i) ) begin 
             m_arid   [i] <= s_arid   [ar_sched_out[i]];
-            if (SH_DDR_EN) begin
-               m_araddr [i] <= {2'b0, s_araddr [ar_sched_out[i]][63:8], 6'b0};
-            end else begin
+            if (N_DDR_CTRL == 1) begin
                m_araddr [i] <= {s_araddr [ar_sched_out[i]][63:6], 6'b0};
+            end else if (N_DDR_CTRL == 2) begin
+               m_araddr [i] <= {1'b0, s_araddr [ar_sched_out[i]][63:7], 6'b0};
+            end else begin
+               m_araddr [i] <= {2'b0, s_araddr [ar_sched_out[i]][63:8], 6'b0};
             end
             m_arlen  [i] <= s_arlen  [ar_sched_out[i]];
             m_arsize [i] <= s_arsize [ar_sched_out[i]];

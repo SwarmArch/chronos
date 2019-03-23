@@ -112,19 +112,24 @@ initial begin
    
    `ifdef FAST_MEM_INIT   
       for (int i=0;i< n_lines*4; i++) begin
-         if (SH_DDR_EN) begin
+         data = {24'b0, tb.hm_get_byte(i)};
+         if (N_DDR_CTRL == 1) begin
+            addr = {i[31:6], i[5:0]};
+            tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
+         end else if (N_DDR_CTRL == 2) begin
+            addr = {i[31:7], i[5:0]};
+            case (i[6])
+               0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
+               1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
+            endcase
+         end else begin
             addr = {i[31:8], i[5:0]};
-            data = {24'b0, tb.hm_get_byte(i)};
             case (i[7:6])
                0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ addr ] = data;
                1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ addr ] = data;
                2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
                3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
             endcase
-         end else begin
-            addr = {i[31:6], i[5:0]};
-            data = {24'b0, tb.hm_get_byte(i)};
-            tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
          end
       end
    `else
@@ -462,7 +467,7 @@ end
    
    // Faster simulation by capping flushing to DIST array
    tb.card.fpga.CL.\tile[0].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   tb.card.fpga.CL.\tile[0].TILE .\bank_1.L2_B1 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[0].TILE .\bank_1.L2_B1 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[1].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[2].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[3].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
@@ -511,15 +516,20 @@ end
    `ifdef FAST_VERIFY
       for (int i=0;i<file[1]*4;i++) begin
          addr = file[5]*4 + i;
-         if (SH_DDR_EN) begin
+         if (N_DDR_CTRL == 1) begin
+            data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], addr[5:0]} ];
+         end else if (N_DDR_CTRL == 2) begin
+            case (addr[6])
+               0: data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:7], addr[5:0]} ];
+               1: data = tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ {addr[31:7], addr[5:0]} ];
+            endcase
+         end else begin
             case (addr[7:6])
                0: data = tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
                1: data = tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
                2: data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
                3: data = tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
             endcase
-         end else begin
-            data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], addr[5:0]} ];
          end
          tb.hm_put_byte(.addr(BASE_END* 4 + i), .d(data));
       end
@@ -734,7 +744,17 @@ task load_riscv_program;
                status = $sscanf( line.substr(9+i*2,9+i*2+1), "%x", data);
                //$display("addr %x data %x", addr, data);
                 `ifdef SIMPLE_MEMORY
-               if (SH_DDR_EN) begin
+               
+               if (N_DDR_CTRL == 1) begin
+                  mem_ctrl_addr = {addr[31:6], addr[5:0]};
+                  tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+               end else if (N_DDR_CTRL == 2) begin
+                  mem_ctrl_addr = {addr[31:7], addr[5:0]};
+                  case (addr[7:6])
+                     0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                     1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                  endcase
+               end else begin
                   mem_ctrl_addr = {addr[31:8], addr[5:0]};
                   case (addr[7:6])
                      0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
@@ -742,9 +762,6 @@ task load_riscv_program;
                      2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                      3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                   endcase
-               end else begin
-                  mem_ctrl_addr = {addr[31:6], addr[5:0]};
-                  tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                end
                `endif
             end
@@ -773,7 +790,16 @@ task load_riscv_program;
       //$display("addr %x data %x", addr, data);
       for (integer j=0;j<4;j++) begin
          data = boot_code[i][j*8 +: 8];
-         if (SH_DDR_EN) begin
+         if (N_DDR_CTRL == 1) begin
+            mem_ctrl_addr = {addr[31:6], addr[5:0]};
+            tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
+         end else if (N_DDR_CTRL == 2) begin
+            mem_ctrl_addr = {addr[31:7], addr[5:0]};
+            case (addr[7:6])
+               0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
+               1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
+            endcase
+         end else begin
             mem_ctrl_addr = {addr[31:8], addr[5:0]};
             case (addr[7:6])
                0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
@@ -781,9 +807,6 @@ task load_riscv_program;
                2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
                3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
             endcase
-         end else begin
-            mem_ctrl_addr = {addr[31:6], addr[5:0]};
-            tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
          end
       end
    end

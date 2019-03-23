@@ -52,15 +52,18 @@ package swarm;
    //`define TASK_UNIT_MODULE task_unit_unordered
    `define TASK_UNIT_MODULE task_unit
 
-   parameter SH_DDR_EN = 0;
+   parameter N_DDR_CTRL = 1;
+   
+   // has to be set for des
+   parameter ALL_OCL    = 0; 
 
    parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;
    parameter TQ_STAGES = 13; 
    parameter LOG_READY_LIST_SIZE = 3;
-   parameter LOG_L2_BANKS = 1;
+   parameter LOG_L2_BANKS = 0;
 
-   parameter LOG_LAST_DEQ_VT_CACHE = 8; // must be >=4, 0 to turn off
+   parameter LOG_LAST_DEQ_VT_CACHE = 9; // must be >=4, 0 to turn off
 
    parameter TS_WIDTH = UNORDERED ? 1 : 32;
    parameter HINT_WIDTH = 32;
@@ -74,7 +77,7 @@ package swarm;
    parameter LOG_UNDO_LOG_ENTRIES_PER_TASK = 3;
 
    parameter TB_WIDTH = 32; // tiebreaker width;
-   parameter LOG_GVT_PERIOD = 4; // 16 cycles
+   parameter LOG_GVT_PERIOD = 5; // 16 cycles
    parameter LOG_CQ_TS_BANKS = LOG_CQ_SLICE_SIZE - LOG_GVT_PERIOD;
 
 
