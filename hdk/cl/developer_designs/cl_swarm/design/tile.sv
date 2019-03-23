@@ -201,7 +201,7 @@ axi_bus_t ocl_bus_q();
 
 logic done;
 generate
-if (ALL_OCL | TILE_ID > 0) begin
+if (ALL_OCL || (TILE_ID == 0)) begin
 ocl_slave OCL_SLAVE (
 
   .clk(clk_main_a0),
