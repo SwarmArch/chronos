@@ -283,9 +283,9 @@ end
 
 logic [31:0] ap_state;
 logic [31:0] core_state_stats [0:7];
-logic [31:0] ap_state_stats [0:127];
+logic [31:0] ap_state_stats [0:63];
 
-logic [7:0] query_state;
+logic [6:0] query_state;
 
 generate
 if (CORE_STATE_STATS[TILE_ID]) begin
@@ -293,7 +293,7 @@ if (CORE_STATE_STATS[TILE_ID]) begin
       for (integer i=0;i<8;i++) begin
          core_state_stats[i] = 0;
       end
-      for (integer i=0;i<128;i++) begin
+      for (integer i=0;i<63;i++) begin
          ap_state_stats[i] = 0;
       end
    end

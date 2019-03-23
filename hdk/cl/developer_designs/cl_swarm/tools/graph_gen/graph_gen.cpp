@@ -581,7 +581,7 @@ void WriteOutputMaxflow(FILE* fp) {
    // flow[10]}
    int SIZE_DIST = size_of_field(numV, 64);
    int SIZE_EDGE_OFFSET = size_of_field(numV+1, 4);
-   int SIZE_NEIGHBORS = size_of_field(numE, 16) ;
+   int SIZE_NEIGHBORS = size_of_field(numE, 8) ;
    int SIZE_GROUND_TRUTH =size_of_field(numV, 4); // redundant
 
    int BASE_DIST = 16;
@@ -611,9 +611,10 @@ void WriteOutputMaxflow(FILE* fp) {
    data[10] = log_global_relabel_interval;
    data[11] = global_relabel_mask;
    data[12] = iteration_no_mask;
+   data[13] = 0;
 
 
-   for (int i=0;i<13;i++) {
+   for (int i=0;i<14;i++) {
       printf("header %d: %x\n", i, data[i]);
    }
    //todo ground truth
@@ -633,19 +634,18 @@ void WriteOutputMaxflow(FILE* fp) {
    for (Adj e : graph[startNode].adj) {
       startNodeExcess += e.d_cm;
    }
+   // dist structure 0 - excess; 1 - {8'b counter, 24'b min_neighbor_height}
+   // 2 - height , 3 - visited
    data[BASE_DIST + startNode*16 +0 ] = startNodeExcess;
-   data[BASE_DIST + startNode*16 +1 ] = 1;
-   data[BASE_DIST + startNode*16 +2 ] = csr_offset[startNode+1] - csr_offset[startNode];
-   data[BASE_DIST + startNode*16 +4 ] = numV; // height
-   data[BASE_DIST + endNode*16 +1 ] = 1;
+   data[BASE_DIST + startNode*16 +1 ] = 0;
+   data[BASE_DIST + startNode*16 +2 ] = numV; // height
    printf("StartNodeExcess %d\n", startNodeExcess);
 
    for (uint32_t i=0;i<numE;i++) {
-      data[ BASE_NEIGHBORS +i*4 ] = csr_neighbors[i].n;
-      data[ BASE_NEIGHBORS +i*4+1 ] = csr_neighbors[i].d_cm;
-      data[ BASE_NEIGHBORS +i*4+2 ] = csr_neighbors[i].index;
-      //printf("edge %d: %d %d %d \t%x\n",i, csr_neighbors[i].n, csr_neighbors[i].d_cm,
-      //         csr_neighbors[i].index, (BASE_NEIGHBORS +i*4)*4);
+      data[ BASE_NEIGHBORS +i*2 ] =  (csr_neighbors[i].index << 24) + csr_neighbors[i].n;
+      data[ BASE_NEIGHBORS +i*2+1 ] = csr_neighbors[i].d_cm;
+      //printf("edge %2d: %2d %2d %2d \t%x\n",i, csr_neighbors[i].n, csr_neighbors[i].d_cm,
+      //         csr_neighbors[i].index, (BASE_NEIGHBORS +i*2)*4);
    }
    printf("Writing file \n");
    for (int i=0;i<BASE_END;i++) {

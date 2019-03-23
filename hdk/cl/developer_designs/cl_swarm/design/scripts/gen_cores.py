@@ -7,6 +7,7 @@ app = sys.argv[1]
 # Should be run from cl_swarm/design
 configs = open("apps/"+app+"/config.vh")
 arg_width = 0
+data_width = 32
 
 cores = []
 
@@ -18,6 +19,9 @@ for line in configs:
         continue
     if (line.find("ARG_WIDTH") >=0):
         arg_width = int(line.split()[1])
+    if (line.find("DATA_WIDTH") >=0):
+        # AXI WDATA and RDATA only. undo-log-width is still configurable
+        data_width = int(line.split()[1])
     if (line.find("mt_core")>=0):
         [core_type, n_threads] = line.split()[1:3]
         if (n_threads <= 1) :
@@ -86,7 +90,7 @@ core_inst = """
         .m_axi_l1_V_AWSIZE  (l1.awsize),
         .m_axi_l1_V_WVALID  (l1.wvalid),
         .m_axi_l1_V_WREADY  (l1.wready),
-        .m_axi_l1_V_WDATA   (l1.wdata[31:0]),
+        .m_axi_l1_V_WDATA   (l1.wdata[$data_width:0]),
         .m_axi_l1_V_WSTRB   (l1.wstrb[3:0]),
         .m_axi_l1_V_WLAST   (l1.wlast),
         .m_axi_l1_V_ARVALID (l1.arvalid),
@@ -96,7 +100,7 @@ core_inst = """
         .m_axi_l1_V_ARSIZE  (l1.arsize),
         .m_axi_l1_V_RVALID  (ap_l1_rvalid),
         .m_axi_l1_V_RREADY  (ap_l1_rready),
-        .m_axi_l1_V_RDATA   (l1.rdata[31:0]),
+        .m_axi_l1_V_RDATA   (l1.rdata[$data_width:0]),
         .m_axi_l1_V_RLAST   (ap_l1_rlast),
         .m_axi_l1_V_RID     (1'b0),
         .m_axi_l1_V_RRESP   (l1.rresp),
@@ -118,7 +122,7 @@ for i in range(len(cores)):
     core_spec.write('\t\tassign task_araddr = ' + str(task_type) +  ';\n')
     core_spec.write('\t\t' + core_type + ' APP_CORE (\n')
 
-    core_spec.write(core_inst)
+    core_spec.write(core_inst.replace('$data_width', str(data_width-1)))
 
     core_spec.write('\t);\n')
     core_spec.write('\tend\n')
