@@ -34,7 +34,7 @@ package swarm;
    parameter SERIALIZER_LOGGING = 0;
    parameter L2_LOGGING = 0;
    parameter CORE_LOGGING = 0;
-   parameter CORE_STATE_STATS = 0;
+   parameter CORE_STATE_STATS = 1;
    parameter SERIALIZER_STATS = 1;
    parameter TQ_STATS = 1;
    parameter CQ_STATS = 1;
@@ -60,7 +60,7 @@ package swarm;
    parameter LOG_CQ_SLICE_SIZE = 7;
    parameter LOG_TQ_SIZE = 12;
    parameter TQ_STAGES = 13; 
-   parameter LOG_READY_LIST_SIZE = 3;
+   parameter LOG_READY_LIST_SIZE = 4;
    parameter LOG_L2_BANKS = 0;
 
    parameter LOG_LAST_DEQ_VT_CACHE = 9; // must be >=4, 0 to turn off
