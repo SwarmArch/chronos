@@ -115,7 +115,7 @@ for (i=0;i<NUM_SI;i++) begin
    if (N_DDR_CTRL == 1) begin
       assign s_aw_port[i] = 2;
    end else if (N_DDR_CTRL == 2) begin
-      assign s_aw_port[i] = {1'b1, s_awaddr[i][6]};
+      assign s_aw_port[i] = s_awaddr[i][6] ? 3 : 2;
    end else begin
       assign s_aw_port[i] = s_awaddr[i][7:6];
    end
@@ -261,7 +261,7 @@ for (i=0;i<NUM_SI;i++) begin
    if (N_DDR_CTRL == 1) begin
       assign s_ar_port[i] = 2;
    end else if (N_DDR_CTRL == 2) begin
-      assign s_ar_port[i] = {1'b1, s_araddr[i][6]};
+      assign s_ar_port[i] = s_araddr[i][6] ? 3 :2 ;
    end else begin
       assign s_ar_port[i] = s_araddr[i][7:6];
    end

@@ -230,7 +230,7 @@ always_comb begin
       end
       WAIT_PARENT: begin
          if (m_axi_l1_V_RVALID) begin
-            if( (NON_SPEC & ( task_rdata.ts < m_axi_l1_V_RDATA)) |
+            if( (NON_SPEC & ( gScore < m_axi_l1_V_RDATA)) |
                 (!NON_SPEC &  (m_axi_l1_V_RDATA == '1) ) ) begin 
                state_next = CHECK_TARGET; // can write dist in parallel
                wr_begin = 1'b1;
