@@ -1,0 +1,330 @@
+AFI PCI  Vendor ID: 0x1d0f, Device ID 0xf000
+File 0xea6010
+File Len 7715840
+Write success
+Loading code... Success
+8 tiles, 12 cores each
+Non spec 0
+TQ Size 11 CQ Size 7
+L2 banks: 1 Ready list size: 16
+PCI latency 132 cycles
+Spill Alloc 40000000 04000000
+Setting Base Addresses
+Setting Base Addresses
+Setting Base Addresses
+Setting Base Addresses
+Setting Base Addresses
+Setting Base Addresses
+Setting Base Addresses
+Setting Base Addresses
+PCI latency 132 cycles
+pc 0
+app 2
+APP_DES
+Enquing initial task 0
+Enquing initial task 1
+Enquing initial task 2
+Enquing initial task 3
+Enquing initial task 4
+Enquing initial task 5
+Enquing initial task 6
+Enquing initial task 7
+Enquing initial task 8
+Enquing initial task 9
+Enquing initial task 10
+Enquing initial task 11
+Enquing initial task 12
+Enquing initial task 13
+Enquing initial task 14
+Enquing initial task 15
+Enquing initial task 16
+Enquing initial task 17
+Enquing initial task 18
+Enquing initial task 19
+Enquing initial task 20
+Enquing initial task 21
+Enquing initial task 22
+Enquing initial task 23
+Enquing initial task 24
+Enquing initial task 25
+Enquing initial task 26
+Enquing initial task 27
+Enquing initial task 28
+Enquing initial task 29
+Enquing initial task 30
+Enquing initial task 31
+Enquing initial task 32
+Enquing initial task 33
+Enquing initial task 34
+Enquing initial task 35
+Enquing initial task 36
+Enquing initial task 37
+Enquing initial task 38
+Enquing initial task 39
+Enquing initial task 40
+Enquing initial task 41
+Enquing initial task 42
+Enquing initial task 43
+Enquing initial task 44
+Enquing initial task 45
+Enquing initial task 46
+Enquing initial task 47
+Enquing initial task 48
+Enquing initial task 49
+Enquing initial task 50
+Enquing initial task 51
+Enquing initial task 52
+Enquing initial task 53
+Enquing initial task 54
+Enquing initial task 55
+Enquing initial task 56
+Enquing initial task 57
+Enquing initial task 58
+Enquing initial task 59
+Enquing initial task 60
+Enquing initial task 61
+Enquing initial task 62
+Enquing initial task 63
+Enquing initial task 64
+Enquing initial task 65
+Enquing initial task 66
+Enquing initial task 67
+Enquing initial task 68
+Enquing initial task 69
+Enquing initial task 70
+Enquing initial task 71
+Enquing initial task 72
+Enquing initial task 73
+Enquing initial task 74
+Enquing initial task 75
+Enquing initial task 76
+Enquing initial task 77
+Enquing initial task 78
+Enquing initial task 79
+Enquing initial task 80
+Enquing initial task 81
+Enquing initial task 82
+Enquing initial task 83
+Enquing initial task 84
+Enquing initial task 85
+Enquing initial task 86
+Enquing initial task 87
+Enquing initial task 88
+Enquing initial task 89
+Enquing initial task 90
+Enquing initial task 91
+Enquing initial task 92
+Enquing initial task 93
+Enquing initial task 94
+Enquing initial task 95
+Enquing initial task 96
+Enquing initial task 97
+Enquing initial task 98
+Enquing initial task 99
+Enquing initial task 100
+Enquing initial task 101
+Enquing initial task 102
+Enquing initial task 103
+Enquing initial task 104
+Enquing initial task 105
+Enquing initial task 106
+Enquing initial task 107
+Enquing initial task 108
+Enquing initial task 109
+Enquing initial task 110
+Enquing initial task 111
+Enquing initial task 112
+Enquing initial task 113
+Enquing initial task 114
+Enquing initial task 115
+Enquing initial task 116
+Enquing initial task 117
+Enquing initial task 118
+Enquing initial task 119
+Enquing initial task 120
+Enquing initial task 121
+Enquing initial task 122
+Enquing initial task 123
+Enquing initial task 124
+Enquing initial task 125
+Enquing initial task 126
+Enquing initial task 127
+Enquing initial task 128
+Starting SSSP
+PCI latency 132 cycles
+mask 7fff
+Waiting until SSSP completes
+pc 0
+iters 11233
+Tile 0 core state stats
+ 0:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 1:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 2:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 3:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 4:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 5:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 6:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 7:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 8:         0          0          0          0          0          0          0          0          0          0          0          0 
+ 9:         0          0          0          0          0          0          0          0          0          0          0          0 
+10:         0          0          0          0          0          0          0          0          0          0          0          0 
+11:         0          0          0          0          0          0          0          0          0          0          0          0 
+12:         0          0          0          0          0          0          0          0          0          0          0          0 
+13:         0          0          0          0          0          0          0          0          0          0          0          0 
+14:         0          0          0          0          0          0          0          0          0          0          0          0 
+15:         0          0          0          0          0          0          0          0          0          0          0          0 
+16:         0          0          0          0          0          0          0          0          0          0          0          0 
+17:         0          0          0          0          0          0          0          0          0          0          0          0 
+18:         0          0          0          0          0          0          0          0          0          0          0          0 
+19:         0          0          0          0          0          0          0          0          0          0          0          0 
+20:         0          0          0          0          0          0          0          0          0          0          0          0 
+21:         0          0          0          0          0          0          0          0          0          0          0          0 
+22:         0          0          0          0          0          0          0          0          0          0          0          0 
+23:         0          0          0          0          0          0          0          0          0          0          0          0 
+24:         0          0          0          0          0          0          0          0          0          0          0          0 
+25:         0          0          0          0          0          0          0          0          0          0          0          0 
+26:         0          0          0          0          0          0          0          0          0          0          0          0 
+27:         0          0          0          0          0          0          0          0          0          0          0          0 
+28:         0          0          0          0          0          0          0          0          0          0          0          0 
+29:         0          0          0          0          0          0          0          0          0          0          0          0 
+30:         0          0          0          0          0          0          0          0          0          0          0          0 
+31:         0          0          0          0          0          0          0          0          0          0          0          0 
+32:         0          0          0          0          0          0          0          0          0          0          0          0 
+33:         0          0          0          0          0          0          0          0          0          0          0          0 
+34:         0          0          0          0          0          0          0          0          0          0          0          0 
+35:         0          0          0          0          0          0          0          0          0          0          0          0 
+36:         0          0          0          0          0          0          0          0          0          0          0          0 
+37:         0          0          0          0          0          0          0          0          0          0          0          0 
+38:         0          0          0          0          0          0          0          0          0          0          0          0 
+39:         0          0          0          0          0          0          0          0          0          0          0          0 
+40:         0          0          0          0          0          0          0          0          0          0          0          0 
+41:         0          0          0          0          0          0          0          0          0          0          0          0 
+42:         0          0          0          0          0          0          0          0          0          0          0          0 
+43:         0          0          0          0          0          0          0          0          0          0          0          0 
+44:         0          0          0          0          0          0          0          0          0          0          0          0 
+45:         0          0          0          0          0          0          0          0          0          0          0          0 
+46:         0          0          0          0          0          0          0          0          0          0          0          0 
+47:         0          0          0          0          0          0          0          0          0          0          0          0 
+48:         0          0          0          0          0          0          0          0          0          0          0          0 
+49:         0          0          0          0          0          0          0          0          0          0          0          0 
+50:         0          0          0          0          0          0          0          0          0          0          0          0 
+51:         0          0          0          0          0          0          0          0          0          0          0          0 
+52:         0          0          0          0          0          0          0          0          0          0          0          0 
+53:         0          0          0          0          0          0          0          0          0          0          0          0 
+54:         0          0          0          0          0          0          0          0          0          0          0          0 
+55:         0          0          0          0          0          0          0          0          0          0          0          0 
+56:         0          0          0          0          0          0          0          0          0          0          0          0 
+57:         0          0          0          0          0          0          0          0          0          0          0          0 
+58:         0          0          0          0          0          0          0          0          0          0          0          0 
+59:         0          0          0          0          0          0          0          0          0          0          0          0 
+60:         0          0          0          0          0          0          0          0          0          0          0          0 
+61:         0          0          0          0          0          0          0          0          0          0          0          0 
+62:         0          0          0          0          0          0          0          0          0          0          0          0 
+63:         0          0          0          0          0          0          0          0          0          0          0          0 
+64:         0          0          0          0          0          0          0          0  234561216  234561728  234561728  234562752 
+65:         0          0          0          0          0          0          0          0      32767      32767      32767      32767 
+66:         0          0          0          0          0          0          0          0 -288362336 -288362336         12 -288362336 
+67:         0          0          0          0          0          0          0          0      32679      32679          0      32679 
+68:         0          0          0          0          0          0          0          0          0          0         -1          0 
+69:         0          0          0          0          0          0          0          0      32767      32767          0      32767 
+70:         0          0          0          0          0          0          0          0         -1         -1          0         -1 
+71:         0          0          0          0          0          0          0          0         -1         -1          0         -1 
+72:         0          0          0          0          0          0          0          0          0          0  234561744          0 
+73:         0          0          0          0          0          0          0          0         10         10      32767         10 
+74:         0          0          0          0          0          0          0 -291795396          4          4 -291940244          4 
+75:         0          0          0          0          0          0          0      32679          0          0      32679          0 
+76:         0          0          0          0          0          0          0          3         32         32  805306416         32 
+77:         0          0          0          0          0          0          0          0          0          0          0          0 
+78:         0          0          0          0          0          0          0 -291795396          0          0         -1          0 
+79:         0          0          0          0          0          0          0          0          0          0          0          0 
+80:         0          0          0          0          0          0          0          0          0          0          0          0 
+81:         0          0          0          0          0          0          0          0      98222      98222      65534      98222 
+82:    -42747     -41758     -41084     -40236     -39769     -38644     -38315 -291833124     -37019     -35772 -291974823     -20487 
+83:   1497384    1497384    1497384    1497384    1497384    1497384    1497384    1497384    1497384    1497384    1497384    1497384 
+84:     42747      41758      41084      40236      39769      38644      38315  291833124     -61203     -62450  291909289     -77735 
+W0:         0          0          0          0          0          0          0          0          0          0          0          0 
+W1:         0          0          0          0          0          0          0          0          0          0          0          0 
+W2:         0          0          0          0          0          0          0          0          0          0          0          0 
+W3:         0          0          0          0          0          0          0          0          0          0          0          0 
+W4:         0          0          0          0          0          0          0          0          0          0          0          0 
+W5:         0          0          0          0          0          0          0          0          0          0          0          0 
+W6:         0          0          0          0          0          0          0          0          0          0          0          0 
+W7:         0          0          0          0          0          0          0          0          0          0          0          0 
+Tile 0 stats:
+STAT_N_UNTIED_ENQ                 527
+STAT_N_TIED_ENQ_ACK            410596
+STAT_N_TIED_ENQ_NACK                0
+STAT_N_DEQ_TASK                412685
+STAT_N_SPLITTER_DEQ                 0
+STAT_N_DEQ_MISMATCH             14101
+STAT_N_CUT_TIES_MATCH          365657
+STAT_N_CUT_TIES_MISMATCH        25139
+STAT_N_CUT_TIES_COM_ABO           552
+STAT_N_COMMIT_TIED              25691
+STAT_N_COMMIT_UNTIED           365632
+STAT_N_COMMIT_MISMATCH              0
+STAT_N_ABORT_CHILD_DEQ           5771
+STAT_N_ABORT_CHILD_NOT_DEQ      14029
+STAT_N_ABORT_CHILD_MISMATCH         0
+STAT_N_ABORT_TASK               15695
+STAT_N_COAL_CHILD                   0
+STAT_N_OVERFLOW                     0
+state:0    1525308    state:1          0    state:2          0    state:3          0    
+state:4          0    state:5          0    state:6          0    state:7          0    
+Heap enq: 426818, deq+abort 426714
+Tied_Enq :410596, 410596
+Cum Tasks:      4601 heap_util:      2504
+avg Tasks:201.37 heap_util:109.59
+heap enq:   185221 deq:   185221 replace:   241597
+cycles deq_valid:   937092
+CQ stats 
+state:0     854739    state:1      84537    state:2      14908    state:3      97498    
+state:4      18427    state:5     426608    state:6          0    state:7          0    
+aborts: resource:7786, gvt:0
+cycles in aborts: resource:74884, gvt:0
+stall cycles: cq_full:    56050, cc_full:   280695, no_task:   112969
+ttype:0 deq:   409992 commit:   389018
+ttype:1 deq:     2693 commit:     2305
+ttype:2 deq:        0 commit:        0
+ttype:3 deq:        0 commit:        0
+ttype:4 deq:        0 commit:        0
+conflict none:0 bypass:0 miss:0 real:0
+useful work:         793980
+aborted work:        162223
+conflict checks:      84537
+stall_cq:             56050
+stall_no_core:       294618
+stall_no_task:       105976
+cum commit_cycles:       13634748 cum_abort_cycles:        1266155
+        num_enq   num_deq othercore   cq_full   no_task     what?  no_ready
+ 1:       42747     40576      2735     10372     31762         8        39
+ 2:       41758     39925      5528     14891     39591         9        24
+ 3:       41084     39334      8415     17735     45677         9        45
+ 4:       40236     38742     11537     19777     51609         9        35
+ 5:       39769     38140     14816     21502     57670         9        55
+ 6:       38644     37672     18115     22253     62908         9        29
+ 7:       38315     36891     21633     23695     69486         9        47
+ 8:       37728     36118     25364     24886     75157         9        63
+ 9:       37023     35148     29418     25764     80817         9        66
+10:       35776     34303     33685     27196     88593         9        77
+11:       34579     33143     38613     28787     95899         9       106
+12:       20491      2693    358566     63543    608645     34492    177451
+cum CQ stall cycles 451072
+Completed, flushing cache..
+num tasks Tile:0     412685 Total:   3301480
+Tile:0 L2 bank 0
+	L2 Read  hits:   907065 misses:     1066 
+	L2 Write hits:   421312 misses:        0 
+	L2 Evictions :       10 
+	L2 hit-rate 99.92%
+	retry:  stall:        0, not_empty:     1006, count:      530
+	stall_in     :        0
+Task Unit Ops 860835, num_edges 2224
+FPGA cycles 1497384  (11.979072 ms) (3.628395 cycles/task/tile)
+Read BW      45.56 MB/s
+Write BW      0.43 MB/s
+L2 Tag contention 88.86%
+L2 accesses per task  3.22
+Task Unit contention 57.49%
+Flush completed, reading results..
+vid:1213 dist:    1, ref:    1, MATCH, num_errors: 0 / 65
