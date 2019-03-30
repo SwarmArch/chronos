@@ -106,9 +106,14 @@ always_ff @(posedge clk) begin
    end else if (state == COAL_ENQ_SPLITTER & coal_child_valid & coal_child_ready) begin
       coal_id <= coal_id + 1;
    end
-   if (state == COAL_WRITE_TASK & tasks_remaining == TASKS_PER_SPLITTER &
-         l1.wvalid & l1.wready) begin
-      coal_ts <= spill_fifo_rd_data.ts;
+   if (state == COAL_WRITE_TASK & l1.wvalid & l1.wready) begin
+      if (tasks_remaining == TASKS_PER_SPLITTER) begin
+         coal_ts <= spill_fifo_rd_data.ts;
+      end else if (NON_SPEC) begin
+         if (coal_ts > spill_fifo_rd_data.ts) begin
+            coal_ts <= spill_fifo_rd_data;
+         end
+      end
    end
 end
 
