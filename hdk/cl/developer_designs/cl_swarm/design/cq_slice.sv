@@ -995,6 +995,7 @@ logic [31:0] cycles_in_gvt_abort;
 logic [63:0] cum_commit_cycles;
 logic [63:0] cum_abort_cycles;
 
+logic [47:0] cum_occ;
 logic [31:0] start_task_cycle [0:2**LOG_CQ_SLICE_SIZE-1];
 logic [31:0] task_cycles [0:2**LOG_CQ_SLICE_SIZE-1];
 
@@ -1066,7 +1067,31 @@ if (CQ_STATS[TILE_ID]) begin
       end
    end
    */
+   
+   logic [7:0] cq_occupancy;
+   logic cq_occ_inc;
+   logic cq_occ_dec_commit;
+   logic cq_occ_dec_task_abort;
+   logic cq_occ_dec_child_abort;
+   assign cq_occ_inc = (deq_task_valid & deq_task_ready);
+   assign cq_occ_dec_commit = (tq_commit_task_valid & tq_commit_task_ready);
+   assign cq_occ_dec_task_abort = (to_tq_abort_valid & to_tq_abort_ready);
+   assign cq_occ_dec_child_abort = (from_tq_abort_valid & from_tq_abort_ready) & 
+                     !(cq_occ_dec_task_abort & (ts_check_id == from_tq_abort_slot));
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         cq_occupancy <= 0;
+         cum_occ <= 0;
+      end else begin
+         cq_occupancy <= cq_occupancy + cq_occ_inc - 
+                         (cq_occ_dec_commit + cq_occ_dec_task_abort + 
+                          cq_occ_dec_child_abort);
+         //cum_occ <=  cum_occ + cq_occupancy;
+         //Ugly hack before the deadline FIXME
+         cum_occ <=  cum_occ + (cq_valid[cur_cycle[LOG_CQ_SLICE_SIZE-1:0]]);
+      end
 
+   end
 
 
    always_ff@(posedge clk) begin
@@ -1138,6 +1163,9 @@ always_ff @(posedge clk) begin
          
          CQ_STAT_CYCLES_IN_RESOURCE_ABORT : reg_bus.rdata <= cycles_in_resource_abort;
          CQ_STAT_CYCLES_IN_GVT_ABORT : reg_bus.rdata <= cycles_in_gvt_abort;
+         
+         CQ_CUM_OCC_LSB : reg_bus.rdata <= cum_occ[31:0];
+         CQ_CUM_OCC_MSB : reg_bus.rdata <= cum_occ[47:32];
          
          CQ_DEQ_TASK_STATS : reg_bus.rdata <= deq_stats[lookup_entry];
          CQ_COMMIT_TASK_STATS : reg_bus.rdata <= commit_stats[lookup_entry];

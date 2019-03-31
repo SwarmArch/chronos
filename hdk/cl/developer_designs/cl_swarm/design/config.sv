@@ -391,6 +391,10 @@ package swarm;
    parameter CQ_STAT_N_IDLE_NO_TASK    = 8'h78;
    parameter CQ_STAT_CYCLES_IN_RESOURCE_ABORT    = 8'h80;
    parameter CQ_STAT_CYCLES_IN_GVT_ABORT    = 8'h84;
+   parameter CQ_CUM_OCC_LSB   = 8'h88;
+   parameter CQ_CUM_OCC_MSB   = 8'h8c;
+
+
    
    parameter CQ_LOOKUP_TS              = 8'h90;
    parameter CQ_LOOKUP_TB              = 8'h94;
