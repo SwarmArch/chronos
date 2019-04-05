@@ -18,7 +18,7 @@ sssp n 64 268
 sssp n 96 189
 sssp n 144 142
 sssp n 192 124
-sssp s 1 16000
+sssp s 1 16024
 sssp s 12 1073
 sssp s 24 495
 sssp s 64 354
@@ -48,22 +48,22 @@ maxflow s 72 53
 astar c 1 607
 astar c 20 45
 astar c 40 40
-astar s 1 3000
+astar s 1 3110
 astar s 10 298
-astar s 40 64
-astar n 1 3000
+astar s 40 64.2
+astar n 1  3046
 astar n 10 273
-astar n 80 20
+astar n 80 20.5
 
 color c 1 205
 color c 10 31.8
 color c 20 23.7
 color c 40 26.1
-color n 1 3000
+color n 1 3206
 color n 12 456 
 color n 24 244 
 color n 48 130 
-color n 48 75 
+color n 96 75 
 
 
 

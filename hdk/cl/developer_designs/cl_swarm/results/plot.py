@@ -32,6 +32,22 @@ for app in data:
             speedups[app][l][0].append(c/max_cores * 100)
             speedups[app][l][1].append( norm /  data[app][l][c])
 print(speedups)
+for app in data:
+    max_cpu_cores = 40
+    if (app=='maxflow'):
+        max_cpu_cores = 6;
+    if (app=='color'):
+        max_cpu_cores = 20;
+    cpu_self_relative = data[app]['c'][1] / data[app]['c'][max_cpu_cores]
+    print([app, 'cpu self-relative', cpu_self_relative])
+    for l in data[app]:
+        if (l=='c'):
+            continue
+        eff_factor = (data[app]['c'][1] / data[app][l][1])
+        max_cores = max(data[app][l].keys())
+        fpga_self_relative = (data[app][l][1] / data[app][l][max_cores])
+        print([app,l, eff_factor, fpga_self_relative] ) 
+
 x = np.linspace(0, 2, 130)
 
 f, axarr = plt.subplots(3,2)
@@ -46,31 +62,32 @@ app_plot_loc = {'des':[0,0],
                 'astar' : [1,1],
                 'color' : [2,0] }
 
+lw = 2
 
 l1 = axarr[1, 0].plot( speedups['sssp']['c'][0], speedups['sssp']['c'][1],
-        color=color_baseline)[0]
+        color=color_baseline, linewidth=lw)[0]
 l2 = axarr[1, 0].plot( speedups['sssp']['n'][0], speedups['sssp']['n'][1],
-        color=color_nonspec)[0]
+        color=color_nonspec, linewidth=lw)[0]
 l3 = axarr[1, 0].plot( speedups['sssp']['s'][0], speedups['sssp']['s'][1],
-        color=color_spec)[0]
+        color=color_spec, linewidth=lw)[0]
 axarr[0, 0].plot( speedups['des']['c'][0], speedups['des']['c'][1],
-        color=color_baseline)[0]
+        color=color_baseline, linewidth=lw)[0]
 axarr[0, 0].plot( speedups['des']['s'][0], speedups['des']['s'][1],
-        color=color_spec)[0]
+        color=color_spec, linewidth=lw)[0]
 axarr[0, 1].plot( speedups['maxflow']['c'][0], speedups['maxflow']['c'][1],
-        color=color_baseline)[0]
+        color=color_baseline, linewidth=lw)[0]
 axarr[0, 1].plot( speedups['maxflow']['s'][0], speedups['maxflow']['s'][1],
-        color=color_spec)[0]
+        color=color_spec, linewidth=lw)[0]
 axarr[1, 1].plot( speedups['astar']['c'][0], speedups['astar']['c'][1],
-        color=color_baseline)[0]
+        color=color_baseline, linewidth=lw)[0]
 axarr[1, 1].plot( speedups['astar']['s'][0], speedups['astar']['s'][1],
-        color=color_spec)[0]
+        color=color_spec, linewidth=lw)[0]
 axarr[1, 1].plot( speedups['astar']['n'][0], speedups['astar']['n'][1],
-        color=color_nonspec)[0]
+        color=color_nonspec, linewidth=lw)[0]
 axarr[2, 0].plot( speedups['color']['c'][0], speedups['color']['c'][1],
-        color=color_baseline)[0]
+        color=color_baseline, linewidth=lw)[0]
 axarr[2, 0].plot( speedups['color']['n'][0], speedups['color']['n'][1],
-        color=color_nonspec)[0]
+        color=color_nonspec, linewidth=lw)[0]
 axarr[0,0].set(xlabel='% system used', ylabel='Speedup')
 axarr[1,1].set(xlabel='% system used')
 axarr[0,1].set(xlabel='% system used')
@@ -95,5 +112,5 @@ f.subplots_adjust(hspace=0.5, wspace=0.4)
 #plt.legend()
 #plt.show()
 
-f.savefig("foo.pdf", bbox_inches='tight')
+f.savefig("speedup.pdf", bbox_inches='tight')
 

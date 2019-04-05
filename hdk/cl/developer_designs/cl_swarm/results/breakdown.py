@@ -12,16 +12,20 @@ color_stall_states = [7, 9, 11, 14, 18, 21, 24, 26, 29]
 color_enq_states = [4, 5, 16, 22, 27, 32]
 astar_stall_states = [2, 4, 6, 8, 10, 13, 15]
 astar_enq_states = [16]
+des_stall_states = [2, 4, 6, 8, 11, 13, 14]
+des_enq_states = []
 # Return dict 
 def getData(app, file):
     fres = open(file,'r')
     data = {}
     reading_core_breakdown = False
     reading_stall_breakdown = False
+    n_tiles = 0
     n_cores = 0
     tot_cycles = 0
     non_spec = 0
     ret = {}
+    ret['commit_frac'] = 1.0
     if (app == 'maxflow'):
         stall_states = maxflow_stall_states;
         enq_states = maxflow_enq_states
@@ -34,12 +38,17 @@ def getData(app, file):
     if (app == 'astar') :
         stall_states = astar_stall_states;
         enq_states = astar_enq_states;
+    if (app == 'des') :
+        stall_states = des_stall_states;
+        enq_states = des_enq_states;
     for line in fres:
         if (line.find('cores each')>=0):
             sp = line.split()
             n_cores = int(sp[2])
             if (app == "astar"):
                 n_cores -=2
+            if (app == "des"):
+                n_cores -=1
             state_stats = [ [0 for x in range(128)] for y in range(n_cores) ]
             stall_stats = [ [0 for x in range(7)] for y in range(n_cores) ]
             wrapper_stats = [ [0 for x in range(8)] for y in range(n_cores) ]
@@ -59,10 +68,25 @@ def getData(app, file):
         if (line.find('num_enq')>=0):
             reading_stall_breakdown = True
             continue;
+        if (line.find('CQ occ')>=0):
+            sp = line.replace(',',' ').split()
+            print(sp)
+            ret['cqsize'] = float(sp[-1]) *n_tiles
         if (line.find('cum CQ')>=0):
             reading_stall_breakdown = False
+        if (line.find('cores each')>=0):
+            n_tiles = int(line.split()[0])
         if (line.find('avg Tasks')>=0):
             sp = line.replace(':', ' ').split()
+            ret['avgTasks'] = float(sp[2]) * n_tiles
+            ret['heapUtil'] = float(sp[4]) * n_tiles
+            print(sp)
+        if (line.find('cum commit')>=0):
+            sp = line.replace(':', ' ').split()
+            ret['commit_frac'] =  int(sp[2])/(int(sp[2])+int(sp[4]))
+            #if (app=='des'):
+                # Temp until I get des 8t cycle breakdowns 
+            #    ret['commit_frac'] = (13.6/(13.6+1.2))
             print(sp)
         if (reading_core_breakdown):
             sp = line.split()
@@ -140,168 +164,191 @@ def getData(app, file):
     ret['no_task'] = sum(no_task) * 100 /total
     ret['other_core'] = sum(other_core) * 100 /total
 
+
     return ret
 
 apps = {}
 
+apps['des'] = getData('des', 'logs/des_8t_ks_cq_6')
 apps['maxflow'] = getData('maxflow', 'logs/maxflow_6t_37')
 apps['sssp'] = getData('sssp', 'logs/sssp_8t_USA')
-apps['astar'] = getData('astar', 'logs/astar_spec_4t_germany')
-apps['color'] = getData('color', 'logs/color_4t_youtube')
+apps['astar'] = getData('astar', 'logs/astar_4t_germany')
+#apps['color'] = getData('color', 'logs/color_4t_youtube')
 
-print(apps)
-mpl_fig = plt.figure()
-ax = mpl_fig.add_subplot(111)
+plot_commit_abort = True
+
+print(apps['des'])
+mpl_fig, ax = plt.subplots(figsize=(11,6))
+#ax = mpl_fig.add_subplot(111, figsize=(5,10))
 N = 4
-app_list = ['maxflow', 'sssp', 'astar', 'color']
- 
+app_list = ['des' ,'maxflow', 'sssp', 'astar', ]
+
 work = [ apps[app]['work'] + apps[app]['oh'] for app in app_list ]
-mem_stall = [ apps[app]['mem_stall'] + apps[app]['other_core'] for app in app_list ] 
+mem_stall = [ apps[app]['mem_stall'] for app in app_list ] 
 cq_full = [ apps[app]['cq_full'] + apps[app]['serialize'] for app in app_list ] 
-enq_stall = [ apps[app]['enq_stall'] for app in app_list ] 
+enq_stall = [ apps[app]['enq_stall'] + apps[app]['other_core'] for app in app_list ] 
 no_task = [ apps[app]['no_task'] for app in app_list ] 
 other_core = [ apps[app]['other_core'] for app in app_list ] 
-print(work)
-menMeans = (20, 35, 30, 35, 27)
-womenMeans = (25, 32, 34, 20, 25)
-menStd = (2, 3, 4, 1, 2)
-womenStd = (3, 5, 2, 3, 3)
-ind = np.arange(N)    # the x locations for the groups
-width = 0.45       # the width of the bars: can also be len(x) sequence
 
-p1 = ax.bar(ind, work, width)
-b = work
+cfrac = [ apps[app]['commit_frac'] for app in app_list]
 
-p2 = ax.bar(ind, mem_stall, width, color='green',
-                     bottom=b)
-b = [b[i] +mem_stall[i] for i in range(N)]
-p3 = ax.bar(ind, cq_full, width, color='orange',
-                     bottom=b)
-b = [b[i] +cq_full[i] for i in range(N)]
-p4 = ax.bar(ind, enq_stall, width, color='red',
+commit = [ (work[i] + mem_stall[i]) * cfrac[i] for i in range(N)]
+abort = [ (work[i] + mem_stall[i]) * (1-cfrac[i]) for i in range(N)]
+
+print(['abort fraction', sum(abort)/N])
+
+print(abort)
+ind = np.arange(N)    # the x locations for the groups,
+#ind = [i*0.6 for i in ind]
+print(ind)
+width = 0.65       # the width of the bars: can also be len(x) sequence
+
+if (plot_commit_abort) : 
+
+    p1 = ax.bar(ind, commit, width)
+    b = commit;
+    p2 = ax.bar(ind, abort, width, color='red', bottom=b)
+    b = [b[i] +abort[i] for i in range(N)]
+else :
+    p1 = ax.bar(ind, work, width)
+    b = work
+
+    p2 = ax.bar(ind, mem_stall, width, color='green',
+                         bottom=b)
+    b = [b[i] +mem_stall[i] for i in range(N)]
+p3 = ax.bar(ind, enq_stall, width, color='purple',
                      bottom=b)
 b = [b[i] +enq_stall[i] for i in range(N)]
-p5 = ax.bar(ind, no_task, width, color='aqua',
+p4 = ax.bar(ind, cq_full, width, color='orange',
                      bottom=b)
-ax.set_ylabel('% Cycles', fontsize=18)
-ax.set_xlabel('Applications', fontsize=18)
-ax.set_title('PE Cycle breakdown',fontsize=18)
+b = [b[i] +cq_full[i] for i in range(N)]
+p5 = ax.bar(ind, no_task, width, color='grey',
+                     bottom=b)
+ax.set_ylabel('PE Cycles (%)', fontsize=22)
+ax.set_xlabel('Applications', fontsize=22)
+#ax.set_title('PE Cycle breakdown',fontsize=18)
 
 box = ax.get_position()
 
 ax.set_xticks(ind + width/2.)
 ax.set_ylim([0, 100])
-ax.set_xticklabels(('maxflow', 'sssp', 'astar', 'color'))
+ax.set_xticklabels(('des', 'maxflow', 'sssp', 'astar', ))
 
-mpl_fig.legend( [p1, p2, p3, p4, p5] ,
-          labels = ['Work', 'Memory stalls', 
-            "ROB Stalls", "Enqueue Stalls", "No Task"],
+mpl_fig.legend( [p5, p4, p3, p2, p1 ] ,
+          labels = [
+            "No Task",
+            "Full CQ", 
+            "Enq/Deq\nStalls",
+            'Memory stalls' if not plot_commit_abort else 'Aborted', 
+            'Work' if not plot_commit_abort else 'Committed', 
+            ],
           loc = 'lower right',
-          bbox_to_anchor=(0.88,0.80),
-          ncol = 3
+          bbox_to_anchor=(0.82,0.40),
+          ncol = 1,
+          fontsize = 20
           )
 ax.set_position([box.x0, box.y0, box.width, box.height*0.8])
-ax.tick_params(axis='both', labelsize=18)
+ax.tick_params(axis='both', labelsize=22)
+#plt.gcf().subplots_adjust(top=0.75)
+plt.gcf().subplots_adjust(left=0.15)
+plt.gcf().subplots_adjust(bottom=0.15)
+plt.gcf().subplots_adjust(right=0.55)
 
-mpl_fig.savefig("breakdown.pdf")#, bbox_inches='tight')
+if (plot_commit_abort):
+    mpl_fig.savefig("commit.pdf")#, bbox_inches='tight')
+else:
+    mpl_fig.savefig("cycle_break.pdf")#, bbox_inches='tight')
 
+#### Taks Q Util
+
+tq_util = [ apps[app]['avgTasks'] for app in app_list]
+cq_util = [ apps[app]['cqsize'] for app in app_list]
+
+print(cq_util)
+
+ax1color = 'cornflowerblue'
+ax2color = 'navy'
+#mpl_fig = plt.figure()
+mpl_fig, ax = plt.subplots(figsize=(9.5,6))
+#ax = mpl_fig.add_subplot(111)
+p1 = ax.bar(ind, tq_util, width=0.4, color=ax1color) 
+#ax2 = ax.twinx()
+p2 = ax.bar([i + 0.4 for i in ind], cq_util, width=0.4, color=ax2color) 
+#ax.bar(x1, z, width=0.2, color='b') 
+ax.set_xticks(ind + width/2.)
+ax.set_ylim([0, 1650])
+#ax2.set_ylim([0, 1280])
+ax.set_xticklabels(('des', 'maxflow', 'sssp', 'astar'))
+mpl_fig.legend( [p1, p2] ,
+          labels = [
+            'Avg. TQ Utilization',
+            'Avg. CQ Utilization'
+            ],
+          loc = 'lower right',
+          bbox_to_anchor=(0.57,0.745),
+          ncol = 1,
+          fontsize = 20
+          )
+ax.set_ylabel('Entries Used', fontsize=26)#, color=ax1color)
+#ax2.set_ylabel('TRB Entries', fontsize=22, color=ax2color)
+ax.set_xlabel('Applications', fontsize=26)
+ax.tick_params(axis='both', labelsize=26)
+ax.tick_params(axis='y')#, labelcolor=ax1color)
+#ax2.tick_params(axis='both', labelsize=22)
+#ax2.tick_params(axis='y', labelcolor=ax2color)
+plt.text(3.17 , 1650, '%d' % tq_util[3],
+    ha='center', va='bottom', fontsize=26)
+plt.text(2.17 , 1650, '%d' % tq_util[2],
+    ha='center', va='bottom', fontsize=26)
+#for rect in p1 + p2:
+#    height = rect.get_height()
+
+#    plt.text(rect.get_x() + rect.get_width()/2.0, height, '%d' % int(height),
+#        ha='center', va='bottom')
+
+mpl_fig.tight_layout()
+plt.gcf().subplots_adjust(top=0.93)
+
+mpl_fig.savefig("queue.pdf")#, bbox_inches='tight')
+
+
+
+#### Specialized vs Risc-V
+
+
+mpl_fig = plt.figure()
+mpl_fig, ax = plt.subplots(figsize=(5,5))
+#ax = mpl_fig.add_subplot(111)
+
+custom = [ 1, 1, 1, 1] 
+
+riscv_runtime = [90.3, 259, 1341, 307]
+app_runtime = [ 22.0, 66.4, 495, 129] 
+
+speedup = [riscv_runtime[i] / app_runtime[i] for i in range(4)]
+
+ind = np.arange(4)    # the x locations for the groups
+p1 = ax.bar(ind, speedup, width=0.7, color='mediumseagreen') 
+#p2 = ax.bar([i + 0.2 for i in ind], riscv, width=0.2, color='r') 
+#ax.bar(x1, z, width=0.2, color='b') 
+ax.set_xticks(ind + width/2.)
+ax.set_yticks([0, 1, 2 ,3 ,4])
+#ax.set_ylim([0, 1, 4.5])
+ax.set_xticklabels(('des', 'maxflow', ' sssp', 'color'))
+#mpl_fig.legend( [p1, p2] ,
+#          labels = [
+#            'Application specific PEs',
+#            'RISC-V Soft cores'
+#            ],
+#          loc = 'lower right',
+#          bbox_to_anchor=(0.68,0.75),
+#          ncol = 1
+#          )
+ax.set_ylabel('Speedup from custom cores', fontsize=18)
+ax.set_xlabel('Applications', fontsize=20)
+ax.tick_params(axis='both', labelsize=20)
+mpl_fig.tight_layout()
+mpl_fig.savefig("riscv.pdf")#, bbox_inches='tight')
 
 exit(0)
-
-
-fres = open('runtime.txt','r')
-data = {}
-for line in fres:
-    s = line.split()
-    if (len(s) <3): 
-        continue
-    app = s[0]
-    l = s[1]
-    c = int(s[2])
-    time = float(s[3])
-    if (app not in data):
-        data[app] = {}
-    if (l not in data[app]):
-        data[app][l] = {}
-    data[app][l][c] = time 
-    print(s)
-
-print(data)
-
-speedups = {}
-for app in data:
-    speedups[app] = {}
-    norm = data[app]['c'][1]
-    print([app, norm])
-    for l in data[app]:
-        speedups[app][l] = [[],[]] 
-        max_cores = max(data[app][l].keys())
-        for c in sorted(data[app][l]):
-            speedups[app][l][0].append(c/max_cores * 100)
-            speedups[app][l][1].append( norm /  data[app][l][c])
-print(speedups)
-x = np.linspace(0, 2, 130)
-
-f, axarr = plt.subplots(3,2)
-
-color_baseline = 'red'
-color_nonspec = 'blue'
-color_spec = 'green'
-
-app_plot_loc = {'des':[0,0], 
-                'maxflow' : [0, 1],
-                'sssp' : [1, 0],
-                'astar' : [1,1],
-                'color' : [2,0] }
-
-
-l1 = axarr[1, 0].plot( speedups['sssp']['c'][0], speedups['sssp']['c'][1],
-        color=color_baseline)[0]
-l2 = axarr[1, 0].plot( speedups['sssp']['n'][0], speedups['sssp']['n'][1],
-        color=color_nonspec)[0]
-l3 = axarr[1, 0].plot( speedups['sssp']['s'][0], speedups['sssp']['s'][1],
-        color=color_spec)[0]
-axarr[0, 0].plot( speedups['des']['c'][0], speedups['des']['c'][1],
-        color=color_baseline)[0]
-axarr[0, 0].plot( speedups['des']['s'][0], speedups['des']['s'][1],
-        color=color_spec)[0]
-axarr[0, 1].plot( speedups['maxflow']['c'][0], speedups['maxflow']['c'][1],
-        color=color_baseline)[0]
-axarr[0, 1].plot( speedups['maxflow']['s'][0], speedups['maxflow']['s'][1],
-        color=color_spec)[0]
-axarr[1, 1].plot( speedups['astar']['c'][0], speedups['astar']['c'][1],
-        color=color_baseline)[0]
-axarr[1, 1].plot( speedups['astar']['s'][0], speedups['astar']['s'][1],
-        color=color_spec)[0]
-axarr[1, 1].plot( speedups['astar']['n'][0], speedups['astar']['n'][1],
-        color=color_nonspec)[0]
-axarr[2, 0].plot( speedups['color']['c'][0], speedups['color']['c'][1],
-        color=color_baseline)[0]
-axarr[2, 0].plot( speedups['color']['n'][0], speedups['color']['n'][1],
-        color=color_nonspec)[0]
-axarr[0,0].set(xlabel='% system used', ylabel='Speedup')
-axarr[1,1].set(xlabel='% system used')
-axarr[0,1].set(xlabel='% system used')
-axarr[1,0].set(xlabel='% system used')
-axarr[1,0].set(ylabel='Speedup')
-axarr[2,0].set(xlabel='% system used', ylabel='Speedup')
-
-for app in app_plot_loc:
-    loc = app_plot_loc[app]
-    axarr[loc[0], loc[1]].set_title(app)
-f.legend( [l1, l2, l3] ,
-          labels = ['Baseline CPU', 'Chronos Non-Speculative', 
-            'Chronos Speculative'],
-          loc = 'lower right',
-          bbox_to_anchor=(0.88,0.09),
-          title = "Legend"
-          )
-axarr[2,1].axis('off')
-f.set_size_inches(7.5,8)
-f.subplots_adjust(hspace=0.5, wspace=0.4)
-
-#plt.legend()
-#plt.show()
-
-f.savefig("foo.pdf", bbox_inches='tight')
 
