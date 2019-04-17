@@ -1,9 +1,7 @@
 const int ADDR_BASE_DATA         = 5 << 2;
 const int ADDR_BASE_EDGE_OFFSET  = 3 << 2;
 const int ADDR_BASE_NEIGHBORS    = 4 << 2;
-const int ADDR_BASE_INITLIST     = 9 << 2;
-const int ADDR_BASE_SCRATCH      =10 << 2;
-const int ADDR_BASE_JOIN_COUNTER =11 << 2;
+const int ADDR_BASE_SCRATCH      = 7 << 2;
 const int ADDR_NUMV              = 1 << 2;
 
 const int ADDR_DEQ_TASK      = 0xc0000000;
@@ -31,8 +29,6 @@ uint* edge_offset;
 uint* edge_neighbors;
 
 uint* scratch;
-uint* initlist;
-uint* join_counter;
 uint numV;
 
 void finish_task() {
@@ -79,7 +75,7 @@ void undo_log_write(uint* addr, uint data) {
 void enqueuer_task(uint ts, uint hint, uint enq_start, uint arg1) {
    int n_child = 0;
    uint next_ts;
-   uint enq_end = enq_start + 7;
+   uint enq_end = enq_start + 17;
    if (enq_end > numV) enq_end = numV;
    if (enq_end < numV) {
      enq_task_arg1(ENQUEUER_TASK, /*unordered*/ 0, enq_start << 16, enq_end);
@@ -107,19 +103,19 @@ void calc_in_degree_task(uint ts, uint vid, uint arg0, uint arg1) {
    }
    // A receive_color task tagetted to this could have been executed
    // before join_counter was set.
-   uint cur_counter = join_counter[vid];
+   uint cur_counter = scratch[vid*2+1];
    cur_counter += in_degree;
-   join_counter[vid] = cur_counter;
+   scratch[vid*2+1] = cur_counter;
    //enq_task_arg2(6, ts, vid, cur_counter, x);
    if (cur_counter ==0) {
-      enq_task_arg1(CALC_COLOR_TASK, 1, vid, 0);
+      enq_task_arg1(CALC_COLOR_TASK, 0, vid, 0);
    }
 }
 void calc_color_task(uint ts, uint vid, uint enq_start, uint arg1) {
    // find first unset bit;
    uint bit = 0;
    if (enq_start == 0) {
-       uint vec = scratch[vid];
+       uint vec = scratch[vid*2];
        while (vec & 1) {
           vec >>= 1;
           bit++;
@@ -132,17 +128,17 @@ void calc_color_task(uint ts, uint vid, uint enq_start, uint arg1) {
    uint eo_end = edge_offset[vid+1];
    uint deg = eo_end - eo_begin;
 
-   uint enq_end = enq_start + 7;
+   uint enq_end = enq_start + 17;
    if (enq_end > deg) enq_end = deg;
    if (enq_end < deg) {
-     enq_task_arg1(CALC_COLOR_TASK, 1, vid, enq_end);
+     enq_task_arg1(CALC_COLOR_TASK, 0, vid, enq_end);
    }
 
    for (int i = eo_begin + enq_start; i < eo_begin + enq_end; i++) {
       uint neighbor = edge_neighbors[i];
       uint neighbor_deg = edge_offset[neighbor+1] - edge_offset[neighbor];
       if ( (neighbor_deg < deg) || ((neighbor_deg == deg) & neighbor > vid)) {
-         enq_task_arg2(RECEIVE_COLOR_TASK, 1, neighbor, bit, vid);
+         enq_task_arg2(RECEIVE_COLOR_TASK, 0, neighbor, bit, vid);
       }
    }
 
@@ -153,17 +149,17 @@ void receive_color_task(uint ts, uint vid, uint color, uint neighbor) {
 
    uint vec;
    if (color < 32) {
-      vec = scratch[vid];
+      vec = scratch[vid*2];
       vec = vec | ( 1<<color);
-      scratch[vid] = vec;
+      scratch[vid*2] = vec;
    } // else todo
    //if (vid > 320) {
 
    //}
-   uint counter = join_counter[vid];
+   uint counter = scratch[vid*2+1];
    //enq_task_arg2(8, ts, vid, neighbor, counter);
    counter--;
-   join_counter[vid] = counter;
+   scratch[vid*2+1] = counter;
    if (counter ==0) {
       enq_task_arg1(CALC_COLOR_TASK, 1, vid, 0);
    }
@@ -177,8 +173,6 @@ void main() {
    edge_offset  =(uint*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
    edge_neighbors  =(uint*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
    scratch  =(uint*) ((*(int *)(ADDR_BASE_SCRATCH))<<2);
-   join_counter  =(uint*) ((*(int *)(ADDR_BASE_JOIN_COUNTER))<<2);
-   initlist  =(uint*) ((*(int *)(ADDR_BASE_INITLIST))<<2) ;
    numV  =*(uint *)(ADDR_NUMV) ;
 
    while (1) {

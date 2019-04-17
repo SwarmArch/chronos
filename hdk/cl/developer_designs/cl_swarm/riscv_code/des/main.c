@@ -104,6 +104,7 @@ void enqueuer_task(uint ts, uint comp, uint enq_start, uint arg1) {
     finish_task();
 }
 
+__attribute__((always_inline))
 uint eval_gate(uint in0, uint in1, uint gate_type) {
     if (gate_type == BUF) {
             return in0;
@@ -144,7 +145,7 @@ uint eval_gate(uint in0, uint in1, uint gate_type) {
     return LOGIC_X;
 
 }
-
+__attribute__((always_inline))
 void des_task(uint ts, uint comp, uint port, uint logicVal) {
     uint state = (uint) gate_state[comp];
     uint delay = state & 0xffff;

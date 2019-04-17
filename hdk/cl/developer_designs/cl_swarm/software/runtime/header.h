@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <math.h>
 #include <poll.h>
 #include <assert.h>
 
@@ -160,6 +161,8 @@
 #define CQ_STAT_N_IDLE_NO_TASK    0x78
 #define CQ_STAT_CYCLES_IN_RESOURCE_ABORT    0x80
 #define CQ_STAT_CYCLES_IN_GVT_ABORT         0x84
+#define CQ_CUM_OCC_LSB         0x88
+#define CQ_CUM_OCC_MSB         0x8c
 
 #define CQ_LOOKUP_TS              0x90
 #define CQ_LOOKUP_TB              0x94
@@ -257,20 +260,16 @@ extern uint16_t pci_device_id; /* PCI Device ID preassigned by Amazon for F1 app
 
 typedef struct {
    uint excess;
-   uint active;
-   uint counter;
-   uint min_neighbor_height;
+   uint counter_min_height;
    uint height;
    uint visited;
    // flows of outgoing neighbors. This is in node_prop because
    // it is odified by tasks that access src node
-   int flow[10];
+   int flow[12];
 } maxflow_node_prop_t;
 
 typedef struct {
    uint dest;
    uint capacity;
-   uint reverse_index; // in the destination's edge list
-   uint __aligned__;
 } maxflow_edge_prop_t;
 #endif

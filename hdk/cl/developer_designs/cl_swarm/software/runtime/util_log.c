@@ -989,6 +989,15 @@ void cq_stats (uint32_t tile, uint32_t tot_cycles) {
 
     }
 
+    uint32_t occ_lsb, occ_msb;
+    pci_peek(tile, ID_CQ, CQ_CUM_OCC_LSB, &occ_lsb);
+    pci_peek(tile, ID_CQ, CQ_CUM_OCC_MSB , &occ_msb);
+    double avg_occ = (occ_lsb + 0.0)/tot_cycles;
+    avg_occ *= (1<<LOG_CQ_SIZE);
+    printf("CQ occ (%10d %10d) , %5f\n", occ_msb, occ_lsb,
+            avg_occ);
+
+
     return;
     pci_poke(tile, ID_CQ, CQ_LOOKUP_MODE , 1);
     for (int i=0;i<64;i++) {
@@ -1026,7 +1035,7 @@ void core_stats(uint32_t tile, uint32_t tot_cycles) {
         uint32_t sum_all = 0;
         uint32_t mem_stall =0;
         uint32_t enq_stall = 0;
-        for (int j=0;j<128;j++) {
+        for (int j=0;j<64;j++) {
             pci_poke(tile, i+1, CORE_QUERY_STATE , j);
             pci_peek(tile, i+1, CORE_AP_STATE_STATS , &(core_state_stats[i][j]));
             if (j<8) pci_peek(tile, i+1, CORE_STATE_STATS , &(wrapper_state_stats[i][j]));
@@ -1063,7 +1072,7 @@ void core_stats(uint32_t tile, uint32_t tot_cycles) {
         printf("\n");
     }
     for (int j=0;j<8;j++) {
-        printf("W %2d:", j);
+        printf("W%d:", j);
         for (int i=0;i<N_SSSP_CORES;i++) {
             printf("%10d ", wrapper_state_stats[i][j]);
         }

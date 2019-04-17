@@ -2,7 +2,7 @@ const int ADDR_BASE_DATA         = 5 << 2;
 const int ADDR_BASE_EDGE_OFFSET  = 3 << 2;
 const int ADDR_BASE_NEIGHBORS    = 4 << 2;
 const int ADDR_BASE_INITLIST     = 9 << 2;
-const int ADDR_BASE_SCRATCH      =10 << 2;
+const int ADDR_BASE_SCRATCH      = 7 << 2;
 const int ADDR_NUMV              = 1 << 2;
 
 const int ADDR_DEQ_TASK      = 0xc0000000;

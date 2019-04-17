@@ -265,7 +265,6 @@ void GenerateGridGraph(uint32_t n) {
       }
    }
 
-   /*
    // Add extra edges to get a high-fanout node
    for (int j=30;j<100;j++) {
       Adj e;
@@ -273,7 +272,6 @@ void GenerateGridGraph(uint32_t n) {
       e.d_cm = 0;
       graph[15].adj.push_back(e);
    }
-   */
 }
 
 // code copied from suvinay's maxflow graph generator

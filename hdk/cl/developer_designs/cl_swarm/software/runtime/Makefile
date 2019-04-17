@@ -20,7 +20,7 @@ INCLUDES = -I$(SDK_DIR)/userspace/include
 CC = gcc
 CFLAGS = -DCONFIG_LOGLEVEL=4 -std=gnu99 -g -Wall $(INCLUDES)
 
-LDLIBS = -lfpga_mgmt -lrt -lpthread
+LDLIBS = -lfpga_mgmt -lrt -lpthread -lm
 
 SRC = test_swarm.c util_log.c header.h test_task_unit.c
 OBJ = $(SRC:.c=.o)
