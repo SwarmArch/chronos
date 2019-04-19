@@ -145,6 +145,7 @@ if (PCI_LOGGING) begin
    
    logic log_valid;
    typedef struct packed {
+      logic [31:0] wstrb;
       logic [31:0] awaddr;
       logic [31:0] araddr;
       logic [31:0] arid;
@@ -166,6 +167,7 @@ if (PCI_LOGGING) begin
 
    } pci_log_t;
    pci_log_t log_word;
+   assign log_word.wstrb = pci.wstrb;
    assign log_word.awaddr = pci.awaddr;
    assign log_word.araddr = pci.araddr;
    assign log_word.awid = pci.awid;
