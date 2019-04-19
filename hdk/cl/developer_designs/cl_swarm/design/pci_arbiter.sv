@@ -145,7 +145,7 @@ if (PCI_LOGGING) begin
    
    logic log_valid;
    typedef struct packed {
-      logic [31:0] wstrb;
+      logic [63:0] wstrb;
       logic [31:0] awaddr;
       logic [31:0] araddr;
       logic [31:0] arid;
