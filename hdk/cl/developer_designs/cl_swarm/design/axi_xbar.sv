@@ -84,7 +84,9 @@ module axi_xbar
    input axi_resp_t   [NUM_MI-1:0] m_rresp,
    input              [NUM_MI-1:0] m_rlast,
    input              [NUM_MI-1:0] m_rvalid,
-   output logic       [NUM_MI-1:0] m_rready
+   output logic       [NUM_MI-1:0] m_rready,
+
+   input [2:0]        num_mem_ctrl
 );
 
 logic  [NUM_SI-1:0] [$clog2(NUM_MI):0] s_aw_port;
@@ -112,12 +114,14 @@ slave_index_t        [NUM_MI-1:0] w_sched_out;
 
 generate
 for (i=0;i<NUM_SI;i++) begin
-   if (N_DDR_CTRL == 1) begin
-      assign s_aw_port[i] = 2;
-   end else if (N_DDR_CTRL == 2) begin
-      assign s_aw_port[i] = s_awaddr[i][6] ? 3 : 2;
-   end else begin
-      assign s_aw_port[i] = s_awaddr[i][7:6];
+   always_comb begin
+      if (num_mem_ctrl == 1) begin
+         s_aw_port[i] = 2;
+      end else if (num_mem_ctrl == 2) begin
+         s_aw_port[i] = s_awaddr[i][6] ? 3 : 2;
+      end else begin
+         s_aw_port[i] = s_awaddr[i][7:6];
+      end
    end
 end
 
@@ -148,9 +152,9 @@ for (i=0;i<NUM_MI;i++) begin : aw_sched
          if (s_awvalid[aw_sched_out[i]] & s_awready[aw_sched_out[i]] &
                (s_aw_port[ aw_sched_out[i] ] == i) ) begin 
             m_awid   [i] <= s_awid   [aw_sched_out[i]];
-            if (N_DDR_CTRL == 1) begin
+            if (num_mem_ctrl == 1) begin
                m_awaddr [i] <= {s_awaddr [aw_sched_out[i]][63:6], 6'b0};
-            end else if (N_DDR_CTRL == 2) begin
+            end else if (num_mem_ctrl == 2) begin
                m_awaddr [i] <= {1'b0, s_awaddr [aw_sched_out[i]][63:7], 6'b0};
             end else begin
                m_awaddr [i] <= {2'b0, s_awaddr [aw_sched_out[i]][63:8], 6'b0};
@@ -258,12 +262,14 @@ logic                [NUM_MI-1:0] ar_can_take_new;
 
 generate
 for (i=0;i<NUM_SI;i++) begin
-   if (N_DDR_CTRL == 1) begin
-      assign s_ar_port[i] = 2;
-   end else if (N_DDR_CTRL == 2) begin
-      assign s_ar_port[i] = s_araddr[i][6] ? 3 :2 ;
-   end else begin
-      assign s_ar_port[i] = s_araddr[i][7:6];
+   always_comb begin
+      if (num_mem_ctrl == 1) begin
+         s_ar_port[i] = 2;
+      end else if (num_mem_ctrl == 2) begin
+         s_ar_port[i] = s_araddr[i][6] ? 3 :2 ;
+      end else begin
+         s_ar_port[i] = s_araddr[i][7:6];
+      end
    end
 end
 for (i=0;i<NUM_MI;i++) begin : ar_sched
@@ -292,9 +298,9 @@ for (i=0;i<NUM_MI;i++) begin : ar_sched
          if (s_arvalid[ar_sched_out[i]] & s_arready[ar_sched_out[i]] & 
                (s_ar_port[ ar_sched_out[i] ] == i) ) begin 
             m_arid   [i] <= s_arid   [ar_sched_out[i]];
-            if (N_DDR_CTRL == 1) begin
+            if (num_mem_ctrl == 1) begin
                m_araddr [i] <= {s_araddr [ar_sched_out[i]][63:6], 6'b0};
-            end else if (N_DDR_CTRL == 2) begin
+            end else if (num_mem_ctrl == 2) begin
                m_araddr [i] <= {1'b0, s_araddr [ar_sched_out[i]][63:7], 6'b0};
             end else begin
                m_araddr [i] <= {2'b0, s_araddr [ar_sched_out[i]][63:8], 6'b0};

@@ -16,7 +16,9 @@ module pci_arbiter(
 
    output logic [7:0] pci_debug_comp, 
 
-   axi_bus_t.slave mem
+   axi_bus_t.slave mem,
+
+   logic [15:0] pci_log_size
 );
 
    logic [7:0] tile;
@@ -27,6 +29,8 @@ module pci_arbiter(
    // pci addr space: 0-64GB - DDR: 
    // 64-128 GB PCI_DEBUG with bits [35:28] denoting tile id, [27:20] comp id
    localparam DEBUG_ADDR_BIT = 36;
+
+   pci_debug_bus_t self_debug();
 
    logic [15:0] rid;
    always_ff @(posedge clk) begin
@@ -79,10 +83,16 @@ module pci_arbiter(
             pci.bresp   =  0; 
             pci.bvalid  =  0; 
             pci.rid     =  rid;
-            pci.rdata   =  pci_debug_rdata[tile];
             pci.rresp   =  0;
-            pci.rlast   =  pci_debug_rlast[tile];
-            pci.rvalid  =  pci_debug_rvalid[tile];
+            if (tile < N_TILES) begin
+               pci.rdata   =  pci_debug_rdata[tile];
+               pci.rlast   =  pci_debug_rlast[tile];
+               pci.rvalid  =  pci_debug_rvalid[tile];
+            end else begin
+               pci.rdata = self_debug.rdata;
+               pci.rlast = self_debug.rlast;
+               pci.rvalid = self_debug.rvalid;
+            end
          end
    end
 
@@ -124,9 +134,79 @@ module pci_arbiter(
       end
       pci_debug_arlen = pci.arlen;  
       pci_debug_rready = pci.rready;
-
    end
 
+   assign self_debug.arvalid = (tile == N_TILES) & (debug_state == PCI_DEBUG_RECEIVED);
+   assign self_debug.arlen = pci.arlen;
+   assign self_debug.rready = pci.rready; 
 
+generate 
+if (PCI_LOGGING) begin
+   
+   logic log_valid;
+   typedef struct packed {
+      logic [31:0] awaddr;
+      logic [31:0] araddr;
+      logic [31:0] arid;
+      logic [31:0] awid;
+      logic [31:0] wid;
+      logic [31:0] wdata_32;
+      logic [0:0] unused_1;
+      logic wlast;
+      logic [7:0] awlen;
+      logic [3:0] awsize;
+      logic [7:0] arlen;
+      logic [3:0] arsize;
+      logic awvalid;
+      logic awready;
+      logic wvalid;
+      logic wready;
+      logic arvalid;
+      logic arready;
+
+   } pci_log_t;
+   pci_log_t log_word;
+   assign log_word.awaddr = pci.awaddr;
+   assign log_word.araddr = pci.araddr;
+   assign log_word.awid = pci.awid;
+   assign log_word.arid = pci.arid;
+   assign log_word.wid = pci.wid;
+   assign log_word.wdata_32 = pci.wdata[31:0];
+   assign log_word.awlen = pci.awlen;
+   assign log_word.awsize = pci.awsize;
+   assign log_word.arlen = pci.arlen;
+   assign log_word.arsize = pci.arsize;
+   assign log_word.wlast = pci.wlast;
+   assign log_word.awvalid = pci.awvalid;
+   assign log_word.wvalid = pci.wvalid;
+   assign log_word.arvalid = pci.arvalid;
+   assign log_word.arready = pci.arready;
+   assign log_word.awready = pci.awready;
+   assign log_word.wready = pci.wready;
+   assign log_valid = pci.awvalid | pci.wvalid | pci.arvalid;
+
+   log #(
+      .WIDTH($bits(log_word)),
+      .LOG_DEPTH(LOG_LOG_DEPTH)
+   ) TASK_UNIT_LOG (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wvalid(log_valid),
+      .wdata(log_word),
+
+      .pci(self_debug),
+
+      .size(pci_log_size[LOG_LOG_DEPTH:0])
+
+   );
+   assign pci_log_size[15:LOG_LOG_DEPTH+1] = 0;
+end else begin
+   assign self_debug.rvalid = 1'b1;
+   assign pci_log_size = 0;
+end
+
+
+endgenerate
 endmodule
 

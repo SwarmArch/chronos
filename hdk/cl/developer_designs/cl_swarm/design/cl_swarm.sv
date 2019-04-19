@@ -202,7 +202,8 @@ logic       [N_TILES-1:0] task_enq_req_out_wvalid;
 logic       [N_TILES-1:0] task_enq_req_out_wready;
 logic [N_TILES-1:0] [TASK_ENQ_DATA_WIDTH-1:0] task_enq_req_out_wdata;
 
-logic [2:0] log_n_tiles;
+logic [2:0] num_mem_ctrl;
+logic [15:0] pci_log_size;
 logic [N_TILES-1:0] [$clog2(N_TILES):0] task_in_port;
 
 
@@ -755,7 +756,9 @@ axi_xbar
    .m_rresp       (  xbar_ddr_rresp     ),
    .m_rlast       (  xbar_ddr_rlast     ),
    .m_rvalid      (  xbar_ddr_rvalid    ),   
-   .m_rready      (  xbar_ddr_rready    )      
+   .m_rready      (  xbar_ddr_rready    ),
+
+   .num_mem_ctrl  (  num_mem_ctrl       )
 
 );
 
@@ -784,7 +787,8 @@ ocl_arbiter OCL_ARBITER (
    .ocl_rdata     (ocl_rdata  ),
    .ocl_rready    (ocl_rready ),
 
-   .log_n_tiles   (log_n_tiles)
+   .num_mem_ctrl   (num_mem_ctrl),
+   .pci_log_size   (pci_log_size)
 );
 
    lib_pipe #(
@@ -926,7 +930,9 @@ pci_arbiter PCI_ARBITER (
 
    .pci_debug_comp(pci_debug_comp),
 
-   .mem(pci_arb_mem_arb_bus)
+   .mem(pci_arb_mem_arb_bus),
+
+   .pci_log_size(pci_log_size)
 );
 
 axi_decoder #(

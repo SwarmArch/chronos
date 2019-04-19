@@ -26,7 +26,8 @@ module ocl_arbiter(
    input reg_data_t [N_TILES-1:0] ocl_rdata,
    output logic ocl_rready,
 
-   output logic [2:0] log_n_tiles // software controller number of tiles
+   output logic [2:0] num_mem_ctrl,
+   input [15:0] pci_log_size
 
 );
 
@@ -46,7 +47,7 @@ module ocl_arbiter(
    always_ff @(posedge clk) begin
       if (!rstn) begin
          state <= OCL_IDLE;
-         log_n_tiles_p <= $clog2(N_TILES);
+         num_mem_ctrl <= N_DDR_CTRL;
       end else begin 
          case (state) 
             OCL_IDLE: begin
@@ -74,11 +75,16 @@ module ocl_arbiter(
                end
             end
             OCL_SEND_W: begin
-               if (ocl_wready[tile]) begin
-                  state <= OCL_WAIT_B;
-               end 
-               if (ocl_awaddr[15:8] == ID_TASK_XBAR) begin
-                 log_n_tiles_p <= ocl_wdata; 
+               if (tile == N_TILES) begin
+                  if (ocl_awaddr[15:8] == ID_GLOBAL) begin
+                     if (ocl_awaddr[7:0] == MEM_XBAR_NUM_CTRL) begin
+                        num_mem_ctrl <= ocl_wdata; 
+                     end
+                  end
+               end else begin
+                  if (ocl_wready[tile]) begin
+                     state <= OCL_WAIT_B;
+                  end 
                end
             end
             OCL_WAIT_B: begin
@@ -92,14 +98,27 @@ module ocl_arbiter(
                end
             end
             OCL_SEND_AR: begin
-               if (ocl_arready[tile]) begin
+               if (tile == N_TILES) begin
                   state <= OCL_WAIT_R;
+               end else begin
+                  if (ocl_arready[tile]) begin
+                     state <= OCL_WAIT_R;
+                  end
                end
             end
             OCL_WAIT_R: begin
-               if (ocl_rvalid[tile]) begin
-                  state <= OCL_SEND_R;
-                  ocl.rdata <= ocl_rdata[tile];
+               if (tile == N_TILES) begin
+                  if (ocl_araddr[15:8] == ID_GLOBAL) begin
+                     if (ocl_araddr[7:0] == DEBUG_CAPACITY) begin
+                        state <= OCL_SEND_R;
+                        ocl.rdata <= pci_log_size; 
+                     end
+                  end
+               end else begin
+                  if (ocl_rvalid[tile]) begin
+                     state <= OCL_SEND_R;
+                     ocl.rdata <= ocl_rdata[tile];
+                  end
                end
             end
             OCL_SEND_R: begin
