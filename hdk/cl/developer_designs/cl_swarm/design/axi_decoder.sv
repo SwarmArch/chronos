@@ -95,7 +95,7 @@ always_ff @(posedge clk) begin
 end
 
 // Tracks how many writes can be issued to L2 in a single transaction. 
-// Currently limited to 16, which is sufficient for a busrt of 256 32-bit words. 
+// Currently limited to 16, which is sufficient for a burst of 256 32-bit words. 
 // (where initial address is cache-line aligned)
 logic [2**LOG_MAX_REQUESTS-1:0] id_used;
 logic [LOG_MAX_REQUESTS-1:0] reg_id;
@@ -308,7 +308,11 @@ always_comb begin
          end
       end
       WRITE_WAITING_DATA: begin
-         if (core.wvalid & core.wready & ( (next_awaddr[MAX_AWSIZE-1:0] == 0) | core.wlast)  ) begin
+         if (core.wvalid & core.wready & 
+            // ideally should check for all bits > MAX_AWSIZE, but for burst
+            // writes, the difference between adjacet writes shouldn't be that
+            // large so checking upto bit 10 should be fine.
+            ( (next_awaddr[10:MAX_AWSIZE] != awaddr[10:MAX_AWSIZE] ) | core.wlast)  ) begin
             next_write_state = WRITE_WAITING_L2;
          end
       end
