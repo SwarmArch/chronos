@@ -64,8 +64,12 @@ module ocl_arbiter(
                end
             end
             OCL_SEND_AW: begin
-               if (ocl_awready[tile]) begin
+               if (tile == N_TILES) begin
                   state <= OCL_WAIT_W;
+               end else begin
+                  if (ocl_awready[tile]) begin
+                     state <= OCL_WAIT_W;
+                  end
                end
             end
             OCL_WAIT_W: begin
@@ -79,6 +83,7 @@ module ocl_arbiter(
                   if (ocl_awaddr[15:8] == ID_GLOBAL) begin
                      if (ocl_awaddr[7:0] == MEM_XBAR_NUM_CTRL) begin
                         num_mem_ctrl <= ocl_wdata; 
+                        state <= OCL_SEND_B; 
                      end
                   end
                end else begin
