@@ -90,3 +90,6 @@ a
 *.edges
 *.bin
 *.flow
+hdk/cl/developer_designs/cl_swarm/design/config_app.vh
+hdk/cl/developer_designs/cl_swarm/design/gen_core_spec.vh
+hdk/cl/developer_designs/cl_swarm/design/gen_core_spec_tile.vh
