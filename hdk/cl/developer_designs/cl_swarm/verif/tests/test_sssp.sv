@@ -133,6 +133,12 @@ initial begin
          end
       end
    `else
+      ocl_addr[31:24] = 0;
+      ocl_addr[23:16] = N_TILES;
+      ocl_addr[15:8] = ID_GLOBAL;
+      ocl_addr[7:0] = MEM_XBAR_NUM_CTRL; 
+      tb.poke(.addr(ocl_addr), .data(N_DDR_CTRL),
+         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
       tb.que_buffer_to_cl(.chan(0), .src_addr(0),
          .cl_addr(64'h0000_0000_0000), .len(n_lines*4) );  // move buffer to DDR 
 
@@ -168,7 +174,6 @@ initial begin
    $display("Stack initiaized"); 
    // END DMA
    
-   ocl_addr[31:24] = 0;
    for (i=0;i<N_TILES;i++) begin
       // set sssp base addresses
       ocl_addr[23:16] = i;
@@ -194,9 +199,11 @@ initial begin
       tb.poke(.addr(ocl_addr), .data(
          (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION + SPILL_TASK_BASE_OFFSET) >> 6 ) ,
          .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+
 /*
+      ocl_addr[15:8] = ID_TASK_UNIT;
       ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
-      ocl_data = 48;
+      ocl_data = 6;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 
@@ -428,10 +435,10 @@ end
    
 
    // Test DEBUG interface
-//   for (int i=0;i<6;i++) begin
-//      #10us;
-//      check_log(0,ID_TASK_UNIT);
-//   end
+   //for (int i=0;i<6;i++) begin
+   //   #10us;
+   //   check_log(N_TILES , 48);
+   //end
 
    // Wait until sssp completes
    do begin
@@ -439,6 +446,7 @@ end
       #300ns;
       if (NON_SPEC) begin
          for (i=0;i<N_TILES;i++) begin
+      
             ocl_addr[23:16] = i;
             ocl_addr[15:8] = 0;
             ocl_addr[ 7:0] = OCL_DONE;
@@ -461,7 +469,6 @@ end
    end while (ocl_data!='1);
 
    $display("Run Complete. Flushing Cache ...");
-
 
    // Flush Caches
    
