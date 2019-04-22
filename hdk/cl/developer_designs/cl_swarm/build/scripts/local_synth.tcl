@@ -18,8 +18,6 @@ package require tar
 ## Do not edit $TOP
 set TOP top_sp
 
-## Replace with the name of your module
-set CL_MODULE tile
 
 #################################################
 ## Command-line Arguments
@@ -37,12 +35,13 @@ set clock_recipe_b      [lindex $argv  9]
 set clock_recipe_c      [lindex $argv 10]
 set uram_option         [lindex $argv 11]
 set notify_via_sns      [lindex $argv 12]
+set cl_module           [lindex $argv 13]
 
 #################################################
 ## Generate CL_routed.dcp (Done by User)
 #################################################
 puts "AWS FPGA Scripts";
-puts "Creating Design Checkpoint from Custom Logic source code";
+puts "Creating Design Checkpoint from Custom Logic source code $argc args";
 puts "HDK Version:            $hdk_version";
 puts "Shell Version:          $shell_version";
 puts "Vivado Script Name:     $argv0";
@@ -56,6 +55,7 @@ puts "Clock Recipe B:         $clock_recipe_b";
 puts "Clock Recipe C:         $clock_recipe_c";
 puts "URAM option:            $uram_option";
 puts "Notify when done:       $notify_via_sns";
+puts "cl_module:              $cl_module";
 
 #checking if CL_DIR env variable exists
 if { [info exists ::env(CL_DIR)] } {
@@ -210,7 +210,7 @@ source $HDK_SHELL_DIR/build/scripts/aws_gen_clk_constraints.tcl
 ##################################################
 #Param needed to avoid clock name collisions
 set_param sta.enableAutoGenClkNamePersistence 0
-set CL_MODULE $CL_MODULE
+set CL_MODULE $cl_module
 
 create_project -in_memory -part [DEVICE_TYPE] -force
 

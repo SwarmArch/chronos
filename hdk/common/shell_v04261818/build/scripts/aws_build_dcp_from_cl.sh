@@ -45,6 +45,7 @@ ignore_memory_requirement=0
 expected_memory_usage=30000000
 uram_option=2
 vdefine=""
+module="cl_swarm"
 
 # Use timestamp for logs and output files
 timestamp=$(date +"%y_%m_%d-%H%M%S") 
@@ -78,6 +79,9 @@ while [ "$1" != "" ]; do
     case $1 in
         -script )               shift
                                 vivado_script=$1
+                                ;;
+        -module )               shift
+                                module=$1
                                 ;;
         -tag )                  shift
                                 timestamp=$1
@@ -157,6 +161,7 @@ if [[ $uram_option != @(2|3|4) ]]; then
 fi
 # process vdefines
 info_msg "VDEFINE is : $vdefine"
+info_msg "module is : $module"
 shopt -s extglob
 IFS=',' read -r -a vdefine_array <<< "$vdefine"
 
@@ -247,7 +252,9 @@ subsystem_id="0x${id1_version:0:4}";
 subsystem_vendor_id="0x${id1_version:4:4}";
 
 # Run vivado
-cmd="vivado -mode batch -nojournal -log $logname -source $vivado_script -tclargs $timestamp $strategy $hdk_version $shell_version $device_id $vendor_id $subsystem_id $subsystem_vendor_id $clock_recipe_a $clock_recipe_b $clock_recipe_c $uram_option $notify $opt_vdefine"
+cmd="vivado -mode batch -nojournal -log $logname -source $vivado_script -tclargs
+$timestamp $strategy $hdk_version $shell_version $device_id $vendor_id
+$subsystem_id $subsystem_vendor_id $clock_recipe_a $clock_recipe_b $clock_recipe_c $uram_option $notify $opt_vdefine $module"
 if [[ "$foreground" == "0" ]]; then
   nohup $cmd > $timestamp.nohup.out 2>&1 &
   
