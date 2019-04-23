@@ -34,6 +34,7 @@ package swarm;
    parameter SERIALIZER_LOGGING = 0;
    parameter L2_LOGGING = 0;
    parameter CORE_LOGGING = 0;
+   parameter PCI_LOGGING = 1;
    parameter CORE_STATE_STATS = 1;
    parameter SERIALIZER_STATS = 1;
    parameter TQ_STATS = 1;
@@ -52,7 +53,7 @@ package swarm;
    //`define TASK_UNIT_MODULE task_unit_unordered
    `define TASK_UNIT_MODULE task_unit
 
-   parameter N_DDR_CTRL = 1;
+   parameter N_DDR_CTRL = 2;
    
    // has to be set for des
    parameter ALL_OCL    = 1; 
@@ -124,7 +125,7 @@ package swarm;
    parameter ID_ALL_APP_CORES = 33;
    parameter ID_COAL_AND_SPLITTER = 34;
 
-   parameter ID_TASK_XBAR = 48;
+   parameter ID_GLOBAL = 48;
 
    parameter TASK_TYPE_TERMINATE = 12;
    // if a core has task_araddr = TASK_TYPE_ALL, it can accept any ttype less
@@ -450,6 +451,7 @@ package swarm;
    parameter CQ_HINT_DATA_BASE_ADDR = 8'h10;
    
    parameter DEBUG_CAPACITY   = 8'hf0; // For any component that does logging
+   parameter MEM_XBAR_NUM_CTRL = 8'h10;
 
    parameter RISCV_DEQ_TASK      = 32'hc0000000;
    parameter RISCV_DEQ_TASK_HINT = 32'hc0000004;

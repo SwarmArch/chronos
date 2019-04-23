@@ -81,7 +81,7 @@ module ocl_slave
                         wr_comp_bit_vector[ID_SPLITTER] <= 1;
                         wr_comp_bit_vector[ID_COAL    ] <= 1;
                      end
-                     ID_TASK_XBAR : wr_comp_bit_vector <= 0;
+                     ID_GLOBAL : wr_comp_bit_vector <= 0;
                      default : wr_comp_bit_vector[ ocl.awaddr[15:8]] <= 1;
                   endcase
 

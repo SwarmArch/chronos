@@ -177,7 +177,7 @@ apps['astar'] = getData('astar', 'logs/astar_4t_germany')
 
 plot_commit_abort = True
 
-print(apps['des'])
+print(apps['astar'])
 mpl_fig, ax = plt.subplots(figsize=(11,6))
 #ax = mpl_fig.add_subplot(111, figsize=(5,10))
 N = 4
@@ -323,7 +323,8 @@ mpl_fig, ax = plt.subplots(figsize=(5,5))
 custom = [ 1, 1, 1, 1] 
 
 riscv_runtime = [90.3, 259, 1341, 307]
-app_runtime = [ 22.0, 66.4, 495, 129] 
+app_runtime = [ 22.0, 66.4, 495, 129] # 4-tiles 
+app_runtime = [ 11.2, 53, 124, 75] # best tiles 
 
 speedup = [riscv_runtime[i] / app_runtime[i] for i in range(4)]
 
@@ -332,7 +333,7 @@ p1 = ax.bar(ind, speedup, width=0.7, color='mediumseagreen')
 #p2 = ax.bar([i + 0.2 for i in ind], riscv, width=0.2, color='r') 
 #ax.bar(x1, z, width=0.2, color='b') 
 ax.set_xticks(ind + width/2.)
-ax.set_yticks([0, 1, 2 ,3 ,4])
+ax.set_yticks([0, 2, 4 ,6, 8 ,10])
 #ax.set_ylim([0, 1, 4.5])
 ax.set_xticklabels(('des', 'maxflow', ' sssp', 'color'))
 #mpl_fig.legend( [p1, p2] ,
@@ -344,7 +345,7 @@ ax.set_xticklabels(('des', 'maxflow', ' sssp', 'color'))
 #          bbox_to_anchor=(0.68,0.75),
 #          ncol = 1
 #          )
-ax.set_ylabel('Speedup from custom cores', fontsize=18)
+ax.set_ylabel('Speedup' , fontsize=20)
 ax.set_xlabel('Applications', fontsize=20)
 ax.tick_params(axis='both', labelsize=20)
 mpl_fig.tight_layout()
