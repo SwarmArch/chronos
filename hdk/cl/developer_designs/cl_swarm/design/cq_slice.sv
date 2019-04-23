@@ -382,7 +382,8 @@ last_deq_ts_cache TS_CACHE
 
    .wr_en(ts_write_valid),
    .write_hint(out_task.hint),
-   .write_ts(out_task.ts)
+   .write_ts(out_task.ts),
+   .wr_read_only(out_task.no_write)
 
 );
 
@@ -396,6 +397,7 @@ logic bloom_wr_set;
 assign bloom_query_hint = {1'b0, deq_task.hint[30:0]};
 
 hint_t ref_hint;
+logic  ref_read_only;
 hint_bloom_filters HINT_BLOOM
 (
    .clk(clk),
@@ -468,16 +470,21 @@ assign cq_full =  (deq_task_cq_slot >= cq_size) ||  (cq_next_idle_in == 0);
 always_comb begin
    if (state==IDLE) begin
       if (from_tq_abort_valid) begin
-         ref_hint = { 1'b0, cq_hint[from_tq_abort_slot][30:0]};
+         ref_hint = cq_hint[from_tq_abort_slot];
+         ref_read_only = cq_read_only_task[from_tq_abort_slot];
       end else if (resource_abort_start) begin
-         ref_hint = { 1'b0, cq_hint[max_vt_pos_fixed][30:0]};
+         ref_hint = cq_hint[max_vt_pos_fixed];
+         ref_read_only = cq_read_only_task[max_vt_fixed];
       end else if (gvt_induced_abort_start) begin
-         ref_hint = { 1'b0, cq_hint[core_1_running_task_slot][30:0]}; 
+         ref_hint = cq_hint[core_1_running_task_slot]; 
+         ref_read_only = cq_read_only_task[core_1_running_task_slot];
       end else begin
          ref_hint = deq_task.hint;
+         ref_read_only = deq_task.no_write;
       end      
    end else begin
       ref_hint = cur_task.hint;
+      ref_read_only = cur_task.no_write;
    end
 end
 
@@ -488,7 +495,7 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
             // & (ref_hint[30:0] == cq_hint[i][30:0])
             // if MSB of hint is set, its a read-only hint. No conflicts between
             // RO tasks
-            &  !(cq_read_only_task[i] & ref_hint[31])
+            &  !(cq_read_only_task[i] & ref_read_only)
             & (cq_state[i] != ABORTED) & (cq_state[i] != UNDO_LOG_WAITING);
    assign cq_next_idle_in[i] = !cq_valid[i];
 end
@@ -962,7 +969,7 @@ always_ff @(posedge clk) begin
       tq_epoch  [out_task_slot] <= cur_task_epoch;
       cq_tq_slot[out_task_slot] <= cur_task_tq_slot;
       cq_hint [out_task_slot] <= out_task.hint;
-      cq_read_only_task [out_task_slot] <= out_task.hint[31];
+      cq_read_only_task [out_task_slot] <= out_task.no_write;
       cq_ttype[out_task_slot] <= out_task.ttype;
 
    end
@@ -1581,7 +1588,8 @@ module last_deq_ts_cache
 
    input wr_en,
    input hint_t write_hint,
-   input ts_t   write_ts
+   input ts_t   write_ts,
+   input wr_read_only
 );
 generate
 if (LOG_LAST_DEQ_VT_CACHE >0) begin
@@ -1600,16 +1608,16 @@ if (LOG_LAST_DEQ_VT_CACHE >0) begin
          data[i] = 0;
       end
    end
-   assign query_out_valid = (tag[rd_addr][30:0] == query_hint[30:0]);
+   assign query_out_valid = (tag[rd_addr] == query_hint);
    assign query_out_ts = data[rd_addr];
    // a read-only task may not have aborted all its successors. Therefore its
    // not safe to update the last_deq_ts with current task's ts
    ts_t current_ts;
-   assign current_ts = (tag[wr_addr][30:0] == write_hint[30:0]) ? data[wr_addr] : 0;
+   assign current_ts = (tag[wr_addr] == write_hint) ? data[wr_addr] : 0;
    ts_t new_write_ts;
    always_comb begin
       new_write_ts = write_ts;
-      if (write_hint[31] == 1'b1) begin
+      if (wr_read_only == 1'b1) begin
          if (current_ts > write_ts) begin
             new_write_ts = current_ts;
          end
@@ -1618,7 +1626,7 @@ if (LOG_LAST_DEQ_VT_CACHE >0) begin
    
    always_ff @(posedge clk) begin
       if (wr_en) begin
-         tag[wr_addr] <= {1'b0, write_hint[30:0]};
+         tag[wr_addr] <= write_hint;
          data[wr_addr] <= new_write_ts;
       end
    end

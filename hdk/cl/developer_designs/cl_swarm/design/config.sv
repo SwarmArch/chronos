@@ -153,11 +153,11 @@ package swarm;
 
    // derived parameters
    parameter LOG_N_TILES = (N_TILES == 1) ? 1 : $clog2(N_TILES);
-   parameter TQ_WIDTH = (TS_WIDTH + TASK_TYPE_WIDTH + HINT_WIDTH + ARG_WIDTH);
+   parameter TQ_WIDTH = (TS_WIDTH + TASK_TYPE_WIDTH + HINT_WIDTH + ARG_WIDTH + 3);
    //parameter TASK_WIDTH = (TS_WIDTH + HINT_WIDTH + ARG_WIDTH);
    parameter CACHE_LOG_WAYS = (CACHE_NUM_WAYS == 1) ? 1 : $clog2(CACHE_NUM_WAYS);
    
-   parameter TASK_ENQ_DATA_WIDTH = (TASK_TYPE_WIDTH + TS_WIDTH + HINT_WIDTH + ARG_WIDTH+ 1 + LOG_TSB_SIZE + LOG_N_TILES);
+   parameter TASK_ENQ_DATA_WIDTH = (TQ_WIDTH + 1 + LOG_TSB_SIZE + LOG_N_TILES);
    parameter TASK_RESP_DATA_WIDTH = (LOG_TSB_SIZE + 1 + EPOCH_WIDTH + LOG_TQ_SIZE);
    parameter ABORT_CHILD_DATA_WIDTH = (LOG_TQ_SIZE + EPOCH_WIDTH + LOG_N_TILES + LOG_CQ_SLICE_SIZE + LOG_CHILDREN_PER_TASK + 1);
    parameter ABORT_RESP_DATA_WIDTH = (LOG_CQ_SLICE_SIZE + LOG_CHILDREN_PER_TASK +1);
@@ -189,7 +189,7 @@ package swarm;
 `endif
    parameter LOG_SPLITTER_STACK_ENTRY_WIDTH = 4; // 16-bit index
   
-   // Dervied:
+   // Derived:
    parameter LOG_SPLITTERS_PER_CHUNK = $clog2(SPLITTERS_PER_CHUNK); // 16-bit splitters
    parameter LOG_SPLITTER_CHUNK_WIDTH = $clog2(TQ_WIDTH) -3 + $clog2(TASKS_PER_SPLITTER);
    parameter LOG_SPLITTER_ENTRIES = (LOG_SPLITTER_STACK_SIZE + LOG_SPLITTERS_PER_CHUNK);
@@ -230,6 +230,9 @@ package swarm;
       logic [TS_WIDTH-1:0] ts;
       logic [HINT_WIDTH-1:0] hint;
       logic [ARG_WIDTH-1:0] args;
+      logic producer; // task is likely to generate additional tasks
+      logic no_write; // task will not do any write
+      logic no_read;  // task will not read any read-write data
    } task_t;
 
    typedef enum logic[2:0] {NOP, ENQ, DEQ_MIN, REPLACE ,DEQ_MAX } heap_op_t;

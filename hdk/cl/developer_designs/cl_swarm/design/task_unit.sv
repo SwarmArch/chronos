@@ -5,6 +5,7 @@ typedef struct packed {
    ts_t ts;
    tq_slot_t slot;
    logic splitter;
+   logic producer;
    epoch_t epoch; 
 } tq_heap_elem_t;
 
@@ -257,7 +258,7 @@ module task_unit
       .clk(clk),
       .rstn(rstn),
 
-      .in_ts({reg_next_insert_elem.ts, reg_next_insert_elem.splitter}),
+      .in_ts({reg_next_insert_elem.ts, reg_next_insert_elem.producer}),
       .in_data( {reg_next_insert_elem.slot, reg_next_insert_elem.splitter, reg_next_insert_elem.epoch} ),
       .in_op(heap_in_op),
       .ready(heap_ready),
@@ -810,6 +811,7 @@ endgenerate
          next_insert_elem.epoch = epoch[next_free_tq_slot];
          next_insert_elem.slot = next_free_tq_slot;
          next_insert_elem.splitter = 1'b1;
+         next_insert_elem.producer = 1'b1;
          next_free_tq_slot_deque = 1'b1;
          tq_write_valid = 1'b1;
          tq_write_data = coal_child_data; 
@@ -821,6 +823,7 @@ endgenerate
             next_insert_elem.epoch = epoch[next_free_tq_slot];
             next_insert_elem.slot = next_free_tq_slot;
             next_insert_elem.splitter = (task_enq_data.ttype == TASK_TYPE_SPLITTER);
+            next_insert_elem.producer = task_enq_data.producer;
             next_free_tq_slot_deque = 1'b1;
             tq_write_valid = 1'b1;
             tq_write_data = task_enq_data;
@@ -833,12 +836,14 @@ endgenerate
          next_insert_elem.epoch = abort_task_epoch;
          next_insert_elem.slot = abort_task_slot;
          next_insert_elem.splitter = 1'b0;
+         next_insert_elem.producer = 1'b0;
       end else if (heap_clean_enq) begin
          next_insert_elem_set = 1'b1;
          next_insert_elem.ts = tq_read_data.ts;
          next_insert_elem.epoch = epoch[tq_read_addr_q];
          next_insert_elem.slot = tq_read_addr_q;
          next_insert_elem.splitter = (tq_read_data.ttype == TASK_TYPE_SPLITTER);
+         next_insert_elem.producer = tq_read_data.producer;
       end
    end
 
