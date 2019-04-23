@@ -261,14 +261,16 @@ void dma_write(unsigned char* write_buffer, uint32_t write_len, size_t write_add
     // After moving to v1.4, dma transfers larger than 512 B doesn't work.
     // Not sure why this happens; but temp fix by splitting larger transfers to
     // 512 B chunks.
+    uint32_t chunk_size = 512;
     while (write_offset < write_len) {
         if (write_offset != 0) {
             //    printf("Partial write by driver, trying again with remainder of buffer (%lu bytes)\n",
             //          write_len - write_offset);
         }
+        //rc = fpga_dma_burst_write(write_fd,
         rc = pwrite(write_fd,
                 write_buffer + write_offset,
-                (write_len - write_offset) > 512 ? 512 : (write_len - write_offset) ,
+                (write_len - write_offset) > chunk_size ? chunk_size: (write_len - write_offset) ,
                 write_addr + write_offset);
         if (rc < 0) {
             printf("call to pwrite failed.\n");
@@ -377,7 +379,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     read_fd = -1;
 
     uint32_t log_active_tiles = 0;
-    uint32_t active_tiles = 1;
+    uint32_t active_tiles = 8;
 
 
     /* make sure the AFI is loaded and ready */
@@ -388,7 +390,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     }
 
     write_fd = fpga_dma_open_queue(FPGA_DMA_XDMA, slot_id,
-            /*channel*/ 0, /*is_read*/ false);
+            /*channel*/ 1, /*is_read*/ false);
     if(write_fd<0){
         printf("unable to open write dma queue\n");
         exit(0);
@@ -412,6 +414,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     int ret;
     int n = 0;
     while ( (ret = fscanf(fg,"%8x\n", &line)) != EOF) {
+        //line = n;
         write_buffer[n ] = line & 0xff;
         write_buffer[n +1] = (line >>8) & 0xff;
         write_buffer[n +2] = (line >>16) & 0xff;
@@ -419,7 +422,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         if (n<64) headers[n/4] = line;
         //printf("file %d %8x %2x %2x \n", n/4, line, write_buffer[n], write_buffer[n+1]);
         n+=4;
-
+        //if (n>4096) break;
     }
     if (app == APP_MAXFLOW) {
         // global relabel interval
@@ -441,10 +444,23 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     uint32_t numE = headers[2];;
     printf("File Len %d\n", n);
 
+    rc = fpga_pci_attach(slot_id, pf_id, bar_id, 0, &pci_bar_handle);
+    if (rc > 0) {
+        printf("Unable to attach to the AFI on slot id %d\n", slot_id);
+        exit(0);
+    }
+    init_params();
+    pci_poke(N_TILES, ID_GLOBAL, MEM_XBAR_NUM_CTRL , 2);
+
     int file_len = n;
     read_buffer = (unsigned char *)malloc(headers[1]*4);
-    //rc =fpga_dma_burst_write(write_fd, write_buffer, file_len, 0);
-    dma_write(write_buffer, file_len, 0);
+    rc =fpga_dma_burst_write(write_fd, write_buffer, file_len, 0);
+    //dma_write(write_buffer, file_len, 0);
+    //fpga_pci_write_burst(pci_bar_handle, 0, write_buffer, 8192);
+        //fpga_dma_burst_write(write_fd,
+        //        write_buffer,
+        //        512,
+        //        0);
 
     uint32_t* csr_offset = (uint32_t *) (write_buffer + headers[3]*4);
     uint32_t* csr_neighbors = (uint32_t *) (write_buffer + headers[4]*4);
@@ -463,60 +479,28 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     printf("Loading code... Success\n");
 
 
+    unsigned char* log_buffer = (unsigned char *)malloc(20000*64);
     //fsync(fd);
 
-    rc = fpga_pci_attach(slot_id, pf_id, bar_id, 0, &pci_bar_handle);
-    if (rc > 0) {
-        printf("Unable to attach to the AFI on slot id %d\n", slot_id);
-        exit(0);
-    }
-
-    init_params();
 
     /*
-    uint32_t d, lat;
+    // check dma writes
     pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB, 0);
-    for (int i=0;i<2;i++) {
-        int offset = (i==0) ? 0x80 : 0x40;
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x1000000 + offset );
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, 0x1000 +i);
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x2000000 + offset);
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, 0x2000 +i);
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x3000000 + offset);
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, 0x3000+ i);
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x4000000 + offset);
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, 0x4000 +i);
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x5000000 + offset);
-        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, 0x5000+ i);
+    for (int i=0;i<1024;i++) {
+        uint32_t addr = i * 4;
+        uint32_t act;
+        pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB,  (addr ));
+        pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &act);
+        uint32_t* ref = (uint32_t *) (write_buffer);
+        printf("addr:%5d act:%8x ref:%8x\n", addr, act, ref[i]);
     }
-
-    pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x1000080);
-    pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &d );
-    pci_peek(0, ID_OCL_SLAVE, OCL_LAST_MEM_LATENCY, &lat);
-    printf("data %d latency:%d\n", d, lat);
-    pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x1000040);
-    pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &d );
-    pci_peek(0, ID_OCL_SLAVE, OCL_LAST_MEM_LATENCY, &lat);
-    printf("data %d latency:%d\n", d, lat);
-    pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x2000080);
-    pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &d );
-    pci_peek(0, ID_OCL_SLAVE, OCL_LAST_MEM_LATENCY, &lat);
-    printf("data %d latency:%d\n", d, lat);
-    pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x4000080);
-    pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &d );
-    pci_peek(0, ID_OCL_SLAVE, OCL_LAST_MEM_LATENCY, &lat);
-    printf("data %d latency:%d\n", d, lat);
+    FILE* fwpci = fopen("pci_log", "w");
+    printf("N_TILES %x\n", N_TILES);
+    log_pci(pci_bar_handle, read_fd, fwpci, log_buffer, (N_TILES << 8) + ID_GLOBAL );
     exit(0);
     */
 
 
-    /*
-       for (int i=0;i<8;i++) {
-       uint32_t inst_word;
-       pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB, 0x80000080 + i*4);
-       pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &inst_word );
-       printf("inst word %8x\n", inst_word);
-       }*/
 
     unsigned char* spill_area = (unsigned char*) malloc(TOTAL_SPILL_ALLOCATION);
     for (int i=0;i<4;i++) spill_area[STACK_PTR_ADDR_OFFSET +i] = 0;
@@ -539,7 +523,6 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
 
     uint32_t ocl_data = 0;
-    unsigned char* log_buffer = (unsigned char *)malloc(20000*64);
     FILE* fwtu = fopen("task_unit_log", "w");
     FILE* fwtu1 = fopen("task_unit_log_1", "w");
     FILE* fwtu2 = fopen("task_unit_log_2", "w");
@@ -607,7 +590,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         //  pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap* 100);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_SIZE, spill_size);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq hint/ts
-        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 70);
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 30000);
         //pci_poke(i, ID_COALESCER, CORE_START, 0xffffffff);
 /*
         uint32_t serializer_almost_full = (READY_LIST_SIZE -1);
@@ -771,12 +754,11 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(0, ID_ALL_SSSP_CORES, CORE_N_DEQUEUES ,0x10);
     }
     uint32_t core_mask = 0;
-    uint32_t active_cores = 12;
+    uint32_t active_cores = 14;
     core_mask = (1<<(active_cores+1))-1;
     core_mask |= (1<<ID_COALESCER);
+    core_mask |= (1<<10);
     core_mask |= (1<<9);
-    core_mask |= (1<<12);
-    //core_mask |= (1<<10);
     //core_mask |= (1<<8);
     core_mask |= (1<<ID_SPLITTER);
     printf("mask %x\n", core_mask);
@@ -1031,6 +1013,9 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    cycles = endCycle64 - startCycle64;
    core_stats(0, cycles);
    task_unit_stats(0, cycles);
+   //for (int i = 1; i<active_tiles;i++) {
+   // task_unit_stats(i, cycles);
+   //}
    //task_unit_stats(1, cycles);
    if (!NON_SPEC) {
        cq_stats(0, cycles);
@@ -1041,7 +1026,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     }
     printf("      %9s %9s %9s %9s %9s %9s %9s\n",
             "num_enq", "num_deq", "othercore" ,"cq_full", "no_task", "what?", "no_ready" );
-    for (int i=1;i<= N_SSSP_CORES;i++) {
+    for (int i=1;i<= N_SSSP_CORES ;i++) {
         uint32_t num_enq, num_deq;
         pci_peek(0, i, CORE_NUM_ENQ,  &num_enq);
         pci_peek(0, i, CORE_NUM_DEQ,  &num_deq);

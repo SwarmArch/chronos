@@ -1081,3 +1081,74 @@ void core_stats(uint32_t tile, uint32_t tot_cycles) {
 
 }
 
+int log_pci(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
+
+   uint32_t log_size;
+   uint32_t gvt;
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
+   printf("PCI log size %d %x \n", log_size, ID);
+   if (log_size > 17000) return 1;
+   // if (log_size > 100) log_size -= 100;
+   //unsigned char* log_buffer;
+   //log_buffer = (unsigned char *)malloc(log_size*64);
+
+   unsigned int read_offset = 0;
+   unsigned int read_len = log_size * 64;
+   unsigned int rc;
+   uint64_t cl_addr = (1L<<36) + (ID << 20);
+   while (read_offset < read_len) {
+       rc = pread(fd,
+               log_buffer,// + read_offset,
+               // keep Tx size under 64*64 to prevent shell timeouts
+               (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
+               cl_addr);
+       read_offset += rc;
+
+       unsigned int* buf = (unsigned int*) log_buffer;
+       for (int i=0;i<rc/64;i++) {
+           unsigned int seq = buf[i*16 + 0];
+           unsigned int cycle = buf[i*16 + 1];
+
+
+           unsigned int arready = (buf[i*16+2] >> 0) & 1;
+           unsigned int arvalid = (buf[i*16+2] >> 1) & 1;
+           unsigned int wready = (buf[i*16+2] >> 2) & 1;
+           unsigned int wvalid = (buf[i*16+2] >> 3) & 1;
+           unsigned int awready = (buf[i*16+2] >> 4) & 1;
+           unsigned int awvalid = (buf[i*16+2] >> 5) & 1;
+           unsigned int arsize = (buf[i*16+2] >> 6) & 0xf;
+           unsigned int arlen = (buf[i*16+2] >> 10) & 0xff;
+           unsigned int awsize = (buf[i*16+2] >> 18) & 0xf;
+           unsigned int awlen = (buf[i*16+2] >> 22) & 0xff;
+           unsigned int wlast = (buf[i*16+2] >> 30) & 0x1;
+           unsigned int wdata = buf[i*16+3] ;
+           unsigned int wid = buf[i*16+4] ;
+           unsigned int awid = buf[i*16+5] ;
+           unsigned int arid = buf[i*16+6] ;
+           unsigned int araddr = buf[i*16+7] ;
+           unsigned int awaddr = buf[i*16+8] ;
+           unsigned int wstrb_1 = buf[i*16+9];
+           unsigned int wstrb_2 = buf[i*16+10];
+           if (awvalid) {
+               fprintf(fw,"[%6d][%10u] awvalid [%1d%1d] size:%3d  len:%4d addr:%8x id:%8x\n",
+                       seq, cycle,
+                       awvalid, awready,
+                       awsize, awlen, awaddr, awid
+                      );
+           }
+           if (wvalid) {
+               fprintf(fw,"[%6d][%10u]  wvalid [%1d%1d] wlast:%1d  wdata:%8x wid:%8x wstrb:%08x_%08x\n",
+                       seq, cycle,
+                       wvalid, wready,
+                       wlast, wdata, wid,
+                       wstrb_1, wstrb_2
+                      );
+           }
+
+       }
+
+   }
+   fflush(fw);
+   return 0;
+}
+

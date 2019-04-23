@@ -44,6 +44,8 @@
 #define ID_ALL_SSSP_CORES         33
 #define ID_COAL_AND_SPLITTER      34
 
+#define ID_GLOBAL                 48
+
 #define OCL_TASK_ENQ_ARGS         0x1c // set the args of the task to be enqueued next
 #define OCL_TASK_ENQ_HINT         0x14 // set the hint of the task to be enqueued next
 #define OCL_TASK_ENQ_TTYPE        0x18 // set the ttype of the task to be enqueued next
@@ -206,6 +208,7 @@
 
 #define DEBUG_CAPACITY    0xf0 // For any component that does logging
 
+#define MEM_XBAR_NUM_CTRL 0x10
 
 int log_sssp_core(pci_bar_handle_t pci_bar_handle, int fd, int cid, FILE* fw);
 int log_task_unit(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
