@@ -227,7 +227,7 @@ then
 	exit 1
 fi
 
-logname=$timestamp.vivado.log
+logname=$timestamp.$module.log
 ln -s -f $logname last_log
 
 info_msg "Environment variables and directories are present. Checking for Vivado installation."

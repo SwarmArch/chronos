@@ -1,5 +1,6 @@
 import swarm::*;
 
+// MODULE NOT USED ANY MORE
 module task_type_fifo #(
    parameter ID = 0  
 )	(
