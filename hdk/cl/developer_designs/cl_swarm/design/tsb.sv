@@ -61,18 +61,18 @@ module tsb
    always_comb begin
       case (n_tiles) 
          1: dest_tile = 0;
-         2: dest_tile = s_wdata.hint[4];
-         3: dest_tile = (s_wdata.hint[30:4])%3;
-         4: dest_tile = s_wdata.hint[5:4];
-         5: dest_tile = (s_wdata.hint[30:4])%5;
-         6: dest_tile = (s_wdata.hint[30:4])%6;
-         7: dest_tile = (s_wdata.hint[30:4])%7;
-         8: dest_tile = s_wdata.hint[6:4];
-         9: dest_tile = (s_wdata.hint[30:4])%9;
-         10: dest_tile = (s_wdata.hint[30:4])%10;
-         11: dest_tile = (s_wdata.hint[30:4])%11;
-         12: dest_tile = (s_wdata.hint[30:4])%12;
-         default: dest_tile = s_wdata.hint[7:4];
+         2: dest_tile = s_wdata.locale[4];
+         3: dest_tile = (s_wdata.locale[30:4])%3;
+         4: dest_tile = s_wdata.locale[5:4];
+         5: dest_tile = (s_wdata.locale[30:4])%5;
+         6: dest_tile = (s_wdata.locale[30:4])%6;
+         7: dest_tile = (s_wdata.locale[30:4])%7;
+         8: dest_tile = s_wdata.locale[6:4];
+         9: dest_tile = (s_wdata.locale[30:4])%9;
+         10: dest_tile = (s_wdata.locale[30:4])%10;
+         11: dest_tile = (s_wdata.locale[30:4])%11;
+         12: dest_tile = (s_wdata.locale[30:4])%12;
+         default: dest_tile = s_wdata.locale[7:4];
       endcase
    end
    logic [4:0] n_tiles;

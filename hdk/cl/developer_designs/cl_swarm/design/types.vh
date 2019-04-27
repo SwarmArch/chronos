@@ -16,7 +16,7 @@
    
    typedef logic [TASK_TYPE_WIDTH-1:0] task_type_t;
    typedef logic [TS_WIDTH-1:0] ts_t;
-   typedef logic [HINT_WIDTH-1:0] hint_t;
+   typedef logic [LOCALE_WIDTH-1:0] locale_t;
    typedef logic [ARG_WIDTH-1:0] args_t;
 
    typedef logic [$clog2(CACHE_NUM_WAYS)-1:0] lru_width_t;
@@ -27,10 +27,10 @@
 
    // Gloabl type definitions
    typedef struct packed {
-      logic [TASK_TYPE_WIDTH-1:0] ttype;
-      logic [TS_WIDTH-1:0] ts;
-      logic [HINT_WIDTH-1:0] hint;
-      logic [ARG_WIDTH-1:0] args;
+      task_type_t ttype;
+      ts_t ts;
+      locale_t locale;
+      args_t args;
       logic producer; // task is likely to generate additional tasks
       logic no_write; // task will not do any write
       logic no_read;  // task will not read any read-write data
@@ -57,5 +57,6 @@
 
    typedef logic [LOG_TQ_SIZE-1:0] tq_slot_t;
    typedef logic [LOG_CQ_SLICE_SIZE-1:0] cq_slice_slot_t;
-   typedef logic [4:0] core_id_t;
+   typedef logic [5:0] core_id_t;
+   typedef logic [4:0] thread_id_t;
    typedef logic [EPOCH_WIDTH-1:0] epoch_t;

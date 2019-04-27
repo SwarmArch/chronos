@@ -205,7 +205,7 @@ assign start_task_fifo_almost_full = (start_task_fifo_capacity >= 6);
 always_ff @(posedge clk) begin
    if (start_task_fifo_wr_en) begin
       cb_entry_cq_slot[next_cb_entry] <= task_rslot; 
-      cb_entry[next_cb_entry].vid <= task_rdata.hint; 
+      cb_entry[next_cb_entry].vid <= task_rdata.locale; 
       cb_entry[next_cb_entry].fScore <= task_rdata.args[31:0]; 
       cb_entry[next_cb_entry].gScore <= task_rdata.ts; 
       cb_entry[next_cb_entry].parent <= task_rdata.args[63:32]; 
@@ -514,7 +514,7 @@ always_comb begin
          task_wvalid = 1'b1;
          task_wdata.ttype = 0;
          task_wdata.ts = (parentGScore > c_fifo_rdata_dist) ? parentGScore : c_fifo_rdata_dist;
-         task_wdata.hint = cb_entry[c_fifo_rdata_cb].vid;
+         task_wdata.locale = cb_entry[c_fifo_rdata_cb].vid;
          task_wdata.args[63:32] = cb_entry[c_fifo_rdata_cb].parent;
          task_wdata.args[31:0] = cb_entry[c_fifo_rdata_cb].fScore;
          if (task_wready) begin
@@ -613,7 +613,7 @@ for (i=0;i<THREADS;i++) begin
          if (task_arvalid[i] & task_rvalid[i]) begin
             $display("[%5d][tile-%2d][core-%2d][%2d] dequeue_task: ts:%5d  vid:%5d  args:%4x  slot:%3d",
                cycle, TILE_ID, CORE_ID, i,
-               task_rdata.ts, task_rdata.hint, task_rdata.args, task_rslot);
+               task_rdata.ts, task_rdata.locale, task_rdata.args, task_rslot);
          end
       end
       if (abort_running_task[i] & !abort_running_task_q) begin
@@ -627,7 +627,7 @@ always_ff @(posedge clk) begin
    if (task_wvalid & task_wready) begin
          $display("[%5d][tile-%2d][core-%2d][%2d] \tenqueue_task: ts:%5d  vid:%5d  args:%4x",
             cycle, TILE_ID, CORE_ID, c_fifo_rdata_cb,
-            task_wdata.ts, task_wdata.hint, task_wdata.args);
+            task_wdata.ts, task_wdata.locale, task_wdata.args);
    end
 end
 

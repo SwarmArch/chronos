@@ -34,18 +34,18 @@ module conflict_serializer #(
 );
 
    // Takes Task Read requeusts from the cores, serves them while ensuring that
-   // no two tasks with the same hint are running at the same time.
+   // no two tasks with the same locale are running at the same time.
    //
    // This module maintains a shift register of pending tasks (ready_list), as well as
    // a bit for each task indicating if it conflicts with any running task.
    // When a core makes new a request, earliest conflict-free entry 
    // that matches the request's task-type will be served. 
    // Upon a task-finish, the earliest entry in the shift register with the
-   // finishing tasks's hint will be set conflict-free.
+   // finishing tasks's locale will be set conflict-free.
    
    typedef struct packed {
       logic [TASK_TYPE_WIDTH-1:0] ttype;
-      logic [HINT_WIDTH-1:0] hint;
+      logic [LOCALE_WIDTH-1:0] locale;
    } task_t_ser;
 
    localparam LOG_N_CORES = $clog2(NUM_CORES);
@@ -60,10 +60,10 @@ module conflict_serializer #(
    logic [LOG_READY_LIST_SIZE-1:0] almost_full_threshold;
    logic [LOG_READY_LIST_SIZE-1:0] full_threshold;
 
-   hint_t [NUM_CORES-1:0] running_task_hint; // Hint of the current task running on each core.
+   locale_t [NUM_CORES-1:0] running_task_locale; // Hint of the current task running on each core.
                                     // Packed array because all entries are
                                     // accessed simulataneously
-   logic [NUM_CORES-1:0] running_task_hint_valid;
+   logic [NUM_CORES-1:0] running_task_locale_valid;
 
    task_t_ser [READY_LIST_SIZE-1:0] ready_list;
    ts_t [READY_LIST_SIZE-1:0] ready_list_ts;
@@ -90,7 +90,7 @@ module conflict_serializer #(
    endgenerate
 
 
-   assign all_cores_idle = (ready_list_valid ==0) && (running_task_hint_valid[NUM_CORES-1:1]==0); // ignore OCL
+   assign all_cores_idle = (ready_list_valid ==0) && (running_task_locale_valid[NUM_CORES-1:1]==0); // ignore OCL
 
    // Stage 1: arbitrate among the cores
 
@@ -147,15 +147,15 @@ module conflict_serializer #(
 
 
    // Stage 2: Update ready_list
-   hint_t finished_task_hint;
-   logic [READY_LIST_SIZE-1:0] finished_task_hint_match;
-   logic [LOG_READY_LIST_SIZE-1:0] finished_task_hint_match_select;
+   locale_t finished_task_locale;
+   logic [READY_LIST_SIZE-1:0] finished_task_locale_match;
+   logic [LOG_READY_LIST_SIZE-1:0] finished_task_locale_match_select;
    always_comb begin
-      finished_task_hint = running_task_hint[finished_task_core];
+      finished_task_locale = running_task_locale[finished_task_core];
    end
    generate 
       for(i=0;i<READY_LIST_SIZE;i++) begin
-         assign finished_task_hint_match[i] = (finished_task_hint == ready_list[i].hint) &
+         assign finished_task_locale_match[i] = (finished_task_locale == ready_list[i].locale) &
                                                 finished_task_valid & ready_list_valid[i];
       end
    endgenerate
@@ -163,9 +163,9 @@ module conflict_serializer #(
    lowbit #(
       .OUT_WIDTH(LOG_READY_LIST_SIZE),
       .IN_WIDTH(READY_LIST_SIZE)   
-   ) FINISHED_TASK_HINT_MATCH_SELECT (
-      .in(finished_task_hint_match),
-      .out(finished_task_hint_match_select)
+   ) FINISHED_TASK_LOCALE_MATCH_SELECT (
+      .in(finished_task_locale_match),
+      .out(finished_task_locale_match_select)
    );
    logic [LOG_READY_LIST_SIZE-1:0] next_insert_location;
    
@@ -185,7 +185,7 @@ module conflict_serializer #(
       new_enq_task = m_task;
       // read-only ness should not be propagated. If allowed to do so
       // a RO task and a non-RO would not be serialized
-      new_enq_task.hint[31] = 1'b0;
+      new_enq_task.locale[31] = 1'b0;
    end
 
    // checks if new_enq_task is in conflict with any other task, either in the ready
@@ -197,11 +197,11 @@ module conflict_serializer #(
    generate 
       for (i=0;i<READY_LIST_SIZE;i++) begin
          assign next_insert_task_conflict_ready_list[i] = ready_list_valid[i] & 
-                     (ready_list[i].hint == new_enq_task.hint);
+                     (ready_list[i].locale == new_enq_task.locale);
       end
       for (i=0;i<NUM_CORES;i++) begin
-         assign next_insert_task_conflict_running_tasks[i] = running_task_hint_valid[i] & 
-                     (running_task_hint[i] == new_enq_task.hint) & 
+         assign next_insert_task_conflict_running_tasks[i] = running_task_locale_valid[i] & 
+                     (running_task_locale[i] == new_enq_task.locale) & 
                      !(finished_task_valid & finished_task_core ==i) ;
       end
    endgenerate
@@ -224,7 +224,7 @@ module conflict_serializer #(
             // back
             if (m_valid & m_ready & (next_insert_location== i+1)) begin
                ready_list[i].ttype <= new_enq_task.ttype;
-               ready_list[i].hint <= new_enq_task.hint;
+               ready_list[i].locale <= new_enq_task.locale;
                if (NON_SPEC) begin
                   ready_list_args[i] <= new_enq_task.args; 
                   ready_list_ts[i] <= new_enq_task.ts; 
@@ -240,7 +240,7 @@ module conflict_serializer #(
                   ready_list_ts[i] <= ready_list_ts[i+1]; 
                   ready_list_args[i] <= ready_list_args[i+1]; 
                end
-               if ((finished_task_hint_match_select == i+1) & finished_task_hint_match[i+1]) begin
+               if ((finished_task_locale_match_select == i+1) & finished_task_locale_match[i+1]) begin
                   ready_list_conflict[i] <= 1'b0;
                end else begin
                   ready_list_conflict[i] <= ready_list_conflict[i+1];
@@ -257,7 +257,7 @@ module conflict_serializer #(
             // No dequeue, only enqueue
             if (m_valid & m_ready & (next_insert_location== i)) begin
                ready_list[i].ttype <= new_enq_task.ttype;
-               ready_list[i].hint <= new_enq_task.hint;
+               ready_list[i].locale <= new_enq_task.locale;
                if (NON_SPEC) begin
                   ready_list_args[i] <= new_enq_task.args; 
                   ready_list_ts[i] <= new_enq_task.ts; 
@@ -266,7 +266,7 @@ module conflict_serializer #(
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
             end else begin 
-               if ((finished_task_hint_match_select == i) & finished_task_hint_match[i]) begin
+               if ((finished_task_locale_match_select == i) & finished_task_locale_match[i]) begin
                   ready_list_conflict[i] <= 1'b0;
                end
                // other fields unchanged
@@ -282,7 +282,7 @@ module conflict_serializer #(
    if (NON_SPEC) begin
       always_comb begin
          s_rdata.ttype = ready_list[reg_task_select].ttype;
-         s_rdata.hint = ready_list[reg_task_select].hint;
+         s_rdata.locale = ready_list[reg_task_select].locale;
          s_rdata.args = ready_list_args[reg_task_select];
          s_rdata.ts = ready_list_ts[reg_task_select];
          s_cq_slot = ready_list_cq_slot[reg_task_select];
@@ -322,21 +322,21 @@ module conflict_serializer #(
       end
    endgenerate
 
-   // update hint tables
+   // update locale tables
    always_ff @(posedge clk) begin
       if (!rstn) begin
-         running_task_hint_valid <= 0;
+         running_task_locale_valid <= 0;
          for (integer j=0;j<NUM_CORES;j=j+1) begin
-            running_task_hint[j] <= 'x;
+            running_task_locale[j] <= 'x;
          end
       end else begin
          for (integer j=0;j<NUM_CORES;j=j+1) begin
             if (s_rvalid[j]) begin
-               running_task_hint_valid[j] <= 1'b1;
-               running_task_hint[j] <= s_rdata.hint;
+               running_task_locale_valid[j] <= 1'b1;
+               running_task_locale[j] <= s_rdata.locale;
             end else if (finished_task_valid & (finished_task_core ==j)) begin
-               running_task_hint_valid[j] <= 1'b0;
-               running_task_hint[j] <= 'x;
+               running_task_locale_valid[j] <= 1'b0;
+               running_task_locale[j] <= 'x;
             end
          end
       end
@@ -469,7 +469,7 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
 
       logic [15:0] s_arvalid;
       logic [15:0] s_rvalid;
-      logic [31:0] s_rdata_hint;
+      logic [31:0] s_rdata_locale;
       logic [31:0] s_rdata_ts;
 
       // 32
@@ -482,13 +482,13 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       logic [31:0] ready_list_conflict;
 
       logic [31:0] m_ts;
-      logic [31:0] m_hint;
+      logic [31:0] m_locale;
 
       logic [3:0] m_ttype;
       logic [6:0] m_cq_slot;
       logic m_valid;
       logic m_ready;
-      logic [15:0] finished_task_hint_match;
+      logic [15:0] finished_task_locale_match;
       logic [2:0] unused_2;
       
    
@@ -503,7 +503,7 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
 
       log_word.s_arvalid = s_arvalid;
       log_word.s_rvalid = s_rvalid;
-      log_word.s_rdata_hint = s_rdata.hint;
+      log_word.s_rdata_locale = s_rdata.locale;
       log_word.s_rdata_ts = s_rdata.ts;
       log_word.s_rdata_ttype = s_rdata.ttype;
       log_word.s_cq_slot = s_cq_slot;
@@ -514,12 +514,12 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       log_word.ready_list_valid = ready_list_valid;
       log_word.ready_list_conflict = ready_list_conflict;
 
-      log_word.m_hint = new_enq_task.hint;
+      log_word.m_locale = new_enq_task.locale;
       log_word.m_ts = new_enq_task.ts;
       log_word.m_ttype = new_enq_task.ttype;
       log_word.m_cq_slot = m_cq_slot;
 
-      log_word.finished_task_hint_match = finished_task_hint_match;
+      log_word.finished_task_locale_match = finished_task_locale_match;
 
       log_word.m_valid = m_valid;
       log_word.m_ready = m_ready;

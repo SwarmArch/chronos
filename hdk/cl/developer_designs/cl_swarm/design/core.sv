@@ -261,15 +261,15 @@ end
 always_ff @(posedge clk) begin
    if (state == NEXT_TASK) begin
       if (task_arvalid & task_rvalid) begin
-         $display("[%5d][tile-%2d][core-%2d] dequeue_task: ts:%5x  hint:%5x ttype:%2d args:(%4d, %4d) slot:%3d",
-            cycle, TILE_ID, CORE_ID, task_rdata.ts, task_rdata.hint, task_rdata.ttype,
+         $display("[%5d][tile-%2d][core-%2d] dequeue_task: ts:%5x  locale:%5x ttype:%2d args:(%4d, %4d) slot:%3d",
+            cycle, TILE_ID, CORE_ID, task_rdata.ts, task_rdata.locale, task_rdata.ttype,
             task_rdata.args[63:32], task_rdata.args[31:0], task_rslot);
       end
    end
 
    if (task_wvalid & task_wready) begin
-         $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5x  hint:%5x ttype:%2d args:(%4d, %4d)",
-            cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.hint, task_wdata.ttype,
+         $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5x  locale:%5x ttype:%2d args:(%4d, %4d)",
+            cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.locale, task_wdata.ttype,
             task_wdata.args[63:32], task_wdata[31:0]);
    end
    if (abort_running_task & !abort_running_task_q) begin
@@ -369,7 +369,7 @@ always_ff @(posedge clk) begin
    if (reg_bus.arvalid) begin
       reg_bus.rvalid <= 1'b1;
       casex (reg_bus.araddr) 
-         CORE_HINT        : reg_bus.rdata <= task_in.hint;
+         CORE_LOCALE      : reg_bus.rdata <= task_in.locale;
          CORE_TS          : reg_bus.rdata <= task_in.ts;
          CORE_N_DEQUEUES  : reg_bus.rdata <= dequeues_remaining;
          CORE_NUM_ENQ     : reg_bus.rdata <= num_enqueues;
@@ -411,7 +411,7 @@ always_ff @(posedge clk) begin
    end else begin
       if (task_out_valid & task_out_ready) begin
          task_wvalid <= 1'b1;
-         {task_wdata.args, task_wdata.ttype, task_wdata.hint, task_wdata.ts}
+         {task_wdata.args, task_wdata.ttype, task_wdata.locale, task_wdata.ts}
                   <= task_out_data;
       end else if (task_wready) begin
          task_wvalid <= 1'b0;

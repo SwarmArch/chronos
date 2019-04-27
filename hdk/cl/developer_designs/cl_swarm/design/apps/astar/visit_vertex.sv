@@ -70,10 +70,10 @@ typedef enum logic[1:0] {IDLE, UNDO_LOG, AWADDR, BVALID
 
 
 task_t task_rdata, task_wdata; 
-assign {task_rdata.args, task_rdata.ttype, task_rdata.hint, task_rdata.ts} = task_in; 
+assign {task_rdata.args, task_rdata.ttype, task_rdata.locale, task_rdata.ts} = task_in; 
 
 assign task_out_V_TDATA = 
-      {task_wdata.args, task_wdata.ttype, task_wdata.hint, task_wdata.ts}; 
+      {task_wdata.args, task_wdata.ttype, task_wdata.locale, task_wdata.ts}; 
 
 logic clk, rstn;
 assign clk = ap_clk;
@@ -133,7 +133,7 @@ end
 
 always_ff @(posedge clk) begin
    if (state == NEXT_TASK & ap_start) begin
-      virtex_id <= task_rdata.hint; 
+      virtex_id <= task_rdata.locale; 
       gScore <= task_rdata.ts;
       fScore <= task_rdata.args[31:0]; 
       parent <= task_rdata.args[63:32];
@@ -245,7 +245,7 @@ always_comb begin
             // After a terminate tasks commits, CQ will not send 
             // any higher ts tasks to cores, immediately marking them finished
             task_wdata.ttype = TASK_TYPE_TERMINATE;
-            task_wdata.hint = terminate_tile_id << 4;
+            task_wdata.locale = terminate_tile_id << 4;
             task_wdata.args = 0; // vid
             task_wdata.ts = gScore;
             task_out_V_TVALID = 1'b1;
@@ -300,7 +300,7 @@ always_comb begin
       WAIT_NEIGHBOR_WEIGHT: begin
          if (m_axi_l1_V_RVALID) begin
             task_wdata.ttype = 1;
-            task_wdata.hint = neighbor; // vid
+            task_wdata.locale = neighbor; // vid
             task_wdata.args[63:32] = virtex_id; // vid
             task_wdata.args[31: 0] = m_axi_l1_V_RDATA + fScore; //weight
             task_wdata.ts = gScore;

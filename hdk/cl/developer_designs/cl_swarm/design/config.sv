@@ -24,6 +24,8 @@
 
 package swarm; 
 
+   parameter VERSION = 10; // increment on every change to the addr_map.
+
    `include "config_app.vh"
    parameter N_TILES = 1;
 
@@ -44,8 +46,8 @@ package swarm;
    // how many tiles go directly into the axi xbar. has to be a power of two
    parameter XBAR_IN_TILES = 1;
 
-   parameter NO_SPILLING = 0; 
-   parameter NON_SPEC = 0;
+   parameter NO_SPILLING = 1; 
+   parameter NON_SPEC = 1;
 
    // both of the following should be changed together. Unfortunately cannot 
    // `define inside and if block in SV.
@@ -67,7 +69,7 @@ package swarm;
    parameter LOG_LAST_DEQ_VT_CACHE = 9; // must be >=4, 0 to turn off
 
    parameter TS_WIDTH = UNORDERED ? 1 : 32;
-   parameter HINT_WIDTH = 32;
+   parameter LOCALE_WIDTH = 32;
    // ARG_WIDTH is app dependent
    parameter N_TASK_TYPES = 16;
    parameter TASK_TYPE_WIDTH = $clog2(N_TASK_TYPES);
@@ -108,7 +110,7 @@ package swarm;
    // derived parameters
    parameter C_N_TILES = (2**$clog2(N_TILES));
    parameter LOG_N_TILES = (N_TILES == 1) ? 1 : $clog2(N_TILES);
-   parameter TQ_WIDTH = (TS_WIDTH + TASK_TYPE_WIDTH + HINT_WIDTH + ARG_WIDTH + 3);
+   parameter TQ_WIDTH = (TS_WIDTH + TASK_TYPE_WIDTH + LOCALE_WIDTH + ARG_WIDTH + 3);
    //parameter TASK_WIDTH = (TS_WIDTH + HINT_WIDTH + ARG_WIDTH);
    parameter CACHE_LOG_WAYS = (CACHE_NUM_WAYS == 1) ? 1 : $clog2(CACHE_NUM_WAYS);
    
