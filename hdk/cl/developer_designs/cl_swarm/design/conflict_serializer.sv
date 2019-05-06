@@ -1,21 +1,20 @@
 import swarm::*;
 
 module conflict_serializer #( 
-		parameter NUM_CORES = 10,
       parameter TILE_ID = 0
 	) (
 	input clk,
 	input rstn,
 
    // from cores
-	input logic [NUM_CORES-1:0] s_arvalid, //no arready; s_rvalid serves the same purpose
-	input task_type_t [NUM_CORES-1:0] s_araddr, 
-	output logic [NUM_CORES-1:0] s_rvalid, // no rready, assumes core is always ready
-	output task_t s_rdata, // only 1 deque per cycle
+	output logic           s_valid, 
+	input                  s_ready, 
+	output task_t          s_rdata, 
    output cq_slice_slot_t s_cq_slot,
+   output thread_id_t     s_thread,
 
-   input finished_task_valid,
-   input core_id_t finished_task_core,
+   input                  unlock_valid,
+   input thread_id_t      unlock_thread,
 
    // to cq
    input task_t m_task,
@@ -48,22 +47,19 @@ module conflict_serializer #(
       logic [LOCALE_WIDTH-1:0] locale;
    } task_t_ser;
 
-   localparam LOG_N_CORES = $clog2(NUM_CORES);
 
    localparam READY_LIST_SIZE = 2**LOG_READY_LIST_SIZE;
 
-   logic [LOG_N_CORES-1:0] reg_core_id;
-   logic reg_valid;
-   logic [LOG_READY_LIST_SIZE-1:0] reg_task_select, task_select;
+   logic [LOG_READY_LIST_SIZE-1:0] task_select;
 
    // runtime configurable parameter on ready list
    logic [LOG_READY_LIST_SIZE-1:0] almost_full_threshold;
    logic [LOG_READY_LIST_SIZE-1:0] full_threshold;
 
-   locale_t [NUM_CORES-1:0] running_task_locale; // Hint of the current task running on each core.
+   locale_t [N_THREADS-1:0] running_task_locale; // Hint of the current task running on each core.
                                     // Packed array because all entries are
                                     // accessed simulataneously
-   logic [NUM_CORES-1:0] running_task_locale_valid;
+   logic [N_THREADS-1:0] running_task_locale_valid;
 
    task_t_ser [READY_LIST_SIZE-1:0] ready_list;
    ts_t [READY_LIST_SIZE-1:0] ready_list_ts;
@@ -74,76 +70,55 @@ module conflict_serializer #(
    logic [READY_LIST_SIZE-1:0] ready_list_conflict;
 
 
-   logic [N_TASK_TYPES-1:0] [READY_LIST_SIZE-1:0] task_type_ready;
+   logic [READY_LIST_SIZE-1:0] task_ready;
    
    genvar i,j;
 
    generate 
-      for (i=0;i<N_TASK_TYPES;i++) begin
-         for (j=0;j<READY_LIST_SIZE;j++) begin
-            assign task_type_ready[i][j] = ready_list_valid[j] & !ready_list_conflict[j] 
-                  & (i== TASK_TYPE_ALL ? (ready_list[j].ttype <= TASK_TYPE_ALL)
-                                       : (ready_list[j].ttype == i) ) 
-                  & !(reg_valid & reg_task_select == j); // this slot was not picked up last cycle
-         end
+      for (j=0;j<READY_LIST_SIZE;j++) begin
+         assign task_ready[j] = ready_list_valid[j] & !ready_list_conflict[j]; 
       end
    endgenerate
 
-
-   assign all_cores_idle = (ready_list_valid ==0) && (running_task_locale_valid[NUM_CORES-1:1]==0); // ignore OCL
-
-   // Stage 1: arbitrate among the cores
-
-   logic [NUM_CORES-1:0] can_take_request; 
-   generate 
-      for (i=0;i<NUM_CORES;i=i+1) begin
-         assign can_take_request[i] = 
-               s_arvalid[i] & // Core is requesting
-               (task_type_ready[s_araddr[i]] != 0) & //a task of this type is ready
-               !(reg_valid & (i == reg_core_id)); //did not take a request from this core last cycle
-      end
-   endgenerate
-
-   logic [LOG_N_CORES-1:0] core_select;
-   lowbit #(
-      .OUT_WIDTH(LOG_N_CORES),
-      .IN_WIDTH(NUM_CORES)   
-   ) CORE_SELECT (
-      .in(can_take_request),
-      .out(core_select)
-   );
-
-   logic [READY_LIST_SIZE-1:0] task_select_in;
    always_comb begin
-      task_select_in = task_type_ready[s_araddr[core_select]];
+      s_valid = task_ready[task_select];
    end
+   assign all_cores_idle = (ready_list_valid ==0) && (running_task_locale_valid==0); 
+
+
+   logic next_thread_valid;
+   logic issue_task;
+
+   logic free_list_empty;
+
+   assign next_thread_valid = !free_list_empty;
+   assign issue_task = s_valid & s_ready;
+
+   free_list #(
+      .LOG_DEPTH( $clog2(N_THREADS) )
+   ) FREE_LIST_THREAD (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wr_en(unlock_valid),
+      .rd_en(issue_task),
+      .wr_data(unlock_thread),
+
+      .full(), 
+      .empty(free_list_empty),
+      .rd_data(s_thread),
+
+      .size()
+   );
    
    lowbit #(
       .OUT_WIDTH(LOG_READY_LIST_SIZE),
       .IN_WIDTH(READY_LIST_SIZE)   
    ) TASK_SELECT (
-      .in(task_select_in),
+      .in(task_ready),
       .out(task_select)
    );
 
-
-
-   always_ff @(posedge clk) begin
-      if (!rstn) begin
-         reg_valid <= 1'b0;
-         reg_core_id <= 'x;
-         reg_task_select <= 'x;
-      end else begin
-         reg_core_id <= core_select;
-         reg_valid <= can_take_request[core_select];
-         if (reg_valid & (task_select > reg_task_select)) begin
-            // ready list is being right shifted this cycle
-            reg_task_select <= task_select - 1;
-         end else begin
-            reg_task_select <= task_select;
-         end
-      end
-   end
 
 
    // Stage 2: Update ready_list
@@ -151,12 +126,12 @@ module conflict_serializer #(
    logic [READY_LIST_SIZE-1:0] finished_task_locale_match;
    logic [LOG_READY_LIST_SIZE-1:0] finished_task_locale_match_select;
    always_comb begin
-      finished_task_locale = running_task_locale[finished_task_core];
+      finished_task_locale = running_task_locale[unlock_thread];
    end
    generate 
       for(i=0;i<READY_LIST_SIZE;i++) begin
          assign finished_task_locale_match[i] = (finished_task_locale == ready_list[i].locale) &
-                                                finished_task_valid & ready_list_valid[i];
+                                                unlock_valid & ready_list_valid[i];
       end
    endgenerate
 
@@ -183,26 +158,23 @@ module conflict_serializer #(
    task_t new_enq_task;
    always_comb begin
       new_enq_task = m_task;
-      // read-only ness should not be propagated. If allowed to do so
-      // a RO task and a non-RO would not be serialized
-      new_enq_task.locale[31] = 1'b0;
    end
 
    // checks if new_enq_task is in conflict with any other task, either in the ready
    // list or the running task list
    logic next_insert_task_conflict;
    logic [READY_LIST_SIZE-1:0] next_insert_task_conflict_ready_list;
-   logic [NUM_CORES-1:0] next_insert_task_conflict_running_tasks;
+   logic [N_THREADS-1:0] next_insert_task_conflict_running_tasks;
 
    generate 
       for (i=0;i<READY_LIST_SIZE;i++) begin
          assign next_insert_task_conflict_ready_list[i] = ready_list_valid[i] & 
                      (ready_list[i].locale == new_enq_task.locale);
       end
-      for (i=0;i<NUM_CORES;i++) begin
+      for (i=0;i<N_THREADS;i++) begin
          assign next_insert_task_conflict_running_tasks[i] = running_task_locale_valid[i] & 
                      (running_task_locale[i] == new_enq_task.locale) & 
-                     !(finished_task_valid & finished_task_core ==i) ;
+                     !(unlock_valid & unlock_thread ==i) ;
       end
    endgenerate
    assign next_insert_task_conflict = m_valid & ((next_insert_task_conflict_ready_list != 0) |
@@ -218,7 +190,7 @@ module conflict_serializer #(
             ready_list_conflict[i] <= 1'b0; 
             ready_list[i] <= 'x;
          end else
-         if (reg_valid & (i >= reg_task_select)) begin
+         if (issue_task & (i >= task_select)) begin
             // If a task dequeue and enqueue happens at the same cycle,  
             // shift right existing tasks with the incoming task going at the
             // back
@@ -281,13 +253,17 @@ module conflict_serializer #(
    generate 
    if (NON_SPEC) begin
       always_comb begin
-         s_rdata.ttype = ready_list[reg_task_select].ttype;
-         s_rdata.locale = ready_list[reg_task_select].locale;
-         s_rdata.args = ready_list_args[reg_task_select];
-         s_rdata.ts = ready_list_ts[reg_task_select];
-         s_cq_slot = ready_list_cq_slot[reg_task_select];
+         s_rdata.ttype = ready_list[task_select].ttype;
+         s_rdata.locale = ready_list[task_select].locale;
+         s_rdata.args = ready_list_args[task_select];
+         s_rdata.ts = ready_list_ts[task_select];
+         s_rdata.producer = 1'b0;
+         s_rdata.no_write = 1'b0; // not implemented
+         s_rdata.no_read = 1'b0; // not implemented
+         s_cq_slot = ready_list_cq_slot[task_select];
       end
    end else begin
+      /*
       task_t ready_list_ram [0:2**LOG_CQ_SLICE_SIZE-1];
       always_ff @(posedge clk) begin
          if (m_valid & m_ready) begin
@@ -299,13 +275,14 @@ module conflict_serializer #(
       always_comb begin
          s_cq_slot = ready_list_cq_slot[reg_task_select];
       end
+      */
    end
    endgenerate
 
    logic [LOG_READY_LIST_SIZE-1:0] ready_list_size;
    logic ready_list_size_inc, ready_list_size_dec;
    assign ready_list_size_inc = (m_valid & m_ready);
-   assign ready_list_size_dec = (reg_valid);
+   assign ready_list_size_dec = issue_task;
    always_ff @(posedge clk) begin
       if (!rstn) begin
          ready_list_size <= 0;
@@ -316,36 +293,65 @@ module conflict_serializer #(
    assign almost_full = (ready_list_size >= almost_full_threshold);
    
    
-   generate
-      for (i=0;i<NUM_CORES;i=i+1) begin
-         assign s_rvalid[i] = reg_valid & (reg_core_id == i);
-      end
-   endgenerate
 
    // update locale tables
    always_ff @(posedge clk) begin
       if (!rstn) begin
          running_task_locale_valid <= 0;
-         for (integer j=0;j<NUM_CORES;j=j+1) begin
+         for (integer j=0;j<N_THREADS;j=j+1) begin
             running_task_locale[j] <= 'x;
          end
       end else begin
-         for (integer j=0;j<NUM_CORES;j=j+1) begin
-            if (s_rvalid[j]) begin
+         for (integer j=0;j<N_THREADS;j=j+1) begin
+            if (s_valid & s_ready & (j==s_thread)) begin
                running_task_locale_valid[j] <= 1'b1;
                running_task_locale[j] <= s_rdata.locale;
-            end else if (finished_task_valid & (finished_task_core ==j)) begin
+            end else if (unlock_valid & (unlock_thread ==j)) begin
                running_task_locale_valid[j] <= 1'b0;
                running_task_locale[j] <= 'x;
             end
          end
       end
    end
+   
+   logic [4:0] ready_list_stall_threshold;
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         almost_full_threshold    <= READY_LIST_SIZE - 4;
+         full_threshold    <= READY_LIST_SIZE - 1;
+         ready_list_stall_threshold <= READY_LIST_SIZE - 4;
+      end else begin
+         if (reg_bus.wvalid) begin
+            case (reg_bus.waddr) 
+               SERIALIZER_SIZE_CONTROL : begin
+                  almost_full_threshold <= reg_bus.wdata[7:0];
+                  full_threshold <= reg_bus.wdata[15:8];
+                  ready_list_stall_threshold <= reg_bus.wdata[23:16];
+               end
+            endcase
+         end
+      end
+   end
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         reg_bus.rvalid <= 1'b0;
+         reg_bus.rdata <= 'x;
+      end else
+      if (reg_bus.arvalid) begin
+         reg_bus.rvalid <= 1'b1;
+         casex (reg_bus.araddr) 
+         //   DEBUG_CAPACITY : reg_bus.rdata <= log_size;
+         //   SERIALIZER_ARVALID : reg_bus.rdata <= s_arvalid;
+            SERIALIZER_READY_LIST : reg_bus.rdata <= {ready_list_valid, ready_list_conflict};
+         endcase
+      end else begin
+         reg_bus.rvalid <= 1'b0;
+      end
+   end
 
-
+/*
    // Stats
    logic [4:0] num_arvalid_cores;
-   logic [4:0] ready_list_stall_threshold;
 
    logic [31:0] core_stats [N_THREADS * 8];
    logic [7:0] stat_read_addr;
@@ -443,25 +449,6 @@ logic [LOG_LOG_DEPTH:0] log_size;
          reg_bus.rvalid <= 1'b0;
       end
    end
-   always_ff @(posedge clk) begin
-      if (!rstn) begin
-         almost_full_threshold    <= READY_LIST_SIZE - 4;
-         full_threshold    <= READY_LIST_SIZE - 1;
-         ready_list_stall_threshold <= READY_LIST_SIZE - 4;
-         stat_read_addr <= 0;
-      end else begin
-         if (reg_bus.wvalid) begin
-            case (reg_bus.waddr) 
-               SERIALIZER_SIZE_CONTROL : begin
-                  almost_full_threshold <= reg_bus.wdata[7:0];
-                  full_threshold <= reg_bus.wdata[15:8];
-                  ready_list_stall_threshold <= reg_bus.wdata[23:16];
-               end
-               SERIALIZER_STAT_READ: stat_read_addr <= reg_bus.wdata;
-            endcase
-         end
-      end
-   end
 
 if (SERIALIZER_LOGGING[TILE_ID]) begin
    logic log_valid;
@@ -541,4 +528,5 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
 
    );
 end
+*/
 endmodule

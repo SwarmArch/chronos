@@ -65,6 +65,7 @@ module ocl_slave
          state <= OCL_IDLE;
          wr_comp_bit_vector <= 0;
          task_args_word <= 0;
+         task_args <= 0;
       end else begin 
          case (state) 
             OCL_IDLE: begin
@@ -73,10 +74,10 @@ module ocl_slave
                   addr <= ocl.awaddr;
                   case (ocl.awaddr[15:8])
                      ID_ALL_CORES: begin
-                        wr_comp_bit_vector[N_CORES:1] <= '1;
+                        wr_comp_bit_vector[5:1] <= '1;
                         wr_comp_bit_vector[ID_COAL    ] <= 1;
                      end
-                     ID_ALL_APP_CORES : wr_comp_bit_vector[N_APP_CORES:1] <= '1;
+                     ID_ALL_APP_CORES : wr_comp_bit_vector[5:1] <= '1;
                      ID_COAL_AND_SPLITTER : begin 
                         wr_comp_bit_vector[ID_SPLITTER] <= 1;
                         wr_comp_bit_vector[ID_COAL    ] <= 1;
@@ -217,10 +218,6 @@ module ocl_slave
                         state <= OCL_SEND_R;
                         data <= LOG_READY_LIST_SIZE;
                      end
-                     OCL_PARAM_N_APP_CORES : begin
-                        state <= OCL_SEND_R;
-                        data <= N_APP_CORES;
-                     end
                      OCL_PARAM_LOG_SPILL_Q_SIZE: begin
                         state <= OCL_SEND_R;
                         data <= LOG_TQ_SPILL_SIZE;
@@ -302,6 +299,9 @@ end
    assign task_wdata.locale  = task_locale;
    assign task_wdata.args  = task_args;
    assign task_wdata.ts    = data;
+   assign task_wdata.producer = 1'b0;
+   assign task_wdata.no_write = 1'b0;
+   assign task_wdata.no_read = 1'b0;
 
    assign task_araddr = task_ttype;
 

@@ -51,16 +51,13 @@ logic rst_main_n_sync;
    ); 
 
 
-logic  [CM_PORTS-1:0]     cores_cm_wvalid ;
-logic  [CM_PORTS-1:0]     cores_cm_wready ;
-task_t [CM_PORTS-1:0]     cores_cm_wdata  ;
-logic  [CM_PORTS-1:0]     cores_cm_enq_untied ;
-cq_slice_slot_t [CM_PORTS-1:0]     cores_cm_cq_slot  ;
-child_id_t [CM_PORTS-1:0]     cores_cm_child_id  ;
+logic  [1:0]     cores_cm_wvalid ;
+logic  [1:0]     cores_cm_wready ;
+task_t [1:0]     cores_cm_wdata  ;
+logic  [1:0]     cores_cm_enq_untied ;
+cq_slice_slot_t [1:0]     cores_cm_cq_slot  ;
+child_id_t [1:0]     cores_cm_child_id  ;
 
-logic [N_THREADS-1:0]     start_task_valid ;
-logic [N_THREADS-1:0]     start_task_ready ;
-cq_slice_slot_t [N_THREADS-1:0] start_task_slot  ;
 
 logic [N_THREADS+UNDO_LOG_THREADS-1:0]     finish_task_valid ;
 logic [N_THREADS+UNDO_LOG_THREADS-1:0]     finish_task_ready ;
@@ -103,14 +100,9 @@ cq_slice_slot_t fifo_cc_slot;
 logic fifo_cc_ready;
 
 
-//cc to core interface
-logic [N_THREADS+UNDO_LOG_THREADS-1:0] cc_cores_arvalid; 
-task_type_t [N_THREADS+UNDO_LOG_THREADS-1:0] cc_cores_araddr; 
-logic [N_THREADS+UNDO_LOG_THREADS-1:0] cc_cores_rvalid;
-task_t cc_cores_rdata; 
-cq_slice_slot_t cc_cores_rslot; 
 
-axi_bus_t core_l1[N_L1 + 1]();
+axi_bus_t coal_l1();
+axi_bus_t splitter_l1();
 axi_bus_t l1_arb[L2_PORTS](); // +Coal,  undo_log (TODO TQ prefetch)
 
 reg_bus_t reg_bus[ID_LAST]();
@@ -184,8 +176,10 @@ end
 
 axi_bus_t arb_l2_p[L2_BANKS]();
 axi_bus_t arb_l2[L2_BANKS]();
-axi_bus_t l2_out[L2_BANKS]();
-axi_bus_t l2_out_d[L2_BANKS]();
+axi_bus_t rw_l2();
+cache_addr_t  rw_l2_rindex;
+axi_bus_t l2_out[2]();
+axi_bus_t l2_out_d[2]();
 axi_bus_t ocl_bus_q();
    
    axi_pipe 
@@ -199,6 +193,7 @@ axi_bus_t ocl_bus_q();
       .out(ocl_bus_q)
    );
 
+axi_bus_t core_l1();
 logic done;
 ocl_slave  
 #(
@@ -218,41 +213,30 @@ ocl_slave
   .reg_bus_rvalid (reg_bus_rvalid),
   .reg_bus_rdata  (reg_bus_rdata),
 
-  .task_arvalid( cc_cores_arvalid[0] ),
-  .task_araddr ( cc_cores_araddr [0] ),
-  .task_rvalid ( cc_cores_rvalid [0] ),
-  .task_rdata  ( cc_cores_rdata      ),
+  .task_arvalid(  ),
+  .task_araddr (  ),
+  .task_rvalid ( 1'b0 ),
+  .task_rdata  (      ),
 
   .task_wvalid(cores_cm_wvalid[0]),
   .task_wdata (cores_cm_wdata [0]),
   .task_wready(cores_cm_wready[0]),
 
-  .l1(core_l1[0]),
+  .l1(core_l1),
    
   .done(done),
   .cur_cycle(cur_cycle)
 
 );
+assign core_l1.arready = 1'b1;
+assign core_l1.awready = 1'b1;
+assign core_l1.wready = 1'b1;
 
-axi_decoder #(
-   .ID_BASE( (TILE_ID<<11) + (0<<4)),
-   .MAX_ARSIZE(2),
-   .MAX_AWSIZE(2)
-) OCL_L1 (
-  .clk(clk_main_a0),
-  .rstn(rst_main_n_sync),
-
-   .core(core_l1[0]),
-   .l2(l1_arb[0])
-);
 assign cores_cm_cq_slot[0] = 0;
 assign cores_cm_child_id[0] = 0;
 assign cores_cm_enq_untied[0] = 1'b1;
 assign cores_cm_enq_untied[ID_SPLITTER] = 1'b1;
 
-assign start_task_valid[0] = 0;
-assign finish_task_valid[0] = 0;
-assign undo_log_valid[0] = 0;
 
 generate
 if (!NO_SPILLING) begin
@@ -265,7 +249,7 @@ coalescer
   .clk(clk_main_a0),
   .rstn(rst_main_n_sync),
 
-  .l1(core_l1[ID_COAL]),
+  .l1(coal_l1),
   .reg_bus(reg_bus[ID_COAL]),
    
    .coal_child_valid(coal_child_valid),
@@ -287,8 +271,8 @@ axi_decoder #(
   .clk(clk_main_a0),
   .rstn(rst_main_n_sync),
 
-   .core(core_l1[ID_COAL]),
-   .l2(l1_arb[ID_COAL])
+   .core(coal_l1),
+   .l2(l1_arb[L2_ID_COAL])
 );
 
 
@@ -309,7 +293,7 @@ splitter #(
   .task_wdata (cores_cm_wdata [ID_SPLITTER]),
   .task_wready(cores_cm_wready[ID_SPLITTER]),
 
-  .l1(core_l1[ID_SPLITTER]),
+  .l1(splitter_l1),
   .stack_lock_in (coal_stack_lock),
   .stack_lock_out(splitter_stack_lock),
   
@@ -325,24 +309,24 @@ axi_decoder #(
   .clk(clk_main_a0),
   .rstn(rst_main_n_sync),
 
-   .core(core_l1[ID_SPLITTER]),
-   .l2(l1_arb[ID_SPLITTER])
+   .core(splitter_l1),
+   .l2(l1_arb[L2_ID_SPLITTER])
 );
 end else begin
    assign overflow_ready = 1'b0;
    assign coal_child_valid = 1'b0;
-   assign l1_arb[ID_COAL].awvalid = 1'b0;
-   assign l1_arb[ID_COAL].arvalid = 1'b0;
-   assign l1_arb[ID_COAL].wvalid = 1'b0;
-   assign l1_arb[ID_COAL].bready = 1'b1;
-   assign l1_arb[ID_COAL].rready = 1'b1;
+   assign l1_arb[L2_ID_COAL].awvalid = 1'b0;
+   assign l1_arb[L2_ID_COAL].arvalid = 1'b0;
+   assign l1_arb[L2_ID_COAL].wvalid = 1'b0;
+   assign l1_arb[L2_ID_COAL].bready = 1'b1;
+   assign l1_arb[L2_ID_COAL].rready = 1'b1;
    assign reg_bus[ID_COAL].rvalid = 1'b1;
    
-   assign l1_arb[ID_SPLITTER].awvalid = 1'b0;
-   assign l1_arb[ID_SPLITTER].arvalid = 1'b0;
-   assign l1_arb[ID_SPLITTER].wvalid = 1'b0;
-   assign l1_arb[ID_SPLITTER].bready = 1'b1;
-   assign l1_arb[ID_SPLITTER].rready = 1'b1;
+   assign l1_arb[L2_ID_SPLITTER].awvalid = 1'b0;
+   assign l1_arb[L2_ID_SPLITTER].arvalid = 1'b0;
+   assign l1_arb[L2_ID_SPLITTER].wvalid = 1'b0;
+   assign l1_arb[L2_ID_SPLITTER].bready = 1'b1;
+   assign l1_arb[L2_ID_SPLITTER].rready = 1'b1;
    assign reg_bus[ID_SPLITTER].rvalid = 1'b1;
    
    assign cores_cm_wvalid[ID_SPLITTER] = 1'b0; // so as not to confuse the tsb
@@ -354,9 +338,24 @@ end
 
 endgenerate
 
-//functional cores
-`include "gen_core_spec_tile.vh"
    
+   l2 
+   #(
+      .TILE_ID(TILE_ID),
+      .BANK_ID(0)
+   ) L2_RW (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+
+      .l1(rw_l2),
+      .rindex(rw_l2_rindex),
+      .mem_bus(l2_out[0]),
+
+      .reg_bus(reg_bus[ID_L2_RW]),
+
+      .pci_debug(pci_debug[ID_L2_RW])
+   );
+
    // input to l2_arbiter
    axi_id_t    [L2_PORTS-1:0] l2_arb_in_awid;
    axi_addr_t  [L2_PORTS-1:0] l2_arb_in_awaddr;
@@ -390,7 +389,6 @@ endgenerate
    logic       [L2_PORTS-1:0] l2_arb_in_rlast;
    logic       [L2_PORTS-1:0] l2_arb_in_rvalid;
    logic       [L2_PORTS-1:0] l2_arb_in_rready;
-
    // output from l2 arbiter
    axi_id_t    [L2_BANKS-1:0] l2_arb_out_awid;
    axi_addr_t  [L2_BANKS-1:0] l2_arb_out_awaddr;
@@ -506,7 +504,7 @@ l2_arbiter
 ) L2_ARBITER (
   .clk(clk_main_a0),
   .rstn(rst_main_n_sync),
-
+   
    .s_awid        (  l2_arb_in_awid      ),  
    .s_awaddr      (  l2_arb_in_awaddr    ),
    .s_awlen       (  l2_arb_in_awlen     ),
@@ -576,40 +574,6 @@ l2_arbiter
 );
 
 
-undo_log 
-#(
-   .ID_BASE( (TILE_ID<<11) + ( ID_UNDO_LOG << 4)),
-   .TILE_ID(TILE_ID)
-) UNDO_LOG (
-   .clk(clk_main_a0),
-   .rstn(rst_main_n_sync),
-
-   .undo_log_valid (undo_log_valid),
-   .undo_log_ready (undo_log_ready),
-   .undo_log_id    (undo_log_id   ),
-   .undo_log_addr  (undo_log_addr ),
-   .undo_log_data  (undo_log_data ),
-   .undo_log_slot  (undo_log_slot ),
-  
-
-   // Restore interface - Connects to conflict serializer
-   .restore_arvalid (cc_cores_arvalid[N_THREADS +: UNDO_LOG_THREADS] ) ,
-   .restore_araddr  (cc_cores_araddr [N_THREADS +: UNDO_LOG_THREADS] ) , 
-   .restore_rvalid  (cc_cores_rvalid [N_THREADS +: UNDO_LOG_THREADS] ) , 
-   .restore_cq_slot (cc_cores_rslot     ) , 
-
-   .restore_done_valid (finish_task_valid[N_THREADS +: UNDO_LOG_THREADS]),
-   .restore_done_ready (finish_task_ready[N_THREADS +: UNDO_LOG_THREADS]),
-   .restore_done_cq_slot(finish_task_slot[N_THREADS +: UNDO_LOG_THREADS]),
-   
-   // L2
-   .l2(l1_arb[ID_UNDO_LOG]),
-   .reg_bus(reg_bus[ID_UNDO_LOG]),
-
-   .pci_debug(pci_debug[ID_UNDO_LOG])
-
-);
-
 
 axi_pipe 
 #(
@@ -625,103 +589,61 @@ axi_pipe
 
 l2 
 #(
-   .TILE_ID(TILE_ID)
-) L2 (
+   .TILE_ID(TILE_ID),
+   .BANK_ID(1)
+) L2_RO (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
 
    .l1(arb_l2[0]),
-   .mem_bus(l2_out[0]),
+   .rindex(),
+   .mem_bus(l2_out[1]),
 
-   .reg_bus(reg_bus[ID_L2]),
+   .reg_bus(reg_bus[ID_L2_RO]),
 
-   .pci_debug(pci_debug[ID_L2])
+   .pci_debug(pci_debug[ID_L2_RO])
 );
 
-generate 
-if (L2_BANKS == 1) begin
-   
-   axi_pipe 
-   #(
-      .STAGES(1),
-      .NO_RESP(1)
-   ) L2_PIPE (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
 
-      .in(l2_out[0]),
-      .out(mem_bus)
-   );
-end else begin : bank_1
-   axi_pipe 
-   #(
-      .STAGES(1),
-      .NO_RESP(1)
-   ) L2_PIPE_1 (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
-
-      .in(arb_l2_p[1]),
-      .out(arb_l2[1])
-   );
-
-   l2 
-   #(
-      .TILE_ID(TILE_ID),
-      .BANK_ID(1)
-   ) L2_B1 (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
-
-      .l1(arb_l2[1]),
-      .mem_bus(l2_out[1]),
-
-      .reg_bus(reg_bus[ID_L2+1]),
-
-      .pci_debug(pci_debug[ID_L2+1])
-   );
   
-   // can't connect l2_out to the mux directly because of l2's valid signals
-   // depend on the ready's
-   axi_pipe 
-   #(
-      .STAGES(1),
-      .NO_RESP(1)
-   ) L2_OUT_PIPE_0 (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
+// can't connect l2_out to the mux directly because of l2's valid signals
+// depend on the ready's
+axi_pipe 
+#(
+   .STAGES(1),
+   .NO_RESP(1)
+) L2_OUT_PIPE_0 (
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
 
-      .in(l2_out[0]),
-      .out(l2_out_d[0])
-   );
-   axi_pipe 
-   #(
-      .STAGES(1),
-      .NO_RESP(1)
-   ) L2_OUT_PIPE_1 (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
+   .in(l2_out[0]),
+   .out(l2_out_d[0])
+);
+axi_pipe 
+#(
+   .STAGES(1),
+   .NO_RESP(1)
+) L2_OUT_PIPE_1 (
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
 
-      .in(l2_out[1]),
-      .out(l2_out_d[1])
-   );
+   .in(l2_out[1]),
+   .out(l2_out_d[1])
+);
 
-   axi_mux
-   #( 
-      .ID_BIT(8),
-      .DELAY(1)
-   ) L2_OUT_MUX (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
-      .a(l2_out_d[0]),
-      .b(l2_out_d[1]),
+axi_mux
+#( 
+   .ID_BIT(8),
+   .DELAY(1)
+) L2_OUT_MUX (
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
+   .a(l2_out_d[0]),
+   .b(l2_out_d[1]),
 
-      .out_q(mem_bus)
-   );
+   .out_q(mem_bus)
+);
 
-end
-
-endgenerate
 
 logic tq_empty;
 logic tsb_empty;
@@ -1008,7 +930,7 @@ generate
 endgenerate
 
 logic no_idle_cores;
-assign no_idle_cores = (cc_cores_arvalid[N_APP_CORES:1] ==0); 
+assign no_idle_cores = 1'b0; 
 logic cc_almost_full;
 logic cq_full;
 
@@ -1131,21 +1053,29 @@ fifo #(
 logic cc_finish_task_valid; 
 assign cc_finish_task_valid = finish_task_select_valid & finish_task_select_ready;
 
+logic issue_task_valid;
+logic issue_task_ready;
+task_t issue_task;
+thread_id_t issue_task_thread;
+cq_slice_slot_t issue_task_cq_slot;
+
+logic unlock_thread_valid;
+thread_id_t unlock_thread;
+
 conflict_serializer #(
-      .NUM_CORES(N_THREADS + UNDO_LOG_THREADS),
       .TILE_ID(TILE_ID)
    ) CONFLICT_SERIALIZER (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
    
-   .s_arvalid(  cc_cores_arvalid ),
-   .s_araddr (  cc_cores_araddr  ),
-   .s_rvalid (  cc_cores_rvalid  ),
-   .s_rdata  (  cc_cores_rdata   ),
-   .s_cq_slot(  cc_cores_rslot   ),
+   .s_valid  (  issue_task_valid    ),
+   .s_ready  (  issue_task_ready    ),
+   .s_rdata  (  issue_task          ),
+   .s_cq_slot(  issue_task_cq_slot  ),
+   .s_thread (  issue_task_thread   ),
 
-   .finished_task_valid(cc_finish_task_valid), // Snoop on cores-CQ traffic
-   .finished_task_core (finish_task_select_core),
+   .unlock_valid  ( unlock_thread_valid ), 
+   .unlock_thread ( unlock_thread       ),
 
    .m_task        ( fifo_cc_data      ),
    .m_cq_slot     ( fifo_cc_slot      ),
@@ -1160,6 +1090,286 @@ conflict_serializer #(
    .reg_bus(reg_bus[ID_SERIALIZER])
 );
 
+logic rw_read_out_fifo_full;
+logic rw_read_out_fifo_empty;
+
+logic rw_read_out_valid;
+logic rw_read_out_ready;
+rw_write_t rw_read_out_data, rw_write_in_data;
+logic rw_write_in_valid;
+logic rw_write_in_ready;
+ 
+assign rw_read_out_ready = !rw_read_out_fifo_full;
+assign rw_write_in_valid = !rw_read_out_fifo_empty;
+
+read_rw  
+#(
+) READ_RW (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+
+   .task_in_valid (issue_task_valid),
+   .task_in_ready (issue_task_ready),
+
+   .task_in       (issue_task      ), 
+   .cq_slot_in    (issue_task_cq_slot),
+   .thread_id_in  (issue_task_thread),
+
+   .arvalid    (rw_l2.arvalid),
+   .arready    (rw_l2.arready),
+   .araddr     (rw_l2.araddr[31:0] ),
+   .arid       (rw_l2.arid   ),
+
+   .rvalid     (rw_l2.rvalid ),
+   .rready     (rw_l2.rready ),
+   .rid        (rw_l2.rid    ),
+   .rdata      (rw_l2.rdata  ),
+   .rindex     (rw_l2_rindex ),
+
+   .task_out_valid(rw_read_out_valid),
+   .task_out_ready(rw_read_out_ready),
+   .task_out      (rw_read_out_data ),  
+   
+   .reg_bus( reg_bus[ID_RW_READ])
+);
+
+assign rw_l2.araddr[63:32] = '0;
+assign rw_l2.awvalid = 1'b0;
+assign rw_l2.wvalid = 1'b0;
+assign rw_l2.bready = 1'b1;
+
+fifo #(
+      .WIDTH( $bits(rw_read_out_data)),
+      .LOG_DEPTH(1)
+   ) RW_READ_OUT_FIFO (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+      .wr_en(rw_read_out_valid & !rw_read_out_fifo_full),
+      .wr_data( rw_read_out_data ),
+
+      .full(  rw_read_out_fifo_full ),
+      .empty( rw_read_out_fifo_empty),
+
+      .rd_en( rw_write_in_ready ),
+      .rd_data( rw_write_in_data )
+
+   );
+
+logic rw_write_out_fifo_full;
+logic rw_write_out_fifo_empty;
+
+logic rw_write_out_valid;
+logic rw_write_out_ready;
+ro1_in_t rw_write_out_data, ro1_in_data;
+cq_slice_slot_t rw_write_out_cq_slot, ro1_in_cq_slot;
+logic ro1_in_valid;
+logic ro1_in_ready;
+
+assign rw_write_out_ready = !rw_write_out_fifo_full;
+assign ro1_in_valid = !rw_write_out_fifo_empty;
+
+write_rw 
+#(
+) WRITE_RW (
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
+
+   .task_in_valid (rw_write_in_valid),
+   .task_in_ready (rw_write_in_ready),
+
+   .task_in (rw_write_in_data), 
+
+   .wvalid (rw_l2.awvalid),
+   .wready (rw_l2.awready),
+   .waddr  (rw_l2.awaddr[31:0] ), 
+   .wdata  (rw_l2.wdata  ),
+   .wstrb  (rw_l2.wstrb  ),
+
+   .task_out_valid(rw_write_out_valid),
+   .task_out_ready(rw_write_out_ready),
+   .task_out(rw_write_out_data),  
+   .task_out_cq_slot(rw_write_out_cq_slot),  
+
+   .unlock_locale (unlock_thread_valid),
+   .finish_task(),
+   .unlock_thread(unlock_thread),
+   
+   .reg_bus(reg_bus[ID_RW_WRITE])
+);
+
+fifo #(
+      .WIDTH( $bits(rw_write_out_data) + $bits(rw_write_out_cq_slot)),
+      .LOG_DEPTH(1)
+   ) RW_WRITE_OUT_FIFO (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+      .wr_en(rw_write_out_valid & !rw_write_out_fifo_full),
+      .wr_data( {rw_write_out_data, rw_write_out_cq_slot} ),
+
+      .full(  rw_write_out_fifo_full ),
+      .empty( rw_write_out_fifo_empty),
+
+      .rd_en( ro1_in_ready ),
+      .rd_data( {ro1_in_data, ro1_in_cq_slot} )
+
+   );
+
+assign rw_l2.wvalid = rw_l2.awvalid;
+assign rw_l2.awaddr[63:32] = '0;
+assign rw_l2.bready = 1'b1;
+
+logic ro1_out_fifo_full;
+logic ro1_out_fifo_empty;
+
+logic ro1_out_valid;
+logic ro1_out_ready;
+ro2_in_t ro2_in_data;
+logic ro2_in_valid;
+logic ro2_in_ready;
+
+assign ro1_out_ready = !ro1_out_fifo_full;
+assign ro2_in_valid = !ro1_out_fifo_empty;
+ro2_in_t ro2_in_task;
+cq_slice_slot_t ro1_out_cq_slot, ro2_in_cq_slot;
+logic [$bits(ro2_in_data) - RO2_DATA_WIDTH -1 :0] ro1_out_task;
+logic [RO1_DATA_WIDTH-1:0] ro1_out_data;
+logic ro1_out_last, ro2_in_last;
+
+logic ro1_idle, ro2_idle;
+
+read_only_stage
+#(
+   .STAGE_ID (1),
+   .IN_WIDTH ($bits(ro1_in_data)),
+   .OUT_WIDTH ( $bits(ro1_out_task) ),
+   .DATA_WIDTH( RO1_DATA_WIDTH )
+) RO_STAGE_1 (
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
+
+   .task_in_valid (ro1_in_valid),
+   .task_in_ready (ro1_in_ready),
+
+   .in_task (ro1_in_data), 
+   .in_cq_slot(ro1_in_cq_slot),
+   .in_last(1'b1),
+
+   .arvalid(l1_arb[0].arvalid),
+   .arready(l1_arb[0].arready),
+   .araddr (l1_arb[0].araddr[31:0] ),
+   .arid   (l1_arb[0].arid   ),
+
+   .rvalid(l1_arb[0].rvalid),
+   .rready(l1_arb[0].rready),
+   .rdata (l1_arb[0].rdata ),
+   .rid   (l1_arb[0].rid   ),
+
+   .out_valid (ro1_out_valid),
+   .out_ready (ro1_out_ready),
+
+   .out_task (ro1_out_task),
+   .out_cq_slot (ro1_out_cq_slot),
+   .out_data (ro1_out_data),
+   .out_last (ro1_out_last),
+
+   .idle(ro1_idle),
+   
+   .reg_bus( reg_bus[ID_RO_STAGE_1])
+);
+
+assign l1_arb[0].araddr[63:32] = 0;
+assign l1_arb[0].awvalid = 0;
+assign l1_arb[0].wvalid = 0;
+assign l1_arb[0].bready = 1;
+
+fifo #(
+      .WIDTH( $bits(ro1_out_task) + RO1_DATA_WIDTH + $bits(rw_write_out_cq_slot) + 1),
+      .LOG_DEPTH(1)
+   ) RO1_OUT_FIFO (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+      .wr_en(ro1_out_valid & !ro1_out_fifo_full),
+      .wr_data( {ro1_out_task, ro1_out_data, rw_write_out_cq_slot, ro1_out_last} ),
+
+      .full(  ro1_out_fifo_full ),
+      .empty( ro1_out_fifo_empty),
+
+      .rd_en( ro2_in_ready ),
+      .rd_data( {ro2_in_task, ro2_in_cq_slot, ro2_in_last} )
+
+   );
+
+logic ro2_out_valid;
+logic ro2_out_ready;
+
+ro2_out_t ro2_out_task;
+cq_slice_slot_t ro2_out_cq_slot;
+logic [RO2_DATA_WIDTH-1:0] ro2_out_data;
+logic ro2_out_last;
+
+read_only_stage
+#(
+   .STAGE_ID (2),
+   .IN_WIDTH ($bits(ro2_in_data)),
+   .OUT_WIDTH ( $bits(ro2_out_task) ),
+   .DATA_WIDTH( RO2_DATA_WIDTH )
+) RO_STAGE_2 (
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
+
+   .task_in_valid (ro2_in_valid),
+   .task_in_ready (ro2_in_ready),
+
+   .in_task (ro2_in_task), 
+   .in_cq_slot(ro2_in_cq_slot),
+   .in_last(ro2_in_last),
+
+   .arvalid(l1_arb[1].arvalid),
+   .arready(l1_arb[1].arready),
+   .araddr (l1_arb[1].araddr[31:0] ),
+   .arid   (l1_arb[1].arid   ),
+
+   .rvalid(l1_arb[1].rvalid),
+   .rready(l1_arb[1].rready),
+   .rdata (l1_arb[1].rdata ),
+   .rid   (l1_arb[1].rid   ),
+
+   .out_valid (ro2_out_valid),
+   .out_ready (ro2_out_ready),
+
+   .out_task (ro2_out_task),
+   .out_cq_slot (ro2_out_cq_slot),
+   .out_data (ro2_out_data),
+   .out_last (ro2_out_last),
+   
+   .idle(ro2_idle),
+   
+   .reg_bus( reg_bus[ID_RO_STAGE_2])
+);
+
+assign l1_arb[1].araddr[63:32] = 0;
+assign l1_arb[1].awvalid = 0;
+assign l1_arb[1].wvalid = 0;
+assign l1_arb[1].bready = 1;
+
+sssp_gen_child GEN_CHILD
+(
+
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
+
+   .task_in_valid(ro2_out_valid),
+   .task_in_ready(ro2_out_ready),
+
+   .in_task(ro2_out_task), 
+   .in_data(ro2_out_data),
+
+   .out_valid(cores_cm_wvalid[1]),
+   .out_ready(cores_cm_wready[1]),
+   .out_task(cores_cm_wdata[1])
+   
+
+);
 
 logic             cm_tsb_valid;
 logic             cm_tsb_ready;
@@ -1322,7 +1532,7 @@ always @(posedge clk_main_a0) begin
    if (!rst_main_n_sync) begin
       done <= 0;
    end else begin
-      done <= tq_empty & tsb_empty & all_cores_idle & out_task_fifo_empty;
+      done <= tq_empty & tsb_empty & all_cores_idle & out_task_fifo_empty & ro1_idle & ro2_idle;
    end
 
 end

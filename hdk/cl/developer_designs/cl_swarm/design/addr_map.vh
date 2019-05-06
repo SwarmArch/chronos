@@ -1,22 +1,21 @@
 
-   parameter ID_SPLITTER = N_CORES;
-   parameter ID_COAL = N_CORES + 1;
-   parameter N_L1 = ID_COAL + 1; // +1 for OCL
-   // end all modules with an L1 
-   parameter ID_UNDO_LOG = N_CORES + 2;
-   parameter ID_TASK_UNIT = N_CORES + 3; 
-   parameter L2_PORTS = ID_UNDO_LOG + 1;
-   parameter CM_PORTS = ID_SPLITTER + 1;
+   parameter ID_RW_READ = 1;
+   parameter ID_RW_WRITE = 2;
+   parameter ID_RO_STAGE_1 = 3;
+   parameter ID_RO_STAGE_2 = 4;
+   parameter ID_RO_STAGE_3 = 5;
+   parameter ID_SPLITTER = 6;
+   parameter ID_COAL = 7;
+   parameter ID_TASK_UNIT = 8; 
+   parameter CM_PORTS = 2;
    // end all modules with an L2 port
-   parameter ID_L2 = N_CORES + 4;
-   parameter ID_L2_LAST = ID_L2 + (1<<LOG_L2_BANKS -1);
-   parameter ID_MEM_ARB = ID_L2_LAST + 1;
-   parameter ID_PCI_ARB = ID_L2_LAST + 2;
-   parameter ID_TSB     = ID_L2_LAST + 3;
-   parameter ID_CQ      = ID_L2_LAST + 4;
-   parameter ID_CM      = ID_L2_LAST + 5;
-   parameter ID_SERIALIZER    = ID_L2_LAST + 6;
-   parameter ID_LAST = ID_L2_LAST + 7;
+   parameter ID_L2_RW = 9;
+   parameter ID_L2_RO = 10;
+   parameter ID_TSB     = 11;
+   parameter ID_CQ      = 12;
+   parameter ID_CM      = 13;
+   parameter ID_SERIALIZER    = 14;
+   parameter ID_LAST = 15;
    
    parameter ID_ALL_CORES = 32;
    parameter ID_ALL_APP_CORES = 33;
@@ -31,6 +30,8 @@
    parameter TASK_TYPE_SPLITTER = 14;
    parameter TASK_TYPE_UNDO_LOG_RESTORE = 15;
 
+   parameter L2_ID_COAL = RO_STAGES;
+   parameter L2_ID_SPLITTER = RO_STAGES + 1;
 
    // CL Register Addresses OCL is only 32 MiB (25 bit)
    // [23:16] is tile, [15:8] component, [7:0] addr 

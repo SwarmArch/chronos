@@ -25,6 +25,8 @@
    
    typedef logic [TB_WIDTH-1:0] tb_t;
 
+   typedef logic [31:0] cache_addr_t;
+
    // Gloabl type definitions
    typedef struct packed {
       task_type_t ttype;
@@ -35,6 +37,7 @@
       logic no_write; // task will not do any write
       logic no_read;  // task will not read any read-write data
    } task_t;
+
 
    typedef enum logic[2:0] {NOP, ENQ, DEQ_MIN, REPLACE ,DEQ_MAX } heap_op_t;
    
@@ -60,3 +63,11 @@
    typedef logic [5:0] core_id_t;
    typedef logic [4:0] thread_id_t;
    typedef logic [EPOCH_WIDTH-1:0] epoch_t;
+   
+   typedef struct packed {
+      task_t            task_desc;
+      cq_slice_slot_t   cq_slot;
+      thread_id_t       thread;
+      object_t          object;
+      cache_addr_t      cache_addr;
+   } rw_write_t;

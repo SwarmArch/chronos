@@ -26,7 +26,7 @@ package swarm;
 
    parameter VERSION = 10; // increment on every change to the addr_map.
 
-   `include "config_app.vh"
+   `include "apps/sssp/config.vh"
    parameter N_TILES = 1;
 
    parameter TASK_UNIT_LOGGING = 0;
@@ -95,11 +95,11 @@ package swarm;
    parameter LOG_N_MSHR = 4;
 
    parameter L2_BANKS = (1<<LOG_L2_BANKS);
+   parameter L2_PORTS = RO_STAGES + 2;
    
    // 'Core' is any module that gets tasks from CC. OCL is a special case 
    // APP_COREs have IDs {1..N_APP_CORES}
-   parameter N_CORES = N_APP_CORES + 1; 
-   parameter N_THREADS = N_APP_THREADS + 1; 
+   parameter N_THREADS = 32; 
 
    parameter UNDO_LOG_THREADS = UNORDERED ? 1 : 4;
 

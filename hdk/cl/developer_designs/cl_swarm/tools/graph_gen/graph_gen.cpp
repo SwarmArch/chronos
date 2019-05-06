@@ -243,7 +243,7 @@ void GenerateGridGraph(uint32_t n) {
    numV = n*n;
    numE = 2 * n * (n-1) ;
    graph = new Vertex[numV];
-   bool debug = false;
+   bool debug = true;//false;
    srand(0);
    for (uint32_t i=0;i<n;i++){
       for (uint32_t j=0;j<n;j++){

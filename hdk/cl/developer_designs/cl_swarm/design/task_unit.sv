@@ -334,7 +334,9 @@ endgenerate
    logic free_list_empty;
    assign next_free_tq_slot_valid = !free_list_empty;
 
-   free_list FREE_LIST (
+   free_list #(
+      .LOG_DEPTH(LOG_TQ_SIZE)
+   ) FREE_LIST (
       .clk(clk),
       .rstn(rstn),
 
@@ -1568,73 +1570,3 @@ module task_array
 endmodule
 
 // Same as fifo from util.sv, but initialized to 1..2..2**LOG_TQ_SIZE-1
-module free_list #(
-      parameter WIDTH = LOG_TQ_SIZE,
-      parameter LOG_DEPTH = LOG_TQ_SIZE
-) (
-   input  clk,
-   input  rstn,
-
-   input wr_en,
-   input rd_en,
-   input [WIDTH-1:0] wr_data,
-
-   output logic full, 
-   output logic empty,  // aka out_valid
-   output logic [WIDTH-1:0] rd_data,
-
-   // optional port. Hopefully should not be synthesized if not connected
-   output logic [LOG_DEPTH:0] size
-);
-
-   logic [LOG_DEPTH:0] wr_ptr, rd_ptr, next_rd_ptr;
-   logic [WIDTH-1:0] mem [0:(1<<LOG_DEPTH)-1];
-
-   initial begin
-      for (integer i=0;i<2**LOG_DEPTH;i++) begin
-         mem[i] = i;
-      end
-   end
-
-   // distinction between empty and full is from the MSB
-   assign empty = (wr_ptr[LOG_DEPTH-1:0] == rd_ptr[LOG_DEPTH-1:0]) & 
-      (wr_ptr[LOG_DEPTH] == rd_ptr[LOG_DEPTH]);
-   assign full = (wr_ptr[LOG_DEPTH-1:0] == rd_ptr[LOG_DEPTH-1:0]) & 
-      (wr_ptr[LOG_DEPTH] != rd_ptr[LOG_DEPTH]);
-   assign next_rd_ptr = rd_ptr + (rd_en ? 1'b1 : 1'b0);
-   always_ff @(posedge clk) begin
-      if (!rstn) begin
-         wr_ptr <= 2**LOG_DEPTH;
-         rd_ptr <= 0;
-      end else begin
-         if (wr_en) begin
-            assert(!full | rd_en)  else $error("wr when full");
-            mem[wr_ptr[LOG_DEPTH-1:0]] <= wr_data;
-            wr_ptr <= wr_ptr + 1;
-         end
-         if (rd_en) begin
-            assert(!empty)  else $error("rd when empty");
-            rd_ptr <= rd_ptr + 1;
-         end
-         if (wr_en & (wr_ptr == next_rd_ptr)) begin
-            rd_data <= wr_data;
-         end else begin
-            rd_data <= mem[next_rd_ptr[LOG_DEPTH-1:0]];
-         end
-      end
-   end
-
-
-   always_ff @(posedge clk) begin
-      if (!rstn) begin
-         size <= 2**LOG_DEPTH;
-      end else begin
-         if (wr_en & !rd_en) begin
-            size <= size + 1;
-         end else if (rd_en & !wr_en) begin
-            size <= size - 1;
-         end
-      end
-   end
-
-endmodule

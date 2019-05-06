@@ -6,7 +6,7 @@ module l2_arbiter
 ( 
 	input clk,
 	input rstn,
-   // _id[15:4] designates the master
+   // _id[15:8] designates the master
    input axi_id_t    [NUM_SI-1:0] s_awid,
    input axi_addr_t  [NUM_SI-1:0] s_awaddr,
    input axi_len_t   [NUM_SI-1:0] s_awlen,
@@ -276,7 +276,7 @@ logic [NUM_MI-1:0] [$clog2(NUM_SI):0] m_b_port;
 
 generate
 for (i=0;i<NUM_MI;i++) begin
-   assign m_b_port[i] = m_bid[i][4 +: LOG_NUM_SI ]; 
+   assign m_b_port[i] = m_bid[i][8 +: LOG_NUM_SI ]; 
 end
 
 for (i=0;i<NUM_SI;i++) begin : b_sched
@@ -340,7 +340,7 @@ logic [NUM_MI-1:0] [$clog2(NUM_SI):0] m_r_port;
 
 generate
 for (i=0;i<NUM_MI;i++) begin
-   assign m_r_port[i] = m_rid[i][4 +: LOG_NUM_SI ]; 
+   assign m_r_port[i] = m_rid[i][8 +: LOG_NUM_SI ]; 
 end
 
 for (i=0;i<NUM_SI;i++) begin : r_sched

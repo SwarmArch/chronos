@@ -62,6 +62,9 @@ ${CL_ROOT}/design/undo_log.sv
 ${CL_ROOT}/design/tsb.sv
 ${CL_ROOT}/design/child_manager.sv
 ${CL_ROOT}/design/min_heap.sv
+${CL_ROOT}/design/read_rw.sv
+${CL_ROOT}/design/write_rw.sv
+${CL_ROOT}/design/read_only_stage.sv
 ${CL_ROOT}/design/axi_xbar.sv
 ${CL_ROOT}/design/task_xbar.sv
 ${CL_ROOT}/design/ocl_slave.sv

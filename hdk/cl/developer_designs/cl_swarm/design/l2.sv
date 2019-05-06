@@ -30,12 +30,14 @@ typedef struct packed {
 module l2
 #( 
    parameter TILE_ID = 1,
-   parameter BANK_ID = 0
+   parameter BANK_ID = 0,
+   parameter BYPASS_TAG_ON_WRITES = 0
 ) (
 	input clk,
 	input rstn,
 
 	axi_bus_t.master l1,
+   output cache_addr_t rindex,
    axi_bus_t.slave mem_bus,
 
    reg_bus_t.master reg_bus,
@@ -322,7 +324,7 @@ endgenerate
 
       .stall_in(stall_in[1]),
 
-      .c_wvalid(l1.awvalid),
+      .c_wvalid( l1.awvalid),
       .c_waddr(l1.awaddr[ADDR_BITS-1:0]),
       .c_wdata(l1.wdata),
       .c_wid(l1.wid),
