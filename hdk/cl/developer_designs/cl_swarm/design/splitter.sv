@@ -45,7 +45,7 @@ typedef enum logic[3:0] {SPLITTER_IDLE,
 logic start;
 
 splitter_state_t state, state_next;
-hint_t coal_id;
+locale_t coal_id;
 
 
 always_comb begin
@@ -100,7 +100,7 @@ always_ff @(posedge clk) begin
    end else begin
       state <= state_next;
       if (splitter_valid & splitter_ready) begin
-         coal_id <= splitter_task.hint >> 16;
+         coal_id <= splitter_task.locale >> 16;
       end
       if (state == SPLITTER_READ_SCRATCHPAD_WAIT & l1.rvalid ) begin
          scratchpad_entry <= l1.rdata[SPLITTERS_PER_CHUNK-1:0] |
@@ -282,13 +282,13 @@ always_ff @(posedge clk) begin
    if (state == SPLITTER_IDLE) begin
       if (splitter_valid & splitter_ready) begin
          $display("[%5d][splitter-%2d] dequeue_task: (%5d,%5d)",
-            cycle, TILE_ID, splitter_task.ts, splitter_task.hint >> 16);
+            cycle, TILE_ID, splitter_task.ts, splitter_task.locale >> 16);
       end
    end
 
    if (task_wvalid & task_wready) begin
          $display("[%5d][splitter-%2d] enqueue_task: (%2d,%5d,%5d)",
-            cycle, TILE_ID, task_wdata.ttype, task_wdata.ts, task_wdata.hint);
+            cycle, TILE_ID, task_wdata.ttype, task_wdata.ts, task_wdata.locale);
 
    end
    if (l1.awvalid & l1.awready & l1.wvalid & l1.wready) begin

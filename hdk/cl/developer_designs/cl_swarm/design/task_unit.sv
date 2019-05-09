@@ -1035,9 +1035,9 @@ endgenerate
 
       always_ff @(posedge clk) begin
          if (task_enq_valid & task_enq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) task_enqueue slot:%4d ts:%8x hint:%8x ttype:%1x args:(%4d %4d) tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) task_enqueue slot:%4d ts:%8x locale:%8x ttype:%1x args:(%4d %4d) tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, next_free_tq_slot, 
-               modified_task_enq_ts, task_enq_data.hint, 
+               modified_task_enq_ts, task_enq_data.locale, 
                task_enq_data.ttype,
                task_enq_data.args[63:32], task_enq_data[31:0],
                task_enq_tied, task_enq_ack,
@@ -1045,24 +1045,24 @@ endgenerate
             ) ;
          end
          if (coal_child_valid & coal_child_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) coal_child   slot:%4d ts:%8x hint:%8x \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) coal_child   slot:%4d ts:%8x locale:%8x \n",
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, next_free_tq_slot,
-               coal_child_data.ts, coal_child_data.hint) ;
+               coal_child_data.ts, coal_child_data.locale) ;
          end
          if (overflow_valid & overflow_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) overflow     slot:%4d ts:%8x hint:%8x \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) overflow     slot:%4d ts:%8x locale:%8x \n",
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, add_free_tq_slot,
-               overflow_data.ts, overflow_data.hint) ;
+               overflow_data.ts, overflow_data.locale) ;
          end
          if (task_deq_valid & task_deq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) task_deq     slot:%4d ts:%8x hint:%8x cq_slot:%2d\n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) task_deq     slot:%4d ts:%8x locale:%8x cq_slot:%2d\n",
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, task_deq_tq_slot,
-               task_deq_data.ts, task_deq_data.hint, task_deq_cq_slot) ;
+               task_deq_data.ts, task_deq_data.locale, task_deq_cq_slot) ;
          end
          if (splitter_deq_valid & splitter_deq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) splitter_deq slot:%4d ts:%8x hint:%8x \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) splitter_deq slot:%4d ts:%8x locale:%8x \n",
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, splitter_deq_slot,
-               splitter_deq_task.ts, splitter_deq_task.hint ) ;
+               splitter_deq_task.ts, splitter_deq_task.locale ) ;
          end
          if (cut_ties_valid & cut_ties_ready) begin
             $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) cut_ties     slot:%4d epoch(%3d,%3d) tied:%d \n",
@@ -1356,7 +1356,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       ts_t gvt_tb;
       ts_t gvt_ts;
       
-      hint_t deq_hint;
+      locale_t deq_locale;
       ts_t deq_ts;
 
       msg_type_t  commit_task_abort_child;
@@ -1368,7 +1368,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
 
 
       // enq parameters 
-      hint_t enq_hint; 
+      locale_t enq_locale; 
       ts_t   enq_ts;
       
       logic [3:0] enq_ttype;
@@ -1420,7 +1420,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       if (task_enq_valid & task_enq_ready) begin
         log_word.enq_task_n_coal_child = 1'b1;
         log_word.enq_ttype = task_enq_data.ttype;
-        log_word.enq_hint  = task_enq_data.hint;
+        log_word.enq_locale  = task_enq_data.locale;
         log_word.enq_ts    = modified_task_enq_ts;
         log_word.enq_task_coal_child.tied  = task_enq_tied;
         log_word.enq_task_coal_child.valid = task_enq_valid;
@@ -1429,14 +1429,14 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.enq_task_coal_child.epoch_1 = epoch[next_free_tq_slot];
         if (alt_log_word & ARG_WIDTH == 64) begin
 		
-           log_word.deq_hint = task_enq_data.args[31:0] ;
+           log_word.deq_locale = task_enq_data.args[31:0] ;
            log_word.deq_ts   = task_enq_data.args[63:32];
         end
         log_valid = 1;
      end else if (coal_child_valid & coal_child_ready) begin
         log_word.enq_task_n_coal_child = 1'b0;
         log_word.enq_ttype = coal_child_data.ttype;
-        log_word.enq_hint  = coal_child_data.hint;
+        log_word.enq_locale  = coal_child_data.locale;
         log_word.enq_ts    = coal_child_data.ts;
         log_word.enq_task_coal_child.valid = coal_child_valid;
         log_word.enq_task_coal_child.ready = coal_child_ready;
@@ -1449,14 +1449,14 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.deq_task.tied    = tied_task[task_deq_tq_slot];
 
         if (!alt_log_word) begin
-           log_word.deq_hint = task_deq_data.hint;
+           log_word.deq_locale = task_deq_data.locale;
            log_word.deq_ts   = task_deq_data.ts;
         end
         log_valid = 1;
      end else if (splitter_deq_valid & splitter_deq_ready) begin
         log_word.deq_task.slot    =  splitter_deq_slot;
         if (!alt_log_word) begin
-          log_word.deq_hint = splitter_deq_task.hint;
+          log_word.deq_locale = splitter_deq_task.locale;
           log_word.deq_ts   = splitter_deq_task.ts;
         end
         log_valid = 1;

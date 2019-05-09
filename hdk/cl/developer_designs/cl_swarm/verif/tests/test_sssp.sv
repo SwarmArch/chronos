@@ -44,7 +44,7 @@ localparam CL_SPILL_AREA = (1<<30);
 logic [31:0] addr, data;
 
 logic [31:0] enq_ts;
-logic [31:0] enq_hint;
+logic [31:0] enq_locale;
 logic [31:0] enq_args;
 
 integer BASE_END;
@@ -287,14 +287,14 @@ if (APP_NAME == "des") begin
    end
    for (i=0;i<file[11];i++) begin // numI
       enq_ts = 0;
-      enq_hint = file[ file[7] + i] ; 
+      enq_locale = file[ file[7] + i] ; 
       enq_args = 0 ; 
 
       ocl_addr = 0;
-      ocl_addr[23:16] = (enq_hint >> 4) % N_TILES; // tile TODO: depends on enq_hint
+      ocl_addr[23:16] = (enq_locale >> 4) % N_TILES; // tile TODO: depends on enq_locale
       ocl_addr[15:8] = 0; // Component
-      ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
-      tb.poke(.addr(ocl_addr), .data(enq_hint),
+      ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
+      tb.poke(.addr(ocl_addr), .data(enq_locale),
          .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
       ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
       tb.poke(.addr(ocl_addr), .data(enq_args),
@@ -302,7 +302,7 @@ if (APP_NAME == "des") begin
       ocl_addr[ 7:0]  = OCL_TASK_ENQ;
       tb.poke(.addr(ocl_addr), .data(enq_ts),
          .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      $display("Enqueued ts:%d, hint:%d, args:%d", enq_ts, enq_hint, enq_args);
+      $display("Enqueued ts:%d, locale:%d, args:%d", enq_ts, enq_locale, enq_args);
    end
 end
 if (APP_NAME == "sssp" | APP_NAME == "sssp_hls") begin
@@ -311,7 +311,7 @@ if (APP_NAME == "sssp" | APP_NAME == "sssp_hls") begin
    ocl_addr = 0;
    ocl_addr[23:16] = 0; // tile
    ocl_addr[15:8] = 0; // Component
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
    tb.poke(.addr(ocl_addr), .data(file[7]),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
@@ -333,7 +333,7 @@ if (APP_NAME == "color") begin
    ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
    tb.poke(.addr(ocl_addr), .data(0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
    tb.poke(.addr(ocl_addr), .data(32'h0),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
@@ -361,7 +361,7 @@ if (APP_NAME == "astar") begin
    ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
    tb.poke(.addr(ocl_addr), .data(32'hffffffff),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
    tb.poke(.addr(ocl_addr), .data(file[7]),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
@@ -376,7 +376,7 @@ if (APP_NAME == "maxflow") begin
    ocl_addr = 0;
    ocl_addr[23:16] = file[7][30:4] % N_TILES; // tile
    ocl_addr[15:8] = 0; // Component
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_HINT;
+   ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
    tb.poke(.addr(ocl_addr), .data(file[7]),
       .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;

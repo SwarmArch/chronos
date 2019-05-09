@@ -6,7 +6,7 @@ import swarm::*;
 
 typedef enum logic[2:0] {
    UNUSED,
-   DEQUEUED,  // cleared conflict detection, but not hint serializer
+   DEQUEUED,  // cleared conflict detection, but not locale serializer
    RUNNING, // actively running on a core
    ABORTED, // waiting for child-abort acks to be received (or for a core to start this task if the task was aborted before it started running)
    UNDO_LOG_WAITING, // undo-log request sent, waiting for completion
@@ -188,7 +188,7 @@ cq_fsm_state_t state;
 logic      [2**LOG_CQ_SLICE_SIZE-1:0]  cq_valid; 
 
 cq_state_t   cq_state [0:2**LOG_CQ_SLICE_SIZE-1];
-hint_t       cq_hint  [0:2**LOG_CQ_SLICE_SIZE-1];
+locale_t       cq_locale  [0:2**LOG_CQ_SLICE_SIZE-1];
 epoch_t      tq_epoch [0:2**LOG_CQ_SLICE_SIZE-1];
 tq_slot_t    cq_tq_slot [0:2**LOG_CQ_SLICE_SIZE-1];
 logic        cq_read_only_task [0:2**LOG_CQ_SLICE_SIZE-1];
@@ -210,7 +210,7 @@ vt_t [0:2**LOG_CQ_TS_BANKS-1] rdata_lvt;
 
 initial begin
    for (integer i=0;i<2**LOG_CQ_SLICE_SIZE;i=i+1) begin
-      cq_hint[i] = 0;
+      cq_locale[i] = 0;
    end
 end
 vt_t ts_write_data;
@@ -317,14 +317,14 @@ logic [31:0] stall_cycles_cq_full;
 logic [31:0] stall_cycles_cc_full;
 logic [31:0] stall_cycles_no_task;
 
-// tasks who did not have any same hint tasks on dequeue
+// tasks who did not have any same locale tasks on dequeue
 logic [31:0] n_tasks_no_conflict;
-// has same hint tasks, but conflict checks were skipped because the cache was
+// has same locale tasks, but conflict checks were skipped because the cache was
 // effective
 logic [31:0] n_tasks_conflict_mitigated;
-// has same hint tasks, but could not skip conflict checks because cache miss
+// has same locale tasks, but could not skip conflict checks because cache miss
 logic [31:0] n_tasks_conflict_miss; 
-// has same hint tasks which were real conflicts
+// has same locale tasks which were real conflicts
 logic [31:0] n_tasks_real_conflict; 
 
 
@@ -376,55 +376,55 @@ last_deq_ts_cache TS_CACHE
    .clk(clk),
    .rstn(rstn),
    
-   .query_hint(deq_task.hint),
+   .query_locale(deq_task.locale),
    .query_out_valid(last_deq_ts_cache_hit),
    .query_out_ts(last_deq_ts_cache_ts),
 
    .wr_en(ts_write_valid),
-   .write_hint(out_task.hint),
+   .write_locale(out_task.locale),
    .write_ts(out_task.ts)
 
 );
 
-hint_t bloom_query_hint;
+locale_t bloom_query_locale;
 logic [2**LOG_CQ_SLICE_SIZE-1:0] bloom_query_out_conflict;
 logic bloom_wr_en;
 cq_slice_slot_t bloom_wr_cq_slot; 
-hint_t bloom_wr_hint; 
+locale_t bloom_wr_locale; 
 logic bloom_wr_set; 
 
-assign bloom_query_hint = {1'b0, deq_task.hint[30:0]};
+assign bloom_query_locale = {1'b0, deq_task.locale[30:0]};
 
-hint_t ref_hint;
-hint_bloom_filters HINT_BLOOM
+locale_t ref_locale;
+locale_bloom_filters LOCALE_BLOOM
 (
    .clk(clk),
    .rstn(rstn),
    
-   .query_hint(ref_hint),
+   .query_locale(ref_locale),
    .query_out_conflict(bloom_query_out_conflict),
 
    .wr_en(bloom_wr_en),
    .write_slot(bloom_wr_cq_slot),
-   .write_hint(bloom_wr_hint),
+   .write_locale(bloom_wr_locale),
    .write_set(bloom_wr_set) // set-1, reset-0 
 );
 
 always_comb begin
    bloom_wr_en = 1'b0;
    bloom_wr_set = 'x;
-   bloom_wr_hint = 'x;
+   bloom_wr_locale = 'x;
    bloom_wr_cq_slot = 'x;
    if (state == IDLE) begin
       bloom_wr_cq_slot = deq_task_cq_slot;
-      bloom_wr_hint = cq_hint[deq_task_cq_slot];
+      bloom_wr_locale = cq_locale[deq_task_cq_slot];
       bloom_wr_set = 0;
       if (deq_task_valid & deq_task_ready) begin
          bloom_wr_en = 1'b1;
       end
    end else if (state == DEQ_PUSH_TASK) begin
       bloom_wr_cq_slot = out_task_slot;
-      bloom_wr_hint = {1'b0, out_task.hint[30:0]}; 
+      bloom_wr_locale = {1'b0, out_task.locale[30:0]}; 
       bloom_wr_set = 1;
       if (out_task_valid & out_task_ready) begin
          bloom_wr_en = 1'b1;
@@ -468,16 +468,16 @@ assign cq_full =  (deq_task_cq_slot >= cq_size) ||  (cq_next_idle_in == 0);
 always_comb begin
    if (state==IDLE) begin
       if (from_tq_abort_valid) begin
-         ref_hint = { 1'b0, cq_hint[from_tq_abort_slot][30:0]};
+         ref_locale = { 1'b0, cq_locale[from_tq_abort_slot][30:0]};
       end else if (resource_abort_start) begin
-         ref_hint = { 1'b0, cq_hint[max_vt_pos_fixed][30:0]};
+         ref_locale = { 1'b0, cq_locale[max_vt_pos_fixed][30:0]};
       end else if (gvt_induced_abort_start) begin
-         ref_hint = { 1'b0, cq_hint[core_1_running_task_slot][30:0]}; 
+         ref_locale = { 1'b0, cq_locale[core_1_running_task_slot][30:0]}; 
       end else begin
-         ref_hint = deq_task.hint;
+         ref_locale = deq_task.locale;
       end      
    end else begin
-      ref_hint = cur_task.hint;
+      ref_locale = cur_task.locale;
    end
 end
 
@@ -485,10 +485,10 @@ genvar i;
 for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
    assign cq_conflict[i] = cq_valid[i] 
             & bloom_query_out_conflict[i]  
-            // & (ref_hint[30:0] == cq_hint[i][30:0])
-            // if MSB of hint is set, its a read-only hint. No conflicts between
+            // & (ref_locale[30:0] == cq_locale[i][30:0])
+            // if MSB of locale is set, its a read-only locale. No conflicts between
             // RO tasks
-            &  !(cq_read_only_task[i] & ref_hint[31])
+            &  !(cq_read_only_task[i] & ref_locale[31])
             & (cq_state[i] != ABORTED) & (cq_state[i] != UNDO_LOG_WAITING);
    assign cq_next_idle_in[i] = !cq_valid[i];
 end
@@ -564,7 +564,7 @@ always_ff @(posedge clk) begin
                in_tq_abort <= 1'b1;
                ref_tb <= check_vt.tb; 
                cur_task.ts <= check_vt.ts;
-               cur_task.hint <= ref_hint;
+               cur_task.locale <= ref_locale;
                cur_task_slot <= from_tq_abort_slot;
                reg_from_tq_abort_slot <= from_tq_abort_slot;
             end else 
@@ -573,7 +573,7 @@ always_ff @(posedge clk) begin
                in_gvt_induced_abort <= 1'b1;
                ref_tb <= gvt.tb;
                cur_task.ts <= gvt.ts;
-               cur_task.hint <= ref_hint;
+               cur_task.locale <= ref_locale;
             end else
             if (deq_task_valid & deq_task_ready) begin
                cur_task <= deq_task;
@@ -589,7 +589,7 @@ always_ff @(posedge clk) begin
                   if ( !use_ts_cache | !last_deq_ts_cache_hit |
                         (deq_task.ts < last_deq_ts_cache_ts) ) begin
                      // bypass conflict checks if dequeing a task with a larger
-                     // ts than the previous dequeued task of the same hint
+                     // ts than the previous dequeued task of the same locale
                      state <= DEQ_CHECK_TS;
                   end else begin
                      state <= DEQ_PUSH_TASK;
@@ -603,7 +603,7 @@ always_ff @(posedge clk) begin
                in_resource_abort <= 1'b1;
                ref_tb <= max_vt_fixed.tb;
                cur_task.ts <= max_vt_fixed.ts;
-               cur_task.hint <= ref_hint;
+               cur_task.locale <= ref_locale;
             end 
          end
          DEQ_CHECK_TS: begin
@@ -639,7 +639,7 @@ always_ff @(posedge clk) begin
          ABORT_REQUEUE: begin
             if (to_tq_abort_valid & to_tq_abort_ready | 
                   // Do not requeue the task from a task_queue induced abort,
-                  // but requeue later ts tasks with the same hint
+                  // but requeue later ts tasks with the same locale
                   ( in_tq_abort & (reg_from_tq_abort_slot == ts_check_id)) ) begin
                   // no special treatment for resource aborts, they should
                   // requeue 
@@ -692,7 +692,7 @@ always_comb begin
    end else if (state == UNDO_LOG_RESTORE) begin
       out_task_valid = (undo_log_abort_scratchpad_diff ==0);
       out_task.ttype = TASK_TYPE_UNDO_LOG_RESTORE;
-      out_task.hint = cur_task.hint;
+      out_task.locale = cur_task.locale;
       out_task.ts = 'x;
       out_task.args = 'x;
       // other fields doesn't matter
@@ -726,7 +726,7 @@ core_id_t start_core_select;
 
 assign abort_ts_check_task = (state == DEQ_CHECK_TS) 
    & (check_vt >= ref_vt) 
-   & (cur_task.hint[30:0] == cq_hint[ts_check_id][30:0]) // not a false hit in BF 
+   & (cur_task.locale[30:0] == cq_locale[ts_check_id][30:0]) // not a false hit in BF 
    & (reg_conflict != 0);
 for (i=0;i<N_THREADS;i++) begin
    assign abort_running_task[i] = (abort_ts_check_task & 
@@ -961,8 +961,8 @@ always_ff @(posedge clk) begin
    if (state==DEQ_PUSH_TASK & out_task_valid & out_task_ready) begin
       tq_epoch  [out_task_slot] <= cur_task_epoch;
       cq_tq_slot[out_task_slot] <= cur_task_tq_slot;
-      cq_hint [out_task_slot] <= out_task.hint;
-      cq_read_only_task [out_task_slot] <= out_task.hint[31];
+      cq_locale [out_task_slot] <= out_task.locale;
+      cq_read_only_task [out_task_slot] <= out_task.locale[31];
       cq_ttype[out_task_slot] <= out_task.ttype;
 
    end
@@ -1145,7 +1145,7 @@ always_ff @(posedge clk) begin
          DEBUG_CAPACITY : reg_bus.rdata <= log_size;
          CQ_STATE  : reg_bus.rdata <= state;
          CQ_LOOKUP_STATE : reg_bus.rdata <= cq_state[lookup_entry];
-         CQ_LOOKUP_HINT  : reg_bus.rdata <= cq_hint[lookup_entry];
+         CQ_LOOKUP_LOCALE  : reg_bus.rdata <= cq_locale[lookup_entry];
          CQ_LOOKUP_TS    : reg_bus.rdata <= check_vt.ts;
          CQ_LOOKUP_TB    : reg_bus.rdata <= check_vt.tb;
          CQ_GVT_TS       : reg_bus.rdata <= gvt.ts;
@@ -1267,7 +1267,7 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       logic out_task_ready;
       logic [5:0] out_task_cq_slot;
       logic [3:0] out_task_ttype;
-      logic [19:0] out_task_hint;
+      logic [19:0] out_task_locale;
 
 
       // 32 
@@ -1378,7 +1378,7 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.out_task_ready = out_task_ready;
       log_word.out_task_cq_slot = out_task_slot;
       log_word.out_task_ttype = out_task.ttype;
-      log_word.out_task_hint = out_task.hint;
+      log_word.out_task_locale = out_task.locale;
    end
 
    log #(
@@ -1568,48 +1568,48 @@ endmodule
 
 // looks up of the last dequeued ts for a given ts
 // used to accelerate conflict detection where if the currently dequeued task
-// comes after the last dequeued ts for the same hint, then no conflict
+// comes after the last dequeued ts for the same locale, then no conflict
 // detection is required.
 module last_deq_ts_cache 
 (
    input clk,
    input rstn,
 
-   input hint_t query_hint,
+   input locale_t query_locale,
    output logic query_out_valid,
    output ts_t query_out_ts,
 
    input wr_en,
-   input hint_t write_hint,
+   input locale_t write_locale,
    input ts_t   write_ts
 );
 generate
 if (LOG_LAST_DEQ_VT_CACHE >0) begin
-   hint_t tag  [0:2**LOG_LAST_DEQ_VT_CACHE-1];
+   locale_t tag  [0:2**LOG_LAST_DEQ_VT_CACHE-1];
    ts_t data   [0:2**LOG_LAST_DEQ_VT_CACHE-1];
 
    // skip bits[4+LOG_N_TILES -1:4] in indexing, since they may be constant if the task is
    // mapped to the current tile.
    logic [LOG_LAST_DEQ_VT_CACHE-1:0] rd_addr;
-   assign rd_addr = {query_hint[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  query_hint[3:0]};
+   assign rd_addr = {query_locale[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  query_locale[3:0]};
    logic [LOG_LAST_DEQ_VT_CACHE-1:0] wr_addr;
-   assign wr_addr =  {write_hint[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  write_hint[3:0]};
+   assign wr_addr =  {write_locale[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  write_locale[3:0]};
    initial begin
       for (integer i=0;i<2**LOG_LAST_DEQ_VT_CACHE;i+=1) begin
          tag[i] = 0;
          data[i] = 0;
       end
    end
-   assign query_out_valid = (tag[rd_addr][30:0] == query_hint[30:0]);
+   assign query_out_valid = (tag[rd_addr][30:0] == query_locale[30:0]);
    assign query_out_ts = data[rd_addr];
    // a read-only task may not have aborted all its successors. Therefore its
    // not safe to update the last_deq_ts with current task's ts
    ts_t current_ts;
-   assign current_ts = (tag[wr_addr][30:0] == write_hint[30:0]) ? data[wr_addr] : 0;
+   assign current_ts = (tag[wr_addr][30:0] == write_locale[30:0]) ? data[wr_addr] : 0;
    ts_t new_write_ts;
    always_comb begin
       new_write_ts = write_ts;
-      if (write_hint[31] == 1'b1) begin
+      if (write_locale[31] == 1'b1) begin
          if (current_ts > write_ts) begin
             new_write_ts = current_ts;
          end
@@ -1618,7 +1618,7 @@ if (LOG_LAST_DEQ_VT_CACHE >0) begin
    
    always_ff @(posedge clk) begin
       if (wr_en) begin
-         tag[wr_addr] <= {1'b0, write_hint[30:0]};
+         tag[wr_addr] <= {1'b0, write_locale[30:0]};
          data[wr_addr] <= new_write_ts;
       end
    end
@@ -1629,17 +1629,17 @@ end
 endgenerate
 endmodule
 
-module hint_bloom_filters
+module locale_bloom_filters
 (
    input clk,
    input rstn,
 
-   input hint_t query_hint,
+   input locale_t query_locale,
    output logic [2**LOG_CQ_SLICE_SIZE-1:0] query_out_conflict,
 
    input wr_en,
    input cq_slice_slot_t write_slot,
-   input hint_t write_hint,
+   input locale_t write_locale,
    input write_set // set-1, reset-0 
 );
 
@@ -1659,12 +1659,12 @@ module hint_bloom_filters
          ) BANK (
             .clk(clk),
             .rstn(rstn),
-            .query_hint(query_hint),
+            .query_locale(query_locale),
             .filter_out(filter_out[i]),
 
             .wr_en(wr_en),
             .write_slot(write_slot),
-            .write_hint(write_hint),
+            .write_locale(write_locale),
             .write_set(write_set)
          );
       end
@@ -1682,12 +1682,12 @@ module bloom_bank
    input clk,
    input rstn,
 
-   input hint_t query_hint,
+   input locale_t query_locale,
    output logic [2**LOG_CQ_SLICE_SIZE-1:0] filter_out,
 
    input wr_en,
    input cq_slice_slot_t write_slot,
-   input hint_t write_hint,
+   input locale_t write_locale,
    input write_set // set-1, reset-0 
 );
    typedef logic [$clog2(FILTER_DEPTH)-1:0] filter_addr_t;
@@ -1725,8 +1725,8 @@ module bloom_bank
 
    generate genvar j;
       for (j=0;j<$clog2(FILTER_DEPTH);j+=1) begin
-         assign query_addr[j] = query_hint[BIT_OFFSET +j] ^ query_hint[ 12+ BIT_OFFSET+j];
-         assign write_addr[j] = write_hint[BIT_OFFSET +j] ^ write_hint[ 12+ BIT_OFFSET+j];
+         assign query_addr[j] = query_locale[BIT_OFFSET +j] ^ query_locale[ 12+ BIT_OFFSET+j];
+         assign write_addr[j] = write_locale[BIT_OFFSET +j] ^ write_locale[ 12+ BIT_OFFSET+j];
       end
    endgenerate
    always_comb begin

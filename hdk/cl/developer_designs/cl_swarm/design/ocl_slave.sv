@@ -44,7 +44,7 @@ module ocl_slave
                               } ocl_state;
 
    logic [31:0] last_mem_latency;
-   logic [31:0] task_hint;
+   logic [31:0] task_locale;
    logic [ARG_WIDTH-1:0] task_args;
    logic [31:0] task_ts;
    logic [1:0] task_ttype;
@@ -117,7 +117,7 @@ module ocl_slave
 
                   case (addr[7:0]) 
                      OCL_TASK_ENQ_ARGS: task_args[task_args_word*32 +: 32] <= data;
-                     OCL_TASK_ENQ_HINT: task_hint <= data;
+                     OCL_TASK_ENQ_LOCALE: task_locale <= data;
                      OCL_TASK_ENQ_TTYPE: task_ttype <= data;
                      OCL_ACCESS_MEM_SET_MSB : mem_addr[63:0] <= data;
                      OCL_ACCESS_MEM_SET_LSB : mem_addr[31:0] <= data;
@@ -166,13 +166,13 @@ module ocl_slave
                         if (task_rvalid) begin
                            state <= OCL_SEND_R;
                            data <= task_rdata.ts;
-                           task_hint <= task_rdata.hint;
+                           task_locale <= task_rdata.locale;
                            task_args <= task_rdata.args;
                         end
                      end
-                     OCL_TASK_ENQ_HINT: begin
+                     OCL_TASK_ENQ_LOCALE: begin
                         state <= OCL_SEND_R;
-                        data <= task_hint;
+                        data <= task_locale;
                      end
                      OCL_TASK_ENQ_ARGS: begin
                         state <= OCL_SEND_R;
@@ -299,7 +299,7 @@ end
    assign ocl.rresp = 2'b00;
    
    assign task_wdata.ttype = task_ttype;
-   assign task_wdata.hint  = task_hint;
+   assign task_wdata.locale  = task_locale;
    assign task_wdata.args  = task_args;
    assign task_wdata.ts    = data;
 

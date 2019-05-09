@@ -589,7 +589,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_CLEAN_THRESHOLD, clean_threshold);
         //  pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap* 100);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_SIZE, spill_size);
-        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq hint/ts
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq locale/ts
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 30000);
         //pci_poke(i, ID_COALESCER, CORE_START, 0xffffffff);
 /*
@@ -669,22 +669,22 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
             for (int i=0;i<headers[11];i++) { // numI
                 unsigned char* ref_ptr = write_buffer + (headers[7] +i)*4;
                 //printf("%d\n", *(ref_ptr+1));
-                uint32_t enq_hint = (*(ref_ptr + 3)<<24)+
+                uint32_t enq_locale = (*(ref_ptr + 3)<<24)+
                     (*(ref_ptr + 2)<<16) +
                     (*(ref_ptr + 1)<<8)  +
                     *ref_ptr;
-                uint32_t enq_tile = (enq_hint>>4) %(active_tiles);
-                pci_poke(enq_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT , enq_hint );
+                uint32_t enq_tile = (enq_locale>>4) %(active_tiles);
+                pci_poke(enq_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , enq_locale );
                 pci_poke(enq_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
                 //usleep(10);
                 pci_poke(enq_tile, ID_OCL_SLAVE, OCL_TASK_ENQ      , 0);
 
-                printf("Enquing initial task %d\n", enq_hint);
+                printf("Enquing initial task %d\n", enq_locale);
             }
             break;
         case APP_SSSP:
             printf("APP_SSSP\n");
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT , headers[7] );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , headers[7] );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
 
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
@@ -695,7 +695,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 1 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0xffffffff );
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT , headers[7] );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , headers[7] );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 1 );
 
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
@@ -704,12 +704,12 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         case APP_COLOR:
             printf("APP_COLOR\n");
 
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT , 0x20000 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , 0x20000 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
             /*
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT , 0x42f );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , 0x42f );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 2 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
@@ -722,7 +722,7 @@ int test_sssp(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         case APP_MAXFLOW:
             printf("APP_MAXFLOW\n");
             init_task_tile = (headers[7] >> 4) % active_tiles;
-            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_HINT,
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE,
                         headers[7] );
             pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
             pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );

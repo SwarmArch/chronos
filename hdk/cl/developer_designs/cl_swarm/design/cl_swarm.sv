@@ -227,11 +227,11 @@ for (i=0;i<N_TILES;i++) begin : task_enq_xbar
    always_comb begin
       case (log_n_tiles) 
          0: task_in_port[i] = 0; 
-         1: task_in_port[i] = task_in_wdata[i].hint[4]; 
-         2: task_in_port[i] = task_in_wdata[i].hint[5:4]; 
-         3: task_in_port[i] = task_in_wdata[i].hint[6:4];
-         4: task_in_port[i] = task_in_wdata[i].hint[7:4];
-         default: task_in_port[i] = task_in_wdata[i].hint[8:4];
+         1: task_in_port[i] = task_in_wdata[i].locale[4]; 
+         2: task_in_port[i] = task_in_wdata[i].locale[5:4]; 
+         3: task_in_port[i] = task_in_wdata[i].locale[6:4];
+         4: task_in_port[i] = task_in_wdata[i].locale[7:4];
+         default: task_in_port[i] = task_in_wdata[i].locale[8:4];
       endcase
    end
 */

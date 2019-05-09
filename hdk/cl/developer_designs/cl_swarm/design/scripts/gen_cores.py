@@ -79,7 +79,7 @@ core_inst = """
         .ap_done         (ap_done),
         .ap_idle         (ap_idle),
         .ap_ready        (ap_ready),
-        .task_in         ({task_in.args, task_in.ttype, task_in.hint, task_in.ts}),
+        .task_in         ({task_in.args, task_in.ttype, task_in.locale, task_in.ts}),
         .task_out_V_TDATA   (task_out_data),
         .task_out_V_TVALID  (task_out_valid),
         .task_out_V_TREADY  (task_out_ready),

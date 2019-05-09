@@ -78,10 +78,10 @@ logic sparse_msgs;
 assign sparse_msgs = 1'b1;
 
 task_t task_rdata, task_wdata; 
-assign {task_rdata.args, task_rdata.ttype, task_rdata.hint, task_rdata.ts} = task_in; 
+assign {task_rdata.args, task_rdata.ttype, task_rdata.locale, task_rdata.ts} = task_in; 
 
 assign task_out_V_TDATA = 
-      {task_wdata.args, task_wdata.ttype, task_wdata.hint, task_wdata.ts}; 
+      {task_wdata.args, task_wdata.ttype, task_wdata.locale, task_wdata.ts}; 
 
 logic clk, rstn;
 assign clk = ap_clk;
@@ -134,7 +134,7 @@ end
 logic_val_t current_gate_output;
 always_ff @(posedge clk) begin
    if (state == NEXT_TASK) begin
-      virtex_id <= task_rdata.hint;
+      virtex_id <= task_rdata.locale;
       case (task_rdata.args[1:0])
          0: input_logic_val <= LOGIC_0;
          1: input_logic_val <= LOGIC_1;
@@ -317,7 +317,7 @@ always_comb begin
       WAIT_NEIGHBOR: begin
          if (m_axi_l1_V_RVALID) begin
             task_wdata.ttype = 0;
-            task_wdata.hint = m_axi_l1_V_RDATA[31:1]; // vid
+            task_wdata.locale = m_axi_l1_V_RDATA[31:1]; // vid
             task_wdata.args[2] = m_axi_l1_V_RDATA[0]; // port
             task_wdata.args[1:0] = new_gate_output; // port
             task_wdata.args[ARG_WIDTH-1:3] = 0;

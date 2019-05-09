@@ -253,7 +253,7 @@ always_comb begin
       COAL_ENQ_SPLITTER: begin
          coal_child_valid = 1'b1;
          coal_child_task.ts = coal_ts;
-         coal_child_task.hint = (coal_id<< 16) + ((TILE_ID)<<4); // route to same tile 
+         coal_child_task.locale = (coal_id<< 16) + ((TILE_ID)<<4); // route to same tile 
          coal_child_task.ttype = TASK_TYPE_SPLITTER;
          if (coal_child_ready) begin
             state_next = (coal_id[LOG_SPLITTERS_PER_CHUNK-1:0] == '1) ? COAL_INIT : COAL_IDLE;
@@ -344,7 +344,7 @@ always_ff @(posedge clk) begin
    if (state == COAL_WRITE_TASK & l1.wvalid & l1.wready) begin
       $display("[%5d][coalescer-%2d] coalescing task (%3d,%2d) - (%2d, %3d %3d)",
          cycle, TILE_ID, coal_id, TASKS_PER_SPLITTER - tasks_remaining,
-             spill_fifo_rd_data.ttype, spill_fifo_rd_data.ts, spill_fifo_rd_data.hint);
+             spill_fifo_rd_data.ttype, spill_fifo_rd_data.ts, spill_fifo_rd_data.locale);
    end
    if (l1.awvalid & l1.awready & l1.wvalid & l1.wready) begin
       $display("[%5d][coalescer-%2d] write %10h : %10h",

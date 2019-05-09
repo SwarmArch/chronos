@@ -94,7 +94,7 @@ initial begin
    $display("Stack initiaized"); 
 
    task_enq_addr = 0;
-   task_enq_addr[7:0] = OCL_TASK_ENQ_HINT;
+   task_enq_addr[7:0] = OCL_TASK_ENQ_LOCALE;
    tb.poke(.addr(task_enq_addr), .data(0),
        .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    task_enq_addr[7:0] = OCL_TASK_ENQ_TTYPE;

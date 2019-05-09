@@ -132,10 +132,10 @@ typedef enum logic[6:0] {
 
 
 task_t task_rdata, task_wdata; 
-assign {task_rdata.args, task_rdata.ttype, task_rdata.hint, task_rdata.ts} = task_in; 
+assign {task_rdata.args, task_rdata.ttype, task_rdata.locale, task_rdata.ts} = task_in; 
 
 assign task_out_V_TDATA = 
-      {task_wdata.args, task_wdata.ttype, task_wdata.hint, task_wdata.ts}; 
+      {task_wdata.args, task_wdata.ttype, task_wdata.locale, task_wdata.ts}; 
 
 logic clk, rstn;
 assign clk = ap_clk;
@@ -361,7 +361,7 @@ assign m_axi_l1_V_WSTRB   = 4'b1111;
 assign m_axi_l1_V_WLAST   = m_axi_l1_V_AWVALID;
 
 logic [31:0] cur_vertex_addr;
-assign cur_vertex_addr = (base_vertex_data + (cur_task.hint[30:0] << 6));
+assign cur_vertex_addr = (base_vertex_data + (cur_task.locale[30:0] << 6));
 
 logic [31:0] cur_arg_0;
 logic signed [31:0] cur_arg_1;
@@ -445,7 +445,7 @@ always_comb begin
       DISCHARGE_LAUNCH_GR_SINK: begin
          if ((cur_task.ts & 32'hf0) == 0) begin // tile == 0
             task_wdata.ttype = BFS_TASK;
-            task_wdata.hint = sinkNode ; // vid
+            task_wdata.locale = sinkNode ; // vid
             task_wdata.ts = cur_task.ts; 
             task_out_V_TVALID = 1'b1;
             if (task_out_V_TREADY) begin
@@ -457,7 +457,7 @@ always_comb begin
       end
       DISCHARGE_LAUNCH_GR_SOURCE: begin
          task_wdata.ttype = BFS_TASK;
-         task_wdata.hint = sourceNode;
+         task_wdata.locale = sourceNode;
          task_wdata.ts = cur_task.ts | (1<<11); 
          task_out_V_TVALID = 1'b1;
          if (task_out_V_TREADY) begin
@@ -472,7 +472,7 @@ always_comb begin
          end 
       end
       DISCHARGE_READ_OFFSET: begin
-         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.hint << 2);
+         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.locale << 2);
          m_axi_l1_V_ARLEN = 1;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -532,8 +532,8 @@ always_comb begin
       end
       DISCHARGE_ENQ_NEIGHBORS: begin
          task_wdata.ttype = GET_HEIGHT_TASK;
-         task_wdata.hint = edge_dest[neighbor_offset] | RO_OFFSET;
-         task_wdata.args[31:0] = cur_task.hint; 
+         task_wdata.locale = edge_dest[neighbor_offset] | RO_OFFSET;
+         task_wdata.args[31:0] = cur_task.locale; 
          task_wdata.args[63:32] = neighbor_offset; 
          task_wdata.ts = cur_task.ts | (ordered_edges ? neighbor_offset: 0); 
          task_out_V_TVALID = 1'b1;
@@ -561,7 +561,7 @@ always_comb begin
       end
       GET_HEIGHT_ENQ_SUCCESSOR: begin
          task_wdata.ttype = PUSH_TASK;
-         task_wdata.hint = cur_arg_0;
+         task_wdata.locale = cur_arg_0;
          task_wdata.args[31:0] = vid_height; 
          task_wdata.args[63:32] = cur_arg_1; 
          task_wdata.ts = cur_task.ts; 
@@ -597,7 +597,7 @@ always_comb begin
          end
       end
       PUSH_READ_OFFSET: begin
-         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.hint << 2);
+         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.locale << 2);
          m_axi_l1_V_ARLEN = 0;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -637,7 +637,7 @@ always_comb begin
          end
       end
       PUSH_CALC_AMOUNT: begin
-         if ( (vid_height == cur_arg_0 + 1) || (cur_task.hint == sourceNode)) begin
+         if ( (vid_height == cur_arg_0 + 1) || (cur_task.locale == sourceNode)) begin
             if (push_flow_amt>0) begin
                state_next = PUSH_ENQ_RECEIVE;
             end else begin
@@ -649,7 +649,7 @@ always_comb begin
       end
       PUSH_ENQ_RECEIVE: begin
          task_wdata.ttype = RECEIVE_TASK;
-         task_wdata.hint = edge_dest[0];
+         task_wdata.locale = edge_dest[0];
          task_wdata.args[31:0] = edge_rev_index[0]; 
          task_wdata.args[63:32] = push_flow_amt_reg; 
          task_wdata.ts = cur_task.ts; 
@@ -726,7 +726,7 @@ always_comb begin
       end
       PUSH_ENQ_DISCHARGE: begin
          task_wdata.ttype = DISCHARGE_TASK;
-         task_wdata.hint = cur_task.hint;
+         task_wdata.locale = cur_task.locale;
          task_wdata.args[63:32] = cur_task.ts; 
          task_wdata.ts = cur_task.ts; 
          task_out_V_TVALID = 1'b1;
@@ -793,7 +793,7 @@ always_comb begin
          m_axi_l1_V_AWVALID = 1'b1;
          if (m_axi_l1_V_AWREADY) begin
             if (vid_excess == 0 && 
-               (cur_task.hint != sinkNode) && (cur_task.hint != sourceNode )) begin
+               (cur_task.locale != sinkNode) && (cur_task.locale != sourceNode )) begin
                state_next = RECEIVE_ENQ_DISCHARGE;
             end else begin
                state_next = FINISH_TASK;
@@ -802,7 +802,7 @@ always_comb begin
       end
       RECEIVE_ENQ_DISCHARGE: begin
          task_wdata.ttype = DISCHARGE_TASK;
-         task_wdata.hint = cur_task.hint;
+         task_wdata.locale = cur_task.locale;
          task_wdata.args[63:32] = cur_task.ts; 
          task_wdata.ts = cur_task.ts; 
          task_out_V_TVALID = 1'b1;
@@ -863,7 +863,7 @@ always_comb begin
          end
       end
       BFS_READ_OFFSET: begin
-         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.hint << 2);
+         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.locale << 2);
          m_axi_l1_V_ARLEN = 1;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -933,7 +933,7 @@ always_comb begin
       BFS_ENQ_NEIGHBOR: begin
          if (edge_capacity > edge_flow) begin
             task_wdata.ttype = BFS_TASK;
-            task_wdata.hint = edge_dest[neighbor_offset];
+            task_wdata.locale = edge_dest[neighbor_offset];
             task_wdata.args[63:32] = edge_rev_index[neighbor_offset]; 
             task_wdata.args[31:0] = cur_task.ts; 
             task_wdata.ts = cur_task.ts + 1; 
