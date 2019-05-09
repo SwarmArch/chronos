@@ -99,7 +99,7 @@ package swarm;
    
    // 'Core' is any module that gets tasks from CC. OCL is a special case 
    // APP_COREs have IDs {1..N_APP_CORES}
-   parameter N_THREADS = 32; 
+   parameter N_THREADS = 4; 
 
    parameter UNDO_LOG_THREADS = UNORDERED ? 1 : 4;
 

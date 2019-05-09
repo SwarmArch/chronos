@@ -40,7 +40,7 @@ module read_only_stage
    reg_bus_t         reg_bus
 );
 
-localparam FREE_LIST_SIZE = 5;
+localparam FREE_LIST_SIZE = 3;
 
 logic [FREE_LIST_SIZE-1:0] arid_free_list_add;
 logic [FREE_LIST_SIZE-1:0] arid_free_list_next;
