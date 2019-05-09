@@ -1,5 +1,5 @@
 
-module test_sssp();
+module test_swarm();
 
 import tb_type_defines_pkg::*;
 import swarm::*;
@@ -177,7 +177,7 @@ initial begin
    if (APP_NAME == "maxflow") begin
       // Read flow into destination node
       ocl_poke(0, 0, OCL_ACCESS_MEM_SET_MSB, 0);
-      ocl_poke(0, 0, OCL_ACCESS_MEM_SET_LSB, (file[5]+ file[9]*16)*4)  );
+      ocl_poke(0, 0, OCL_ACCESS_MEM_SET_LSB, (file[5]+ file[9]*16)*4 );
       ocl_peek(0, 0, OCL_ACCESS_MEM, ocl_data);
       $display("vid:%3d flow:%d", file[9], ocl_data);
    end
