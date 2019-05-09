@@ -81,7 +81,7 @@ module conflict_serializer #(
    endgenerate
 
    always_comb begin
-      s_valid = task_ready[task_select];
+      s_valid = task_ready[task_select] & next_thread_valid;
    end
    assign all_cores_idle = (ready_list_valid ==0) && (running_task_locale_valid==0); 
 

@@ -129,9 +129,9 @@ always_ff @(posedge clk) begin
    end
 end
 
-assign arid_free_list_add_valid = (reg_rvalid & next_valid_words == 0);
-assign arid_free_list_add = reg_rid[7:0];
-assign thread_free_list_add_valid = out_last;
+assign arid_free_list_add_valid = rvalid & rready;
+assign arid_free_list_add = rid[7:0];
+assign thread_free_list_add_valid = out_last & (out_valid & out_ready);
 assign thread_free_list_add = rid_mshr.thread;
 
 logic [3:0] out_data_word_id;

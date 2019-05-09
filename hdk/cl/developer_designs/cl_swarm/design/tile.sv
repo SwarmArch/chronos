@@ -1140,7 +1140,7 @@ assign rw_l2.bready = 1'b1;
 
 fifo #(
       .WIDTH( $bits(rw_read_out_data)),
-      .LOG_DEPTH(1)
+      .LOG_DEPTH(4)
    ) RW_READ_OUT_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1199,7 +1199,7 @@ write_rw
 
 fifo #(
       .WIDTH( $bits(rw_write_out_data) + $bits(rw_write_out_cq_slot)),
-      .LOG_DEPTH(1)
+      .LOG_DEPTH(4)
    ) RW_WRITE_OUT_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1284,7 +1284,7 @@ assign l1_arb[0].bready = 1;
 
 fifo #(
       .WIDTH( $bits(ro1_out_task) + RO1_DATA_WIDTH + $bits(rw_write_out_cq_slot) + 1),
-      .LOG_DEPTH(1)
+      .LOG_DEPTH(4)
    ) RO1_OUT_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),

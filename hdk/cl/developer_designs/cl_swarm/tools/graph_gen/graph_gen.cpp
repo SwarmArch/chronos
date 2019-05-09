@@ -266,12 +266,13 @@ void GenerateGridGraph(uint32_t n) {
    }
 
    // Add extra edges to get a high-fanout node
+    /*
    for (int j=30;j<100;j++) {
       Adj e;
       e.n=j;
       e.d_cm = 0;
       graph[15].adj.push_back(e);
-   }
+   } */
 }
 
 // code copied from suvinay's maxflow graph generator
@@ -413,6 +414,7 @@ void ComputeReference(){
          while(ngh != nghEnd) {
             Adj a = csr_neighbors[ngh++];
             Node e = {a.n, dist +  a.d_cm, (dist+a.d_cm)/delta};
+            //printf(" -> %d %d\n", a.n, dist+ a.d_cm);
             pq.push(e);
          }
       }
