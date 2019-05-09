@@ -1,18 +1,3 @@
-// Amazon FPGA Hardware Development Kit
-//
-// Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-//
-// Licensed under the Amazon Software License (the "License"). You may not use
-// this file except in compliance with the License. A copy of the License is
-// located at
-//
-//    http://aws.amazon.com/asl/
-//
-// or in the "license" file accompanying this file. This file is distributed on
-// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-// implied. See the License for the specific language governing permissions and
-// limitations under the License.
-
 
 module test_sssp();
 
@@ -35,7 +20,6 @@ logic [511:0] log_entry;
 
 logic [31:0] ocl_addr, ocl_data; 
 integer dist_actual, dist_ref;
-logic [31:0] target_node;
 integer num_errors;
 
 localparam HOST_SPILL_AREA = 32'h1000000;
@@ -51,57 +35,9 @@ integer BASE_END;
 
 initial begin
   
-   for (int i=0;i<1;i++) begin
    tb.power_up();
    
-   line = 0;
-   n_lines = 0;
-   if (RISCV) begin
-      load_riscv_program();      
-   end
-   if (APP_NAME == "des") begin 
-      fid = $fopen("input_net", "r");
-   end
-   if (APP_NAME == "sssp" || APP_NAME == "sssp_hls") begin 
-      fid = $fopen("input_graph", "r");
-   end
-   if (APP_NAME == "astar") begin 
-      fid = $fopen("input_astar", "r");
-   end
-   if (APP_NAME == "color") begin 
-      fid = $fopen("input_color", "r");
-   end
-   if (APP_NAME == "maxflow") begin 
-      fid = $fopen("input_maxflow", "r");
-   end
-   while (!$feof(fid)) begin
-      status = $fscanf(fid, "%8x\n", line);
-      file[n_lines] = line;
-      n_lines = n_lines + 1;
-   end
-   $display("Read %d lines from input file",n_lines);  
-
-   // Put file in host memory       
-   for (int i = 0 ; i < n_lines ; i++) begin
-      tb.hm_put_byte(.addr(i*4  ), .d(file[i][ 7: 0]));
-      tb.hm_put_byte(.addr(i*4+1), .d(file[i][15: 8]));
-      tb.hm_put_byte(.addr(i*4+2), .d(file[i][23:16]));
-      tb.hm_put_byte(.addr(i*4+3), .d(file[i][31:24]));
-   end
-   
-   // Initialize Splitter Stack and scratchpad
-   for (i=0;i<4;i++) begin
-      tb.hm_put_byte(.addr(HOST_SPILL_AREA + STACK_PTR_ADDR_OFFSET + i), .d(0));
-   end
-   for (i=0;i< (1<<LOG_SPLITTER_STACK_SIZE) ; i++) begin
-      tb.hm_put_byte(.addr(HOST_SPILL_AREA + STACK_BASE_OFFSET +  i*2  ), .d(i[ 7:0]));
-      tb.hm_put_byte(.addr(HOST_SPILL_AREA + STACK_BASE_OFFSET +  i*2+1), .d(i[15:8]));
-   end
-   for (i=SCRATCHPAD_BASE_OFFSET; i<SCRATCHPAD_END_OFFSET;i++) begin
-      tb.hm_put_byte(.addr(HOST_SPILL_AREA + i), .d(0));
-   end
-
-   target_node = file[1] - 1; // numV-1
+   // If using proper DDR models, wait for them to initialize
    `ifndef SIMPLE_MEMORY
        tb.nsec_delay(1000);
        tb.poke_stat(.addr(8'h0c), .ddr_idx(0), .data(32'h0000_0000));
@@ -110,419 +46,166 @@ initial begin
       #25us;
    `endif
    
-   `ifdef FAST_MEM_INIT   
-      for (int i=0;i< n_lines*4; i++) begin
-         data = {24'b0, tb.hm_get_byte(i)};
-         if (N_DDR_CTRL == 1) begin
-            addr = {i[31:6], i[5:0]};
-            tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
-         end else if (N_DDR_CTRL == 2) begin
-            addr = {i[31:7], i[5:0]};
-            case (i[6])
-               0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
-               1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
-            endcase
-         end else begin
-            addr = {i[31:8], i[5:0]};
-            case (i[7:6])
-               0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ addr ] = data;
-               1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ addr ] = data;
-               2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
-               3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
-            endcase
-         end
-      end
-   `else
-      ocl_addr[31:24] = 0;
-      ocl_addr[23:16] = N_TILES;
-      ocl_addr[15:8] = ID_GLOBAL;
-      ocl_addr[7:0] = MEM_XBAR_NUM_CTRL; 
-      tb.poke(.addr(ocl_addr), .data(N_DDR_CTRL),
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      tb.que_buffer_to_cl(.chan(0), .src_addr(0),
-         .cl_addr(64'h0000_0000_0000), .len(n_lines*4) );  // move buffer to DDR 
-
-      //$display("[%t] : starting H2C DMA channels ", $realtime);
-      //Start transfers of data to CL DDR
-      tb.start_que_to_cl(.chan(0));   
-
-      // wait for dma transfers to complete
-      timeout_count = 0;       
-      do begin
-         status = tb.is_dma_to_cl_done(.chan(0));
-         #10ns;
-         timeout_count++;
-      end while ((status == 0) && (timeout_count < 2000));
-
-      if (timeout_count >= 2000000) begin
-         $display("[%t] : *** ERROR *** Timeout waiting for dma transfers from cl", $realtime);
-      end
-   `endif
-   for (i=0;i<N_TILES;i++) begin
-      $display("Initialing stack tile %d", i);
-      tb.que_buffer_to_cl(.chan(0),
-         .src_addr(HOST_SPILL_AREA),
-         .cl_addr(CL_SPILL_AREA + i * TOTAL_SPILL_ALLOCATION ), 
-         .len(SCRATCHPAD_END_OFFSET) );   
-
-      tb.start_que_to_cl(.chan(0));
-
-      do begin
-         status = tb.is_dma_to_cl_done(.chan(0)); #10ns;
-      end while (status == 0);
-   end
-   $display("Stack initiaized"); 
-   // END DMA
-   
-   for (i=0;i<N_TILES;i++) begin
-      // set sssp base addresses
-      ocl_addr[23:16] = i;
-      ocl_addr[15:8] = ID_ALL_APP_CORES;
-
-      // set splitter base addresses
-      ocl_addr[15:8] = ID_COAL_AND_SPLITTER;
-      ocl_addr[7:0] = SPILL_ADDR_STACK_PTR;
-      tb.poke(.addr(ocl_addr), .data(  (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION) >> 6  ),
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-
-      ocl_addr[7:0] = SPILL_BASE_STACK;
-      tb.poke(.addr(ocl_addr), .data(
-         (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION + STACK_BASE_OFFSET) >> 6 ) ,
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-
-      ocl_addr[7:0] = SPILL_BASE_SCRATCHPAD;
-      tb.poke(.addr(ocl_addr), .data(
-         (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION + SCRATCHPAD_BASE_OFFSET) >> 6 ) ,
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      
-      ocl_addr[7:0] = SPILL_BASE_TASKS;
-      tb.poke(.addr(ocl_addr), .data(
-         (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION + SPILL_TASK_BASE_OFFSET) >> 6 ) ,
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-
-/*
-      ocl_addr[15:8] = ID_TASK_UNIT;
-      ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
-      ocl_data = 6;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-
-      ocl_addr[15:8] = ID_CQ;
-      ocl_addr [7:0] = CQ_SIZE;
-      ocl_data = 16;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-*/  
-      // Start coalesecer early
-      ocl_addr[15:8] = ID_COAL;
-      ocl_addr [7:0] = CORE_START;
-      ocl_data = '1;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-
-      if (APP_NAME == "maxflow") begin
-         ocl_addr[15:8] = ID_TASK_UNIT;
-         ocl_addr[7:0] = TASK_UNIT_IS_TRANSACTIONAL;
-         tb.poke(.addr(ocl_addr), .data(1),
-            .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-
-         // eg: valid transactional ids if INTERVAL = 10
-         // 0..1023, 1040..2047, 2064:3071 etc..
-         // GR is trigerred at every multiple of GLOBAL_RELABEL_INTERVAL 
-         ocl_addr[7:0] = TASK_UNIT_GLOBAL_RELABEL_START_MASK;
-         ocl_data = (1<< file[10]) - 1;
-         tb.poke(.addr(ocl_addr), .data(ocl_data),
-            .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-         
-         ocl_addr[7:0] = TASK_UNIT_GLOBAL_RELABEL_START_INC;
-         tb.poke(.addr(ocl_addr), .data(32'h10),
-            .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-
-      end
-
-/*
-      ocl_addr[15:8] = ID_TASK_UNIT;
-      ocl_addr[7:0] = TASK_UNIT_TIED_CAPACITY;
-      ocl_data = 16;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      ocl_addr[7:0] = TASK_UNIT_SPILL_SIZE;
-      ocl_data = 16;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      ocl_addr[15:8] = ID_TASK_UNIT;
-      ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
-      // has to be greater than (TIED_CAPACITY + CQ_SIZE + SPILL_SIZE)
-      // why: n_untied_tasks = n_tasks - n_tied_tasks
-      // however upto CQ_SIZE tasks could have been dequeued
-      // and the coalescer needs at least SPILL_SIZE tasks to proceed 
-      ocl_data = 66;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      ocl_addr[15:8] = ID_TASK_UNIT;
-      ocl_addr[7:0] = TASK_UNIT_CLEAN_THRESHOLD;
-      ocl_data = 4070;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-*/
-
-   // TODO: sanity checks
-   // SPILL_THRESHOLD > (TIED_CAP + CQ_SIZE + SPILL_SIZE)
-   // SPILL_SIZE % 8 ==0
-   // SPILL_SIZE < 2**LOG_TQ_SPILL_SIZE
-   // TIED_CAPACITY < 2**LOG_TQ_SIZE
-   // CLEAN_THRESH < 2**TQ_STAGES-1
-    
-
-   end
-
-if (APP_NAME == "des") begin
-   BASE_END = file[10];
-   for (i = 0;i<N_TILES;i++) begin
-      ocl_addr[23:16] = i; 
-      ocl_addr[15:8] = 0; // Component
-      ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
-      tb.poke(.addr(ocl_addr), .data(1),
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   end
-   for (i=0;i<file[11];i++) begin // numI
-      enq_ts = 0;
-      enq_locale = file[ file[7] + i] ; 
-      enq_args = 0 ; 
-
-      ocl_addr = 0;
-      ocl_addr[23:16] = (enq_locale >> 4) % N_TILES; // tile TODO: depends on enq_locale
-      ocl_addr[15:8] = 0; // Component
-      ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
-      tb.poke(.addr(ocl_addr), .data(enq_locale),
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
-      tb.poke(.addr(ocl_addr), .data(enq_args),
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      ocl_addr[ 7:0]  = OCL_TASK_ENQ;
-      tb.poke(.addr(ocl_addr), .data(enq_ts),
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      $display("Enqueued ts:%d, locale:%d, args:%d", enq_ts, enq_locale, enq_args);
-   end
-end
-if (APP_NAME == "sssp" | APP_NAME == "sssp_hls") begin
-   BASE_END = file[8];
-   // Enq initial task
-   ocl_addr = 0;
-   ocl_addr[23:16] = 0; // tile
-   ocl_addr[15:8] = 0; // Component
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
-   tb.poke(.addr(ocl_addr), .data(file[7]),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0]  = OCL_TASK_ENQ;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-end      
-if (APP_NAME == "color") begin
-   BASE_END = file[8];
-   // Enq initial task
-   ocl_addr = 0;
-   ocl_addr[23:16] = 0; // tile
-   ocl_addr[15:8] = 0; // Component
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARG_WORD;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
-   tb.poke(.addr(ocl_addr), .data(32'h0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0]  = OCL_TASK_ENQ;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-end      
-if (APP_NAME == "astar") begin
-   BASE_END = file[10];
-   // initial task: queue_vertex 0
-   ocl_addr = 0;
-   ocl_addr[23:16] = 0; // tile
-   ocl_addr[15:8] = 0; // Component
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARG_WORD;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARG_WORD;
-   tb.poke(.addr(ocl_addr), .data(1),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
-   tb.poke(.addr(ocl_addr), .data(32'hffffffff),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
-   tb.poke(.addr(ocl_addr), .data(file[7]),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
-   tb.poke(.addr(ocl_addr), .data(1),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0]  = OCL_TASK_ENQ;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-
-end
-if (APP_NAME == "maxflow") begin
-   ocl_addr = 0;
-   ocl_addr[23:16] = file[7][30:4] % N_TILES; // tile
-   ocl_addr[15:8] = 0; // Component
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_LOCALE;
-   tb.poke(.addr(ocl_addr), .data(file[7]),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_TTYPE;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARG_WORD;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0] = OCL_TASK_ENQ_ARGS;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[ 7:0]  = OCL_TASK_ENQ;
-   tb.poke(.addr(ocl_addr), .data(0),
-      .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-end
-
-   for (i=0;i<N_TILES;i++) begin 
-      /*
-      ocl_addr[23:16] = i;
-      ocl_addr[15:8] = ID_TSB;
-      ocl_addr[7:0] = TSB_LOG_N_TILES;
-      ocl_data = 1;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      
-      ocl_addr[23:16] = i;
-      ocl_addr[15:8] = ID_CQ;
-      ocl_addr[7:0] = CQ_SIZE;
-      ocl_data = 32;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      */
-   end
-
-   for (i=0;i<N_TILES;i++) begin 
-      /*
-      ocl_addr[15:8] = ID_ALL_APP_CORES;
-      ocl_addr[ 7:0] = CORE_N_DEQUEUES;
-      ocl_data = 32'h1;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      */
-      ocl_addr[23:16] = i;
-      ocl_addr[15:8] = ID_TASK_UNIT;
-      ocl_addr[7:0] = TASK_UNIT_START;
-      tb.poke(.addr(ocl_addr), .data(1),
-         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      ocl_addr[15:8] = ID_ALL_CORES;
-      ocl_addr [7:0] = CORE_START;
-      ocl_data = '1;
-      //ocl_data = 32'h03;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      #1us;
+   if (RISCV) begin
+      load_riscv_program();      
    end
    
 
-   // Test DEBUG interface
-   //for (int i=0;i<6;i++) begin
-   //   #10us;
-   //   check_log(N_TILES , 48);
-   //end
+   // Graph inputs
+   case (APP_NAME) 
+      "des"     : fid = $fopen("input_net", "r");
+      "sssp"    : fid = $fopen("input_graph", "r");
+      "sssp_hls": fid = $fopen("input_graph", "r");
+      "astar"   : fid = $fopen("input_astar", "r");
+      "color"   : fid = $fopen("input_color", "r");
+      "maxflow" : fid = $fopen("input_maxflow", "r");
+   endcase
 
-   // Wait until sssp completes
+   read_and_transfer_input_file();
+
+   initialize_spilling_structures();
+
+
+   // Application specific initialization
+   if (APP_NAME == "des") begin
+      for (int i=0;i<file[11];i++) begin // numI
+         enq_ts = 0;
+         enq_locale = file[ file[7] + i] ; 
+         enq_args = 0 ; 
+         // task_enq(ttype, locale, ts, num_args, arg_0, arg_1)
+         task_enq(1, enq_locale, enq_ts, 1, enq_args, 0);
+      end
+   end
+   if (APP_NAME == "sssp" | APP_NAME == "sssp_hls") begin
+      task_enq(0, file[7], 0, 0, 0, 0);
+   end      
+   if (APP_NAME == "color") begin
+      task_enq(0, 0, 0, 1 /*n_args*/, 0, 0);
+   end      
+   if (APP_NAME == "astar") begin
+      // initial task: queue_vertex 0
+      task_enq(1, file[7], 0, 2 /*n_args*/, 0, 32'hffffffff);
+   end
+   if (APP_NAME == "maxflow") begin
+      task_enq(0, file[7], 0, 1 /*n_args*/, 0, 0);
+      for (int i=0;i<N_TILES;i++) begin
+         ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_IS_TRANSACTIONAL, 1);
+         ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_GLOBAL_RELABEL_START_MASK, (1<< file[10]) - 1);
+         ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_GLOBAL_RELABEL_START_INC, 32'h10);
+      end
+   end
+
+   
+   // GO !!
+   for (int i=0;i<N_TILES;i++) begin 
+      ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_START, 1);
+      ocl_poke(i, ID_ALL_CORES, CORE_START, '1);
+   end
+   #1us;
+   
+   // Wait until application completes
    do begin
-     
+      // If non-spec, need to query each tile individually and see if it finished.
+      // If spec, we are done when gvt == '1 
       #300ns;
       if (NON_SPEC) begin
-         for (i=0;i<N_TILES;i++) begin
-      
-            ocl_addr[23:16] = i;
-            ocl_addr[15:8] = 0;
-            ocl_addr[ 7:0] = OCL_DONE;
-            tb.peek(.addr(ocl_addr), .data(ocl_data),
-                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+         for (int i=0;i<N_TILES;i++) begin
+            ocl_peek(i, 0, OCL_DONE, ocl_data); 
             ocl_data = (ocl_data == 1) ? '1 :0;
             if (ocl_data == 0) begin
                break;
             end
          end
       end else begin
-
-         ocl_addr[23:16] = 0;
-         ocl_addr[15:8] = ID_CQ;
-         ocl_addr[ 7:0] = CQ_GVT_TS;
-         tb.peek(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+         ocl_peek(0, ID_CQ, CQ_GVT_TS, ocl_data); 
       end
       #300ns;
    end while (ocl_data!='1);
 
    $display("Run Complete. Flushing Cache ...");
-
-   // Flush Caches
    
-   // Faster simulation by capping flushing to DIST array
-   tb.card.fpga.CL.\tile[0].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[0].TILE .\bank_1.L2_B1 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[1].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[2].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[3].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[4].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[5].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[6].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[7].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   flush_caches();
 
-   for (i=0;i<N_TILES;i++) begin
-      ocl_addr[23:16] = i;
-      ocl_addr[15:8] = ID_L2;
-      ocl_addr[ 7:0] = L2_FLUSH;
-      tb.poke(.addr(ocl_addr), .data(1),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      if (L2_BANKS == 2) begin
-         ocl_addr[23:16] = i;
-         ocl_addr[15:8] = ID_L2 + 1;
-         ocl_addr[ 7:0] = L2_FLUSH;
-         tb.poke(.addr(ocl_addr), .data(1),
-                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+
+   #1us;
+   
+   // Application-specific verification code
+   
+   num_errors = 0;
+   if (APP_NAME == "des") begin
+      BASE_END = file[10]; // unused host memory
+      read_cl_memory( .host_addr(BASE_END*4), .cl_addr(file[5]*4), .len(file[1]*4));
+      for (int i=0;i<file[12];i++) begin  // numOutputs
+         dist_ref = file[file[6]+i]; // [31:16] - vid, [1:0] val 
+         dist_actual[31:24] = tb.hm_get_byte( (BASE_END + dist_ref[31:16] )* 4 + 3);
+         if (dist_ref[1:0] != dist_actual[25:24]) num_errors++;
+         $display("vid:%3d dist:%3d, ref:%3d, %s, num_errors%2d", dist_ref[31:16],
+               dist_actual[25:24], dist_ref[15:0],
+               dist_actual[25:24] == dist_ref[1:0] ? "MATCH" : "FAIL", num_errors); 
       end
    end
-   do begin
-      for (i=0;i<N_TILES;i++) begin
-         ocl_addr[23:16] = i;
-         ocl_addr[15:8] = ID_L2;
-         ocl_addr[ 7:0] = L2_FLUSH;
-         tb.peek(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-         if (ocl_data ==1) break;
 
-         if (L2_BANKS == 2) begin
-            ocl_addr[23:16] = i;
-            ocl_addr[15:8] = ID_L2 +1;
-            ocl_addr[ 7:0] = L2_FLUSH;
-            tb.peek(.addr(ocl_addr), .data(ocl_data),
-                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-            if (ocl_data ==1) break;
-
-         end
+   if (APP_NAME == "sssp" | APP_NAME == "sssp_hls" | APP_NAME == "color" ) begin
+      BASE_END = file[8];
+      read_cl_memory( .host_addr(BASE_END*4), .cl_addr(file[5]*4), .len(file[1]*4));
+      for (int i=0;i<file[1];i++) begin
+         dist_actual[ 7: 0] = tb.hm_get_byte( (BASE_END + i)* 4);
+         dist_actual[15: 8] = tb.hm_get_byte( (BASE_END + i)* 4+ 1);
+         dist_actual[23:16] = tb.hm_get_byte( (BASE_END + i)* 4+ 2);
+         dist_actual[31:24] = tb.hm_get_byte( (BASE_END + i)* 4+ 3);
+         dist_ref = file [file[6]+i];
+         if (dist_actual != dist_ref) num_errors++;
+         $display("vid:%3d dist:%3d, ref:%3d, %s, num_errors%2d", i, dist_actual, dist_ref,
+               dist_actual == dist_ref ? "MATCH" : "FAIL", num_errors); 
       end
-      #300ns;
-   end while (ocl_data==1);
+   end
+   if (APP_NAME == "astar") begin
+      BASE_END = file[10];
+      read_cl_memory( .host_addr(BASE_END*4), .cl_addr(file[5]*4), .len(file[1]*4));
+      for (int i=0;i<file[1];i++) begin
+         dist_actual[ 7: 0] = tb.hm_get_byte( (BASE_END + i)* 4);
+         dist_actual[15: 8] = tb.hm_get_byte( (BASE_END + i)* 4+ 1);
+         dist_actual[23:16] = tb.hm_get_byte( (BASE_END + i)* 4+ 2);
+         dist_actual[31:24] = tb.hm_get_byte( (BASE_END + i)* 4+ 3);
+         dist_ref = file [file[9]+i];
+         if (dist_ref == '1) continue;
+         if (dist_actual != dist_ref) num_errors++;
+         $display("vid:%3d dist:%5d, ref:%5d, %s, num_errors%2d", i, dist_actual, dist_ref,
+               dist_actual == dist_ref ? "MATCH" : "FAIL", num_errors); 
+      end
+   end
+   if (APP_NAME == "maxflow") begin
+      // Read flow into destination node
+      ocl_poke(0, 0, OCL_ACCESS_MEM_SET_MSB, 0);
+      ocl_poke(0, 0, OCL_ACCESS_MEM_SET_LSB, (file[5]+ file[9]*16)*4)  );
+      ocl_peek(0, 0, OCL_ACCESS_MEM, ocl_data);
+      $display("vid:%3d flow:%d", file[9], ocl_data);
+   end
 
-   $display("Reading results back for %3d nodes...", file[1]);
+   // Uncomment to Test DEBUG interfaces
+   //check_log(ID_L2);
+   //check_log(ID_TASK_UNIT);
+   
+   tb.kernel_reset();
+   tb.power_down();
+
+   $finish;
+
+end  // initial begin 
+
+// ----------------------------------------------------------------------------------------//
+// Helper tasks
+
+
+
+task read_cl_memory;
+   input [63:0] host_addr;
+   input [31:0] cl_addr;
+   input [31:0] len;
+begin
    `ifdef FAST_VERIFY
-      for (int i=0;i<file[1]*4;i++) begin
-         addr = file[5]*4 + i;
+      for (int i=0;i<len;i++) begin
+         addr = cl_addr + i;
          if (N_DDR_CTRL == 1) begin
             data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], addr[5:0]} ];
          end else if (N_DDR_CTRL == 2) begin
@@ -538,10 +221,12 @@ end
                3: data = tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ {addr[31:8], addr[5:0]} ];
             endcase
          end
-         tb.hm_put_byte(.addr(BASE_END* 4 + i), .d(data));
+         tb.hm_put_byte(.addr(host_addr + i), .d(data));
       end
    `else
-      tb.que_cl_to_buffer(.chan(0), .dst_addr(BASE_END*4), .cl_addr(file[5]*4), .len(file[1]*4) );  
+      // TODO: I haven't verified whether this path works in a long time. I recall some recent HDK
+      // update broke the simulating DMA reads
+      tb.que_cl_to_buffer(.chan(0), .dst_addr(host_addr), .cl_addr(cl_addr), .len(len) );  
       tb.start_que_to_buffer(.chan(0));   
       timeout_count = 0;       
       do begin
@@ -554,129 +239,66 @@ end
          $display("[%t] : *** ERROR *** Timeout waiting for dma transfers from cl", $realtime);
       end
    `endif
-   #1us;
-   
-   $display("Result read. comparing...");
-   num_errors = 0;
-if (APP_NAME == "des") begin
-   for (int i=0;i<file[12];i++) begin  // numOutputs
-      dist_ref = file[file[6]+i]; // [31:16] - vid, [1:0] val 
-      dist_actual[31:24] = tb.hm_get_byte( (BASE_END + dist_ref[31:16] )* 4 + 3);
-      if (dist_ref[1:0] != dist_actual[25:24]) num_errors++;
-      $display("vid:%3d dist:%3d, ref:%3d, %s, num_errors%2d", dist_ref[31:16],
-            dist_actual[25:24], dist_ref[15:0],
-            dist_actual[25:24] == dist_ref[1:0] ? "MATCH" : "FAIL", num_errors); 
-   end
 end
-if (APP_NAME == "sssp" | APP_NAME == "sssp_hls" | APP_NAME == "color" ) begin
-   for (int i=0;i<file[1];i++) begin
-      dist_actual[ 7: 0] = tb.hm_get_byte( (BASE_END + i)* 4);
-      dist_actual[15: 8] = tb.hm_get_byte( (BASE_END + i)* 4+ 1);
-      dist_actual[23:16] = tb.hm_get_byte( (BASE_END + i)* 4+ 2);
-      dist_actual[31:24] = tb.hm_get_byte( (BASE_END + i)* 4+ 3);
-      dist_ref = file [file[6]+i];
-      if (dist_actual != dist_ref) num_errors++;
-      $display("vid:%3d dist:%3d, ref:%3d, %s, num_errors%2d", i, dist_actual, dist_ref,
-            dist_actual == dist_ref ? "MATCH" : "FAIL", num_errors); 
-   end
-end
-if (APP_NAME == "astar") begin
-   for (int i=0;i<file[1];i++) begin
-      dist_actual[ 7: 0] = tb.hm_get_byte( (BASE_END + i)* 4);
-      dist_actual[15: 8] = tb.hm_get_byte( (BASE_END + i)* 4+ 1);
-      dist_actual[23:16] = tb.hm_get_byte( (BASE_END + i)* 4+ 2);
-      dist_actual[31:24] = tb.hm_get_byte( (BASE_END + i)* 4+ 3);
-      dist_ref = file [file[9]+i];
-      if (dist_ref == '1) continue;
-      if (dist_actual != dist_ref) num_errors++;
-      $display("vid:%3d dist:%5d, ref:%5d, %s, num_errors%2d", i, dist_actual, dist_ref,
-            dist_actual == dist_ref ? "MATCH" : "FAIL", num_errors); 
-   end
-end
-if (APP_NAME == "maxflow") begin
-   ocl_addr[31:8] = 0;
-   ocl_addr[7:0] = OCL_ACCESS_MEM_SET_MSB;
-   tb.poke(.addr(ocl_addr), .data(0),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[7:0] = OCL_ACCESS_MEM_SET_LSB;
-   ocl_data = (file[5]+ file[9]*16)*4;      
-   tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   ocl_addr[7:0] = OCL_ACCESS_MEM;
-   tb.peek(.addr(ocl_addr), .data(ocl_data),
-          .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   $display("vid:%3d flow:%d", file[9], ocl_data);
-end
-/* 
-   for (int tile=0;tile<N_TILES;tile++) begin
-      $display("Tile %d", tile);
-      for (int i=1;i<11;i++) begin
-         ocl_addr[23:16] = tile;
-         ocl_addr[15:8] = i;
-         ocl_addr[7:0] = CORE_NUM_ENQ;
-         tb.peek(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-         $display("Core %2d num_enqueues:%6d", i, ocl_data); 
-         ocl_addr[7:0] = CORE_NUM_DEQ;
-         tb.peek(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-         $display("Core %2d num_dequeues:%6d", i, ocl_data); 
+
+endtask
+
+task task_enq;
+   input [31:0] ttype;
+   input [31:0] locale;
+   input [31:0] ts;
+   input [1:0] n_args ;
+   input [31:0] arg_0 ;
+   input [31:0] arg_1 ;
+   begin
+      ocl_poke(0, 0, OCL_TASK_ENQ_TTYPE, ttype);
+      ocl_poke(0, 0, OCL_TASK_ENQ_LOCALE, locale);
+      if (n_args >0) begin
+         ocl_poke(0, 0, OCL_TASK_ENQ_ARG_WORD, 0);
+         ocl_poke(0, 0, OCL_TASK_ENQ_ARGS, arg_0);
       end
+      if (n_args >1) begin
+         ocl_poke(0, 0, OCL_TASK_ENQ_ARG_WORD, 1);
+         ocl_poke(0, 0, OCL_TASK_ENQ_ARGS, arg_1);
+      end
+      ocl_poke(0, 0, OCL_TASK_ENQ, ts);
 
-
-      for (int i=0;i<5;i++) begin
-         ocl_addr[15:8] = ID_L2;
-         ocl_addr[7:0] = L2_READ_HITS + (i*4);
-         tb.peek(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-         $display("L2 stat %d :%6d", i, ocl_data); 
-      end 
+      $display("Enqueued initial task ttype:%2s ts:%3d, locale:%3d", ttype, ts, locale);
    end
-*/
+endtask
 
-   //check_log(ID_L2);
-   //check_log(ID_TASK_UNIT);
-/* 
-   //    NON-DMA Reads, Uncomment to check AXI mem read function
-   $display("Reading results back for %3d nodes...", file[1]);
-   ocl_addr[15:8] = 0;
-   ocl_addr[7:0] = OCL_ACCESS_MEM_SET_MSB;
-   tb.poke(.addr(ocl_addr), .data(0),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   num_errors = 0;
-   for (int i=0;i<file[1];i++) begin
-      ocl_addr[7:0] = OCL_ACCESS_MEM_SET_LSB;
-      ocl_data = (file[5] +i)*4;      
+task ocl_poke;
+   input [7:0] tile;
+   input [7:0] component;
+   input [7:0] addr;
+   input [31:0] ocl_data;
+   begin
+      ocl_addr[31:24] = 0;
+      ocl_addr[23:16] = tile;
+      ocl_addr[15:8] = component;
+      ocl_addr[7:0] = addr;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      ocl_addr[7:0] = OCL_ACCESS_MEM;
-      tb.peek(.addr(ocl_addr), .data(ocl_data),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      dist_ref = file [file[6]+i];
-      if (ocl_data != dist_ref) num_errors++;
-      $display("vid:%3d dist:%3d, ref:%3d, %s, num_errors%2d", i, ocl_data, dist_ref,
-            ocl_data == dist_ref ? "MATCH" : "FAIL", num_errors); 
-   end
-*/
-
-   ocl_addr[15:8] = ID_ALL_CORES;
-   ocl_addr [7:0] = CORE_START;
-   ocl_data = 0;
-   tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-   
-   tb.kernel_reset();
-
-
-   tb.power_down();
-
 
    end
+endtask
 
-   //$display("Target Node %4d, dist:%4d", target_node, file[ file[6] + target_node] ); 
-
-   $finish;
-end
+logic [31:0] ocl_read_data;
+task ocl_peek;
+   input [7:0] tile;
+   input [7:0] component;
+   input [7:0] addr;
+   output [31:0] ret_val;
+   begin
+      ocl_addr[31:24] = 0;
+      ocl_addr[23:16] = tile;
+      ocl_addr[15:8] = component;
+      ocl_addr[7:0] = addr;
+      tb.peek(.addr(ocl_addr), .data(ocl_read_data),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      ret_val = ocl_read_data;
+   end
+endtask
 
 logic [63:0] cl_addr;
 task check_log;
@@ -751,26 +373,30 @@ task load_riscv_program;
                status = $sscanf( line.substr(9+i*2,9+i*2+1), "%x", data);
                //$display("addr %x data %x", addr, data);
                 `ifdef SIMPLE_MEMORY
-               
-               if (N_DDR_CTRL == 1) begin
-                  mem_ctrl_addr = {addr[31:6], addr[5:0]};
-                  tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-               end else if (N_DDR_CTRL == 2) begin
-                  mem_ctrl_addr = {addr[31:7], addr[5:0]};
-                  case (addr[7:6])
-                     0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                     1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                  endcase
-               end else begin
-                  mem_ctrl_addr = {addr[31:8], addr[5:0]};
-                  case (addr[7:6])
-                     0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                     1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                     2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                     3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
-                  endcase
-               end
+                  if (N_DDR_CTRL == 1) begin
+                     mem_ctrl_addr = {addr[31:6], addr[5:0]};
+                     tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                  end else if (N_DDR_CTRL == 2) begin
+                     mem_ctrl_addr = {addr[31:7], addr[5:0]};
+                     case (addr[7:6])
+                        0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                        1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                     endcase
+                  end else begin
+                     mem_ctrl_addr = {addr[31:8], addr[5:0]};
+                     case (addr[7:6])
+                        0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                        1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                        2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                        3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
+                     endcase
+                  end
+               `else
+                  // TODO 
+
                `endif
+
+               
             end
          end
          if (key == 2) begin
@@ -820,6 +446,240 @@ task load_riscv_program;
 `endif
 endtask
 
+
+task read_and_transfer_input_file;
+
+   line = 0;
+   n_lines = 0;
+   while (!$feof(fid)) begin
+      status = $fscanf(fid, "%8x\n", line);
+      file[n_lines] = line;
+      n_lines = n_lines + 1;
+   end
+   $display("Read %d lines from input file",n_lines);  
+
+   // Put file in host memory       
+   for (int i = 0 ; i < n_lines ; i++) begin
+      tb.hm_put_byte(.addr(i*4  ), .d(file[i][ 7: 0]));
+      tb.hm_put_byte(.addr(i*4+1), .d(file[i][15: 8]));
+      tb.hm_put_byte(.addr(i*4+2), .d(file[i][23:16]));
+      tb.hm_put_byte(.addr(i*4+3), .d(file[i][31:24]));
+   end
+   
+   // Transfer to CL Memory
+   `ifdef FAST_MEM_INIT   
+      for (int i=0;i< n_lines*4; i++) begin
+         data = {24'b0, tb.hm_get_byte(i)};
+         if (N_DDR_CTRL == 1) begin
+            addr = {i[31:6], i[5:0]};
+            tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
+         end else if (N_DDR_CTRL == 2) begin
+            addr = {i[31:7], i[5:0]};
+            case (i[6])
+               0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
+               1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
+            endcase
+         end else begin
+            addr = {i[31:8], i[5:0]};
+            case (i[7:6])
+               0: tb.card.fpga.CL.\mem_ctrl[0].MEM_CTRL .memory[ addr ] = data;
+               1: tb.card.fpga.CL.\mem_ctrl[1].MEM_CTRL .memory[ addr ] = data;
+               2: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
+               3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
+            endcase
+         end
+      end
+   `else
+      
+      // Let the CL know of the number of DDR controllers available.
+      // This is actually redundant unless you want to disable come controllers
+      /*
+      ocl_addr[31:24] = 0;
+      ocl_addr[23:16] = N_TILES;
+      ocl_addr[15:8] = ID_GLOBAL;
+      ocl_addr[7:0] = MEM_XBAR_NUM_CTRL; 
+      tb.poke(.addr(ocl_addr), .data(N_DDR_CTRL),
+         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      */
+
+      // Begin DMA transfer
+      tb.que_buffer_to_cl(.chan(0), .src_addr(0),
+         .cl_addr(64'h0000_0000_0000), .len(n_lines*4) );  // move buffer to DDR 
+
+      //$display("[%t] : starting H2C DMA channels ", $realtime);
+      //Start transfers of data to CL DDR
+      tb.start_que_to_cl(.chan(0));   
+
+      // wait for dma transfers to complete
+      timeout_count = 0;       
+      do begin
+         status = tb.is_dma_to_cl_done(.chan(0));
+         #10ns;
+         timeout_count++;
+      end while ((status == 0) && (timeout_count < 2000));
+
+      if (timeout_count >= 2000000) begin
+         $display("[%t] : *** ERROR *** Timeout waiting for dma transfers from cl", $realtime);
+      end
+   `endif
+
+endtask
+
+
+task initialize_spilling_structures;
+
+   // Initialize Splitter Stack and scratchpad
+   integer i;
+   for (i=0;i<4;i++) begin
+      tb.hm_put_byte(.addr(HOST_SPILL_AREA + STACK_PTR_ADDR_OFFSET + i), .d(0));
+   end
+   for (i=0;i< (1<<LOG_SPLITTER_STACK_SIZE) ; i++) begin
+      tb.hm_put_byte(.addr(HOST_SPILL_AREA + STACK_BASE_OFFSET +  i*2  ), .d(i[ 7:0]));
+      tb.hm_put_byte(.addr(HOST_SPILL_AREA + STACK_BASE_OFFSET +  i*2+1), .d(i[15:8]));
+   end
+   for (i=SCRATCHPAD_BASE_OFFSET; i<SCRATCHPAD_END_OFFSET;i++) begin
+      tb.hm_put_byte(.addr(HOST_SPILL_AREA + i), .d(0));
+   end
+
+   
+   for (i=0;i<N_TILES;i++) begin
+      $display("Initialing stack tile %d", i);
+      tb.que_buffer_to_cl(.chan(0),
+         .src_addr(HOST_SPILL_AREA),
+         .cl_addr(CL_SPILL_AREA + i * TOTAL_SPILL_ALLOCATION ), 
+         .len(SCRATCHPAD_END_OFFSET) );   
+
+      tb.start_que_to_cl(.chan(0));
+
+      do begin
+         status = tb.is_dma_to_cl_done(.chan(0)); #10ns;
+      end while (status == 0);
+   end
+   $display("Stack initialized"); 
+   // END DMA
+   
+   for (i=0;i<N_TILES;i++) begin
+      
+      ocl_addr[31:16] = i;
+      // set splitter base addresses
+      ocl_addr[15:8] = ID_COAL_AND_SPLITTER;
+      ocl_addr[7:0] = SPILL_ADDR_STACK_PTR;
+      tb.poke(.addr(ocl_addr), .data(  (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION) >> 6  ),
+         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+
+      ocl_addr[7:0] = SPILL_BASE_STACK;
+      tb.poke(.addr(ocl_addr), .data(
+         (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION + STACK_BASE_OFFSET) >> 6 ) ,
+         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+
+      ocl_addr[7:0] = SPILL_BASE_SCRATCHPAD;
+      tb.poke(.addr(ocl_addr), .data(
+         (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION + SCRATCHPAD_BASE_OFFSET) >> 6 ) ,
+         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      
+      ocl_addr[7:0] = SPILL_BASE_TASKS;
+      tb.poke(.addr(ocl_addr), .data(
+         (CL_SPILL_AREA + i*TOTAL_SPILL_ALLOCATION + SPILL_TASK_BASE_OFFSET) >> 6 ) ,
+         .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+
+// Uncomment selectively to test task_spilling. 
+/*
+      ocl_addr[15:8] = ID_TASK_UNIT;
+      ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
+      ocl_data = 6;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+
+      ocl_addr[15:8] = ID_CQ;
+      ocl_addr [7:0] = CQ_SIZE;
+      ocl_data = 16;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      ocl_addr[15:8] = ID_TASK_UNIT;
+      ocl_addr[7:0] = TASK_UNIT_TIED_CAPACITY;
+      ocl_data = 16;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      ocl_addr[7:0] = TASK_UNIT_SPILL_SIZE;
+      ocl_data = 16;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      ocl_addr[15:8] = ID_TASK_UNIT;
+      ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
+      // has to be greater than (TIED_CAPACITY + CQ_SIZE + SPILL_SIZE)
+      // why: n_untied_tasks = n_tasks - n_tied_tasks
+      // however upto CQ_SIZE tasks could have been dequeued
+      // and the coalescer needs at least SPILL_SIZE tasks to proceed 
+      ocl_data = 66;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      ocl_addr[15:8] = ID_TASK_UNIT;
+      ocl_addr[7:0] = TASK_UNIT_CLEAN_THRESHOLD;
+      ocl_data = 4070;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   
+   // TODO: sanity checks
+   // SPILL_THRESHOLD > (TIED_CAP + CQ_SIZE + SPILL_SIZE)
+   // SPILL_SIZE % 8 ==0
+   // SPILL_SIZE < 2**LOG_TQ_SPILL_SIZE
+   // TIED_CAPACITY < 2**LOG_TQ_SIZE
+   // CLEAN_THRESH < 2**TQ_STAGES-1
+*/
+
+    
+      // Start coalesecer early
+      ocl_addr[15:8] = ID_COAL;
+      ocl_addr [7:0] = CORE_START;
+      ocl_data = '1;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+   end
+
+endtask
+   
+task flush_caches; 
+   // Faster simulation by capping flushing to read-write data (BIG HACK)
+   tb.card.fpga.CL.\tile[0].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[0].TILE .\bank_1.L2_B1 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[1].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   
+   for (int i=0;i<N_TILES;i++) begin
+      ocl_addr[23:16] = i;
+      ocl_addr[15:8] = ID_L2;
+      ocl_addr[ 7:0] = L2_FLUSH;
+      tb.poke(.addr(ocl_addr), .data(1),
+                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      if (L2_BANKS == 2) begin
+         ocl_addr[23:16] = i;
+         ocl_addr[15:8] = ID_L2 + 1;
+         ocl_addr[ 7:0] = L2_FLUSH;
+         tb.poke(.addr(ocl_addr), .data(1),
+                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      end
+   end
+   do begin
+      for (int i=0;i<N_TILES;i++) begin
+         ocl_addr[23:16] = i;
+         ocl_addr[15:8] = ID_L2;
+         ocl_addr[ 7:0] = L2_FLUSH;
+         tb.peek(.addr(ocl_addr), .data(ocl_data),
+                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+         if (ocl_data ==1) break;
+
+         if (L2_BANKS == 2) begin
+            ocl_addr[23:16] = i;
+            ocl_addr[15:8] = ID_L2 +1;
+            ocl_addr[ 7:0] = L2_FLUSH;
+            tb.peek(.addr(ocl_addr), .data(ocl_data),
+                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+            if (ocl_data ==1) break;
+
+         end
+      end
+      #300ns;
+   end while (ocl_data==1);
+endtask
 
 endmodule
 
