@@ -224,8 +224,7 @@ begin
          tb.hm_put_byte(.addr(host_addr + i), .d(data));
       end
    `else
-      // TODO: I haven't verified whether this path works in a long time. I recall some recent HDK
-      // update broke the simulating DMA reads
+      // NOTE (This branch has not been verified thouroughly)
       tb.que_cl_to_buffer(.chan(0), .dst_addr(host_addr), .cl_addr(cl_addr), .len(len) );  
       tb.start_que_to_buffer(.chan(0));   
       timeout_count = 0;       
