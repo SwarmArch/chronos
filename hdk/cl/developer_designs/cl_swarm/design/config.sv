@@ -39,6 +39,8 @@ package swarm;
 
    // Logging parameters. Used in debugging. The value of each parameter is
    // a bitmask specifying which tiles are being actively logged. 
+   // eg: TASK_UNIT_LOGGING = 'hf means first four tiles' task units are being
+   // logged.
    parameter TASK_UNIT_LOGGING = 0;
    parameter COMMIT_QUEUE_LOGGING = 0;
    parameter SPLITTER_LOGGING = 0;
@@ -54,7 +56,6 @@ package swarm;
    parameter SERIALIZER_STATS = 1;
    parameter TQ_STATS = 1;
    parameter CQ_STATS = 1;
-   parameter CQ_CONFIG = 1;
 
 
    // Lesser used config options. 
@@ -110,6 +111,8 @@ package swarm;
    parameter LOG_N_MSHR = 4; // Number of MSHRs in each cache
 
    parameter LOG_LOG_DEPTH = 14; // Size of each on-chip debugging logs
+   
+   parameter CQ_CONFIG = 1; // Can dynamically configure CQ sizes 
 
    // Derived parameters.
    // ---------------------------------------------------------------------------------//
