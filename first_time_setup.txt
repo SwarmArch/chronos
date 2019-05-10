@@ -1,3 +1,6 @@
+Do these steps if not running on AWS FPGA AMI
+============================================
+
 1. Vivado should be installed and the $PATH pointing to its bin directory
 
 2. Add version (from vivado -version) to hdk/supported_vivado_versions.txt if not already there
