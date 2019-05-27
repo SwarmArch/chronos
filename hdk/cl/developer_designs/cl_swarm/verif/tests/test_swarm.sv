@@ -377,7 +377,7 @@ task load_riscv_program;
                      tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                   end else if (N_DDR_CTRL == 2) begin
                      mem_ctrl_addr = {addr[31:7], addr[5:0]};
-                     case (addr[7:6])
+                     case (addr[6])
                         0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                         1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr ] = data;
                      endcase
@@ -427,7 +427,7 @@ task load_riscv_program;
             tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
          end else if (N_DDR_CTRL == 2) begin
             mem_ctrl_addr = {addr[31:7], addr[5:0]};
-            case (addr[7:6])
+            case (addr[6])
                0: tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
                1: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ mem_ctrl_addr +j] = data;
             endcase
