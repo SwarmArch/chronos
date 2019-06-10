@@ -173,6 +173,7 @@ initial begin
    end
    $display("Stack initiaized"); 
    // END DMA
+   ocl_addr = 0;
    
    for (i=0;i<N_TILES;i++) begin
       // set sssp base addresses

@@ -30,6 +30,9 @@ module read_only_stage
    output logic                  out_valid,
    input                         out_ready,
 
+   input                         out_almost_full,
+
+
    output logic [OUT_WIDTH-1:0]  out_task,
    output cq_slice_slot_t        out_cq_slot,
    output logic [DATA_WIDTH-1:0] out_data,
@@ -164,13 +167,13 @@ always_comb begin
          out_valid = 1'b1;
          out_last = (remaining_words[rid_mshr.thread] == 2);
       end else if (out_data_word_id == 0) begin
-         out_data[31: 0] = out_data_word_0; 
-         out_data[63:32] = out_data_word_from_mem ;
+         out_data[31: 0] = out_data_word_from_mem ;
+         out_data[63:32] = out_data_word_0; 
          out_valid = (remaining_words[rid_mshr.thread] == 1);
          out_last = (remaining_words[rid_mshr.thread] == 1);
       end else if (out_data_word_id == 15) begin
-         out_data[31: 0] = out_data_word_from_mem ;
-         out_data[63:32] = out_data_word_0; 
+         out_data[31: 0] = out_data_word_0; 
+         out_data[63:32] = out_data_word_from_mem ;
          out_valid = (remaining_words[rid_mshr.thread] == 1);
          out_last = (remaining_words[rid_mshr.thread] == 1);
       end 
@@ -320,7 +323,7 @@ sssp_stage_1 STAGE
    .clk  (clk),
    .rstn (rstn),
 
-   .task_in_valid (task_in_valid),
+   .task_in_valid (task_in_valid & !out_almost_full),
    .task_in_ready (task_in_ready),
 
    .in_task       (in_task), 

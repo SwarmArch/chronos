@@ -1220,6 +1220,8 @@ assign rw_l2.bready = 1'b1;
 
 logic ro1_out_fifo_full;
 logic ro1_out_fifo_empty;
+logic ro1_out_fifo_almost_full;
+logic [5:0] ro1_out_fifo_size;
 
 logic ro1_out_valid;
 logic ro1_out_ready;
@@ -1227,6 +1229,7 @@ ro2_in_t ro2_in_data;
 logic ro2_in_valid;
 logic ro2_in_ready;
 
+assign ro1_out_fifo_almost_full = (ro1_out_fifo_size > 5);
 assign ro1_out_ready = !ro1_out_fifo_full;
 assign ro2_in_valid = !ro1_out_fifo_empty;
 ro2_in_t ro2_in_task;
@@ -1267,6 +1270,8 @@ read_only_stage
    .out_valid (ro1_out_valid),
    .out_ready (ro1_out_ready),
 
+   .out_almost_full (ro1_out_fifo_almost_full),
+
    .out_task (ro1_out_task),
    .out_cq_slot (ro1_out_cq_slot),
    .out_data (ro1_out_data),
@@ -1284,7 +1289,7 @@ assign l1_arb[0].bready = 1;
 
 fifo #(
       .WIDTH( $bits(ro1_out_task) + RO1_DATA_WIDTH + $bits(rw_write_out_cq_slot) + 1),
-      .LOG_DEPTH(4)
+      .LOG_DEPTH(5)
    ) RO1_OUT_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1293,6 +1298,7 @@ fifo #(
 
       .full(  ro1_out_fifo_full ),
       .empty( ro1_out_fifo_empty),
+      .size (ro1_out_fifo_size),
 
       .rd_en( ro2_in_ready ),
       .rd_data( {ro2_in_task, ro2_in_cq_slot, ro2_in_last} )
@@ -1336,6 +1342,8 @@ read_only_stage
 
    .out_valid (ro2_out_valid),
    .out_ready (ro2_out_ready),
+   
+   .out_almost_full (1'b0),
 
    .out_task (ro2_out_task),
    .out_cq_slot (ro2_out_cq_slot),
