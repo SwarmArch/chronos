@@ -2,6 +2,7 @@ import swarm::*;
 
 module read_only_stage
 #(
+   parameter TILE_ID,
    parameter STAGE_ID,
    parameter IN_WIDTH,
    parameter OUT_WIDTH,
@@ -318,7 +319,11 @@ end
 generate 
 if (STAGE_ID == 1) begin
 
-sssp_stage_1 STAGE 
+sssp_stage_1
+#(
+   .TILE_ID(TILE_ID)
+) 
+   STAGE 
 (
    .clk  (clk),
    .rstn (rstn),
@@ -345,7 +350,11 @@ sssp_stage_1 STAGE
 
 end else if (STAGE_ID == 2) begin
 
-sssp_stage_2 STAGE 
+sssp_stage_2
+#(
+   .TILE_ID(TILE_ID)
+) 
+   STAGE 
 (
    .clk  (clk),
    .rstn (rstn),
@@ -380,7 +389,9 @@ endgenerate
 endmodule
 
 module sssp_stage_1
-(
+#(
+   parameter TILE_ID
+) (
 
    input clk,
    input rstn,
@@ -446,7 +457,7 @@ assign reg_bus.rdata = 0;
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
          $display("[%5d] [rob-%2d] [ro %2d] ts:%8d locale:%4d",
-            cycle, 0 /*TILE_ID*/, 1, 
+            cycle, TILE_ID, 1, 
             in_task.ts, in_task.locale) ;
       end
    end 
@@ -455,7 +466,9 @@ assign reg_bus.rdata = 0;
 endmodule
 
 module sssp_stage_2
-(
+#(
+   parameter TILE_ID
+) (
 
    input clk,
    input rstn,
@@ -526,7 +539,7 @@ assign reg_bus.rdata = 0;
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
          $display("[%5d] [rob-%2d] [ro %2d] ts:%8d locale:%4d eo:(%4d %4d)",
-            cycle, 0 /*TILE_ID*/, 2, 
+            cycle, TILE_ID, 2, 
             in_task.task_desc.ts, in_task.task_desc.locale, in_task.eo_begin, in_task.eo_end) ;
       end
    end 
@@ -536,7 +549,9 @@ endmodule
 
 
 module sssp_gen_child
-(
+#(
+   parameter TILE_ID
+) (
 
    input clk,
    input rstn,
@@ -583,7 +598,7 @@ assign task_in_ready = task_in_valid & (!out_valid | out_ready);
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
          $display("[%5d] [rob-%2d] [ro %2d] ts:%8d locale:%4d neighbor:(%4d %4d)",
-            cycle, 0 /*TILE_ID*/, 3, 
+            cycle, TILE_ID, 3, 
             in_task.ts, in_task.locale, in_data[31:0], in_data[63:32]) ;
       end
    end 

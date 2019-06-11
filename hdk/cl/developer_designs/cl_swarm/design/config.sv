@@ -46,7 +46,7 @@ package swarm;
    // how many tiles go directly into the axi xbar. has to be a power of two
    parameter XBAR_IN_TILES = 1;
 
-   parameter NO_SPILLING = 1; 
+   parameter NO_SPILLING = 0; 
    parameter NON_SPEC = 1;
 
    // both of the following should be changed together. Unfortunately cannot 

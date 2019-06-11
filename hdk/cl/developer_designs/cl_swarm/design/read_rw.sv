@@ -2,6 +2,7 @@ import swarm::*;
 
 module read_rw
 #(
+   parameter TILE_ID
 ) (
    input clk,
    input rstn,
@@ -101,7 +102,7 @@ assign reg_bus.rdata = 0;
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
          $display("[%5d] [rob-%2d] [read_rw] [thread-%2d] ts:%8d locale:%4d",
-            cycle, 0 /*TILE_ID*/, thread_id_in,
+            cycle, TILE_ID, thread_id_in,
             task_in.ts, task_in.locale) ;
       end
    end 

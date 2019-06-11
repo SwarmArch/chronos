@@ -482,8 +482,7 @@ end
    
    // Faster simulation by capping flushing to DIST array
    tb.card.fpga.CL.\tile[0].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[0].TILE .\bank_1.L2_B1 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[1].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[1].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[2].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[3].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[4].TILE .L2.L2_STAGE_1.flush_addr_last = (file[3] >> 4);

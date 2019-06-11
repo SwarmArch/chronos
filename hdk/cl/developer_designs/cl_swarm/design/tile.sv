@@ -1104,6 +1104,7 @@ assign rw_write_in_valid = !rw_read_out_fifo_empty;
 
 read_rw  
 #(
+   .TILE_ID(TILE_ID)
 ) READ_RW (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1242,6 +1243,7 @@ logic ro1_idle, ro2_idle;
 
 read_only_stage
 #(
+   .TILE_ID(TILE_ID),
    .STAGE_ID (1),
    .IN_WIDTH ($bits(ro1_in_data)),
    .OUT_WIDTH ( $bits(ro1_out_task) ),
@@ -1315,6 +1317,7 @@ logic ro2_out_last;
 
 read_only_stage
 #(
+   .TILE_ID(TILE_ID),
    .STAGE_ID (2),
    .IN_WIDTH ($bits(ro2_in_data)),
    .OUT_WIDTH ( $bits(ro2_out_task) ),
@@ -1360,8 +1363,10 @@ assign l1_arb[1].awvalid = 0;
 assign l1_arb[1].wvalid = 0;
 assign l1_arb[1].bready = 1;
 
-sssp_gen_child GEN_CHILD
-(
+sssp_gen_child
+#(
+   .TILE_ID(TILE_ID)
+) GEN_CHILD (
 
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
