@@ -47,7 +47,6 @@
    
    parameter TOTAL_SPILL_ALLOCATION = SPILL_TASK_BASE_OFFSET * 2;
 
-   parameter LOG_LOG_DEPTH = 14; // Logarithm of Log depth
    
    
    // Default values for configurable parameters

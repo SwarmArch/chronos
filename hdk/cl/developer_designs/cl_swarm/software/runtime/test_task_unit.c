@@ -37,9 +37,9 @@ int test_task_unit(int slot_id, int pf_id, int bar_id) {
     }
     //uint32_t ts[5] = {57,30,99,55,125};
     rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ_TTYPE, 0);
-    rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ_HINT, 0);
+    rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ_LOCALE, 0);
     for (i=0;i<32;i++){
-        rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ_HINT, i*6);
+        rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ_LOCALE, i*6);
         rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ, i*6);
         fail_on(rc, out, "Unable to write to the fpga !");
     }
@@ -59,7 +59,7 @@ int test_task_unit(int slot_id, int pf_id, int bar_id) {
     }
     /*
     for (i=0;i<5;i++){
-        rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ_HINT, i+5);
+        rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ_LOCALE, i+5);
         rc = fpga_pci_poke(pci_bar_handle, OCL_TASK_ENQ, (ts[i]+4)<<16);
         fail_on(rc, out, "Unable to write to the fpga !");
     }

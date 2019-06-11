@@ -57,7 +57,7 @@ module task_type_fifo #(
             DEQ_FIFO_FULL_THRESHOLD : reg_bus.rdata <= full_threshold;
             DEQ_FIFO_SIZE : reg_bus.rdata <= fifo_size;
             DEQ_FIFO_NEXT_TASK_TS : reg_bus.rdata <= s_rdata.ts;
-            DEQ_FIFO_NEXT_TASK_HINT : reg_bus.rdata <= s_rdata.hint;
+            DEQ_FIFO_NEXT_TASK_LOCALE : reg_bus.rdata <= s_rdata.locale;
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;

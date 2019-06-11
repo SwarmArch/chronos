@@ -215,8 +215,8 @@ end
       if (op==INSERT) begin
          ts = $urandom_range(0,255);
          $display ("Writing %d (0x%x) %d : occ:%d", ts[TS_WIDTH-1:0],ts[TS_WIDTH-1:0], 
-            line[HINT_WIDTH-1:0], queue.size() + 1);
-         tb.poke(.addr(task_enq_addr), .data({ts[TS_WIDTH-1:0], line[HINT_WIDTH-1:0]}),
+            line[LOCALE_WIDTH-1:0], queue.size() + 1);
+         tb.poke(.addr(task_enq_addr), .data({ts[TS_WIDTH-1:0], line[LOCALE_WIDTH-1:0]}),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
          queue.push_back(ts);
       end else begin
@@ -227,7 +227,7 @@ end
          expected = queue[min_index];
          actual = rdata[31 -: TS_WIDTH];
          queue.delete(min_index);
-         $display ("Reading %3d  %3d ", actual, rdata[HINT_WIDTH-1:0]);
+         $display ("Reading %3d  %3d ", actual, rdata[LOCALE_WIDTH-1:0]);
                
          //if(actual != expected) $finish;
       end

@@ -119,7 +119,7 @@ if (NON_SPEC) begin
    assign task_resp_ready = 1'b1;
 
    assign m_resp_valid = 1'b0;
-   assign lvt = task_enq_valid ?  0 : '1;
+   assign lvt = '1;
    
    assign empty = !task_enq_valid;
 

@@ -10,10 +10,9 @@
    }  vt_t;
    typedef logic [TS_WIDTH+TB_WIDTH-1:0] vt_unpacked_t;
 
-   
    typedef logic [UNDO_LOG_ADDR_WIDTH-1:0] undo_log_addr_t;
    typedef logic [UNDO_LOG_DATA_WIDTH-1:0] undo_log_data_t;
-   
+
    typedef logic [TASK_TYPE_WIDTH-1:0] task_type_t;
    typedef logic [TS_WIDTH-1:0] ts_t;
    typedef logic [LOCALE_WIDTH-1:0] locale_t;
@@ -71,3 +70,4 @@
       object_t          object;
       cache_addr_t      cache_addr;
    } rw_write_t;
+   

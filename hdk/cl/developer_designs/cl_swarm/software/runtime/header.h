@@ -44,8 +44,10 @@
 #define ID_ALL_SSSP_CORES         33
 #define ID_COAL_AND_SPLITTER      34
 
+#define ID_GLOBAL                 48
+
 #define OCL_TASK_ENQ_ARGS         0x1c // set the args of the task to be enqueued next
-#define OCL_TASK_ENQ_HINT         0x14 // set the hint of the task to be enqueued next
+#define OCL_TASK_ENQ_LOCALE         0x14 // set the locale of the task to be enqueued next
 #define OCL_TASK_ENQ_TTYPE        0x18 // set the ttype of the task to be enqueued next
 #define OCL_TASK_ENQ              0x10 // Enq task with ts (wdata)
 #define OCL_ACCESS_MEM_SET_MSB    0x24 // set bits [63:32] of mem addr
@@ -81,7 +83,7 @@
 #define SSSP_BASE_EDGE_OFFSET     0x20
 #define SSSP_BASE_DIST            0x24
 #define SSSP_BASE_NEIGHBORS       0x28
-#define SSSP_HINT                 0x30
+#define SSSP_LOCALE                 0x30
 #define SSSP_TS                   0x34
 #define SSSP_STATE_STATS_BEGIN    0x40
 
@@ -146,7 +148,7 @@
 #define CQ_USE_TS_CACHE        0x1c
 #define CQ_LOOKUP_ENTRY        0x18
 #define CQ_LOOKUP_STATE        0x20
-#define CQ_LOOKUP_HINT         0x24
+#define CQ_LOOKUP_LOCALE         0x24
 #define CQ_LOOKUP_MODE         0x2c
 #define CQ_GVT_TS              0x30
 #define CQ_GVT_TB              0x34
@@ -206,6 +208,7 @@
 
 #define DEBUG_CAPACITY    0xf0 // For any component that does logging
 
+#define MEM_XBAR_NUM_CTRL 0x10
 
 int log_sssp_core(pci_bar_handle_t pci_bar_handle, int fd, int cid, FILE* fw);
 int log_task_unit(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
