@@ -6,7 +6,8 @@ module read_only_stage
    parameter STAGE_ID,
    parameter IN_WIDTH,
    parameter OUT_WIDTH,
-   parameter DATA_WIDTH=64
+   parameter DATA_WIDTH=64,
+   parameter LOGGING
 ) (
    input clk,
    input rstn,
@@ -41,7 +42,8 @@ module read_only_stage
 
    output logic                  idle, // all threads accounted for
    
-   reg_bus_t         reg_bus
+   reg_bus_t         reg_bus,
+   pci_debug_bus_t   pci_debug
 );
 
 localparam FREE_LIST_SIZE = 3;
@@ -387,6 +389,7 @@ end
 endgenerate
 
 
+logic [LOG_LOG_DEPTH:0] log_size; 
 always_ff @(posedge clk) begin
    if (!rstn) begin
       fifo_out_almost_full_thresh <= '1;
@@ -398,8 +401,86 @@ always_ff @(posedge clk) begin
       end
    end
 end
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      reg_bus.rvalid <= 1'b0;
+      reg_bus.rdata <= 'x;
+   end else
+   if (reg_bus.arvalid) begin
+      reg_bus.rvalid <= 1'b1;
+      casex (reg_bus.araddr) 
+         DEBUG_CAPACITY : reg_bus.rdata <= log_size;
+         CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : reg_bus.rdata <= out_fifo_occ;
+      endcase
+   end else begin
+      reg_bus.rvalid <= 1'b0;
+   end
+end
 
 
+if (LOGGING) begin
+   logic log_valid;
+   typedef struct packed {
+      
+      logic task_in_valid;
+      logic task_in_ready;
+      logic task_out_valid;
+      logic task_out_ready;
+      logic arvalid;
+      logic arready;
+      logic rvalid;
+      logic rready;
+      logic [7:0] out_fifo_occ;
+      logic [7:0] in_cq_slot;
+      logic [3:0] in_last;
+      logic [3:0] out_last;
+      
+      logic [159:0] in_task;
+      logic [95:0] out_task;
+      logic [63:0] out_data;
+      
+   } rw_read_log_t;
+   rw_read_log_t log_word;
+   always_comb begin
+      log_valid = (task_in_valid & task_in_ready) | (out_valid & out_ready) ;
+
+      log_word = '0;
+
+      log_word.task_in_valid = task_in_valid;
+      log_word.task_in_ready = task_in_ready;
+      log_word.task_out_valid = out_valid;
+      log_word.task_out_ready = out_ready;
+      log_word.arvalid = arvalid;
+      log_word.arready = arready;
+      log_word.rvalid = rvalid;
+      log_word.rready = rready;
+      log_word.out_fifo_occ = out_fifo_occ;
+
+      log_word.in_cq_slot = in_cq_slot;
+      log_word.in_last = in_last;
+      log_word.out_last = out_last;
+
+      log_word.in_task = in_task;
+      log_word.out_task = out_task;
+      log_word.out_data = out_data;
+   end
+
+   log #(
+      .WIDTH($bits(log_word)),
+      .LOG_DEPTH(LOG_LOG_DEPTH)
+   ) RW_READ_LOG (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wvalid(log_valid),
+      .wdata(log_word),
+
+      .pci(pci_debug),
+
+      .size(log_size)
+
+   );
+end
 
 endmodule
 

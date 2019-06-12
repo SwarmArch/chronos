@@ -235,7 +235,7 @@ assign core_l1.wready = 1'b1;
 assign cores_cm_cq_slot[0] = 0;
 assign cores_cm_child_id[0] = 0;
 assign cores_cm_enq_untied[0] = 1'b1;
-assign cores_cm_enq_untied[ID_SPLITTER] = 1'b1;
+assign cores_cm_enq_untied[2] = 1'b1;
 
 
 generate
@@ -1133,7 +1133,8 @@ read_rw
    .task_out      (rw_read_out_data ),  
    .task_out_fifo_occ (rw_read_out_fifo_occ),
    
-   .reg_bus( reg_bus[ID_RW_READ])
+   .reg_bus( reg_bus[ID_RW_READ]),
+   .pci_debug(pci_debug[ID_RW_READ])
 );
 
 assign rw_l2.araddr[63:32] = '0;
@@ -1250,7 +1251,8 @@ read_only_stage
    .STAGE_ID (1),
    .IN_WIDTH ($bits(ro1_in_data)),
    .OUT_WIDTH ( $bits(ro1_out_task) ),
-   .DATA_WIDTH( RO1_DATA_WIDTH )
+   .DATA_WIDTH( RO1_DATA_WIDTH ),
+   .LOGGING(READ_ONLY_1_LOGGING[TILE_ID])
 ) RO_STAGE_1 (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
@@ -1284,7 +1286,8 @@ read_only_stage
 
    .idle(ro1_idle),
    
-   .reg_bus( reg_bus[ID_RO_STAGE_1])
+   .reg_bus( reg_bus[ID_RO_STAGE_1]),
+   .pci_debug(pci_debug[ID_RO_STAGE_1])
 );
 
 assign l1_arb[0].araddr[63:32] = 0;
@@ -1324,7 +1327,8 @@ read_only_stage
    .STAGE_ID (2),
    .IN_WIDTH ($bits(ro2_in_data)),
    .OUT_WIDTH ( $bits(ro2_out_task) ),
-   .DATA_WIDTH( RO2_DATA_WIDTH )
+   .DATA_WIDTH( RO2_DATA_WIDTH ),
+   .LOGGING(READ_ONLY_2_LOGGING[TILE_ID])
 ) RO_STAGE_2 (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
@@ -1358,7 +1362,8 @@ read_only_stage
    
    .idle(ro2_idle),
    
-   .reg_bus( reg_bus[ID_RO_STAGE_2])
+   .reg_bus( reg_bus[ID_RO_STAGE_2]),
+   .pci_debug(pci_debug[ID_RO_STAGE_2])
 );
 
 assign l1_arb[1].araddr[63:32] = 0;

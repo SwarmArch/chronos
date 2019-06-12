@@ -31,7 +31,8 @@ module read_rw
 
    input fifo_size_t   task_out_fifo_occ, 
    
-   reg_bus_t         reg_bus
+   reg_bus_t         reg_bus,
+   pci_debug_bus_t   pci_debug
 );
 
 
@@ -41,13 +42,14 @@ cq_slice_slot_t task_cq_slot [0:N_THREADS-1];
 logic [31:0] base_rw_addr;
 
 fifo_size_t fifo_out_almost_full_thresh;
+logic [31:0] dequeues_remaining;
 
 assign arid = thread_id_in;
 assign araddr = base_rw_addr + (task_in.locale <<  RW_ARSIZE);
 always_comb begin
    arvalid = 1'b0;
    task_in_ready = 1'b0;
-   if (task_in_valid & (task_out_fifo_occ < fifo_out_almost_full_thresh)) begin
+   if (task_in_valid & (task_out_fifo_occ < fifo_out_almost_full_thresh) & (dequeues_remaining > 0)) begin
       arvalid = 1'b1;
       if (arready) begin
          task_in_ready = 1'b1;
@@ -82,24 +84,41 @@ always_comb begin
 end
 
 
-
+logic [LOG_LOG_DEPTH:0] log_size; 
 always_ff @(posedge clk) begin
    if (!rstn) begin
       base_rw_addr <= 0;
       fifo_out_almost_full_thresh <= '1;
+      dequeues_remaining <= '1;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
             RW_BASE_ADDR : base_rw_addr <= {reg_bus.wdata[29:0], 2'b00};
             CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : fifo_out_almost_full_thresh <= reg_bus.wdata;
+            CORE_N_DEQUEUES: dequeues_remaining <= reg_bus.wdata;
          endcase
+      end else begin
+         if (task_in_valid & task_in_ready) begin
+            dequeues_remaining <= dequeues_remaining - 1;
+         end
       end
    end
 end
 always_ff @(posedge clk) begin
-   reg_bus.rvalid <= reg_bus.arvalid;
+   if (!rstn) begin
+      reg_bus.rvalid <= 1'b0;
+      reg_bus.rdata <= 'x;
+   end else
+   if (reg_bus.arvalid) begin
+      reg_bus.rvalid <= 1'b1;
+      casex (reg_bus.araddr) 
+         DEBUG_CAPACITY : reg_bus.rdata <= log_size;
+         CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : reg_bus.rdata <= task_out_fifo_occ;
+      endcase
+   end else begin
+      reg_bus.rvalid <= 1'b0;
+   end
 end
-assign reg_bus.rdata = 0;
          
 `ifdef XILINX_SIMULATOR
    logic [63:0] cycle;
@@ -113,5 +132,83 @@ assign reg_bus.rdata = 0;
       end
    end 
 `endif
+
+if (READ_RW_LOGGING[TILE_ID]) begin
+   logic log_valid;
+   typedef struct packed {
+      
+      logic task_in_valid;
+      logic task_in_ready;
+      logic task_out_valid;
+      logic task_out_ready;
+      logic arvalid;
+      logic arready;
+      logic rvalid;
+      logic rready;
+      logic [7:0] out_fifo_occ;
+      logic [15:0] out_thread;
+      
+      logic [7:0] in_cq_slot;
+      logic [7:0] in_thread;
+      logic [11:0] rid;
+      logic [3:0]  task_in_ttype;
+
+      logic [31:0] task_in_ts;
+      logic [31:0] task_in_locale;
+
+      logic [31:0] araddr;
+
+      logic [31:0] out_object;
+      logic [31:0] out_ts;
+      logic [31:0] out_locale;
+      
+   } rw_read_log_t;
+   rw_read_log_t log_word;
+   always_comb begin
+      log_valid = (task_in_valid & task_in_ready) | (task_out_valid & task_out_ready) ;
+
+      log_word = '0;
+
+      log_word.task_in_valid = task_in_valid;
+      log_word.task_in_ready = task_in_ready;
+      log_word.task_out_valid = task_out_valid;
+      log_word.task_out_ready = task_out_ready;
+      log_word.arvalid = arvalid;
+      log_word.arready = arready;
+      log_word.rvalid = rvalid;
+      log_word.rready = rready;
+      log_word.out_fifo_occ = task_out_fifo_occ;
+
+      log_word.in_cq_slot = cq_slot_in;
+      log_word.in_thread = thread_id_in;
+
+      log_word.rid = rid;
+      log_word.task_in_ttype = task_in.ttype; 
+      log_word.task_in_ts = task_in.ts; 
+      log_word.task_in_locale = task_in.locale; 
+      log_word.araddr = araddr; 
+      log_word.out_object = task_out.object;
+      log_word.out_thread = task_out.thread; 
+      log_word.out_ts = task_out.task_desc.ts;
+      log_word.out_locale = task_out.task_desc.locale;
+
+   end
+
+   log #(
+      .WIDTH($bits(log_word)),
+      .LOG_DEPTH(LOG_LOG_DEPTH)
+   ) RW_READ_LOG (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wvalid(log_valid),
+      .wdata(log_word),
+
+      .pci(pci_debug),
+
+      .size(log_size)
+
+   );
+end
 
 endmodule
