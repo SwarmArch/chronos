@@ -541,10 +541,6 @@ always_ff @(posedge clk) begin
       end
    end
 end
-always_ff @(posedge clk) begin
-   reg_bus.rvalid <= reg_bus.arvalid;
-end
-assign reg_bus.rdata = 0;
 
 `ifdef XILINX_SIMULATOR
    logic [63:0] cycle;
@@ -623,10 +619,6 @@ always_ff @(posedge clk) begin
       end
    end
 end
-always_ff @(posedge clk) begin
-   reg_bus.rvalid <= reg_bus.arvalid;
-end
-assign reg_bus.rdata = 0;
 
 `ifdef XILINX_SIMULATOR
    logic [63:0] cycle;
