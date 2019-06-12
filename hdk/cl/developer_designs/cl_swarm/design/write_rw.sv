@@ -21,6 +21,8 @@ module write_rw
    input                   task_out_ready,
    output ro1_in_t         task_out,  
    output cq_slice_slot_t  task_out_cq_slot,  
+   
+   input fifo_size_t   task_out_fifo_occ, 
 
    output logic        unlock_locale,
    output logic        finish_task,
@@ -29,6 +31,7 @@ module write_rw
    reg_bus_t         reg_bus
 );
 
+fifo_size_t fifo_out_almost_full_thresh;
 assign unlock_thread = task_in.thread;
 
 always_ff @(posedge clk) begin
@@ -59,7 +62,7 @@ always_comb begin
    wdata [ task_in.task_desc.locale[3:0]* 32 +: 32 ] = task_in.task_desc.ts;
    wstrb [ task_in.task_desc.locale[3:0]* 4 +: 4]  = '1;
    task_in_ready = 1'b0;
-   if (task_in_valid) begin
+   if (task_in_valid & (task_out_fifo_occ < fifo_out_almost_full_thresh) ) begin
       if (task_in.object > task_in.task_desc.ts) begin
          wvalid = !task_out_valid | task_out_ready;
          if (wvalid & wready) begin
@@ -80,10 +83,12 @@ assign finish_task = task_in_ready;
 always_ff @(posedge clk) begin
    if (!rstn) begin
       base_rw_addr <= 0;
+      fifo_out_almost_full_thresh <= '1;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
             RW_BASE_ADDR : base_rw_addr <= {reg_bus.wdata[29:0], 2'b00};
+            CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : fifo_out_almost_full_thresh <= reg_bus.wdata;
          endcase
       end
    end

@@ -255,6 +255,9 @@ always_comb begin
          coal_child_task.ts = coal_ts;
          coal_child_task.locale = (coal_id<< 16) + ((TILE_ID)<<4); // route to same tile 
          coal_child_task.ttype = TASK_TYPE_SPLITTER;
+         coal_child_task.producer = 1'b1;
+         coal_child_task.no_write = 1'b1;
+         coal_child_task.no_read = 1'b0;
          if (coal_child_ready) begin
             state_next = (coal_id[LOG_SPLITTERS_PER_CHUNK-1:0] == '1) ? COAL_INIT : COAL_IDLE;
          end

@@ -26,10 +26,11 @@ package swarm;
 
    parameter VERSION = 10; // increment on every change to the addr_map.
 
-   `include "apps/sssp/config.vh"
+   `include "app_config.vh"
 
    // most used onfiguration options
    parameter N_TILES = 1;   // Number of tiles
+   parameter N_THREADS = 32; 
    parameter LOG_CQ_SLICE_SIZE = 7; // log of Commit Queue size per tile
    parameter LOG_TQ_SIZE = 12;  // Task Queue: Task Array size
    parameter TQ_STAGES = 13;  // Task Queue: min_heap size (has to be >= array size)
@@ -49,7 +50,10 @@ package swarm;
    parameter UNDO_LOG_LOGGING = 0;
    parameter SERIALIZER_LOGGING = 0;
    parameter L2_LOGGING = 0;
-   parameter CORE_LOGGING = 0;
+   parameter READ_RW_LOGGING = 0;
+   parameter WRITE_RW_LOGGING = 0;
+   parameter READ_ONLY_1_LOGGING = 0;
+   parameter READ_ONLY_2_LOGGING = 0;
    parameter PCI_LOGGING = 1;
 
    // Stats parameters. The value of each parameter is a bitmask specifying
@@ -61,6 +65,8 @@ package swarm;
 
    
    // Lesser used config options. 
+   
+   parameter LOG_STAGE_FIFO_SIZE = 5;
    
    // Number of DDR controllers (1, 2 or 4).  If your application is not memory bound,
    // reducing the number of controllers can save area. (Each DDR controllers takes roughly
@@ -127,9 +133,6 @@ package swarm;
    parameter L2_BANKS = (1<<LOG_L2_BANKS);
    parameter L2_PORTS = RO_STAGES + 2;
    
-   // 'Core' is any module that gets tasks from CC. OCL is a special case 
-   // APP_COREs have IDs {1..N_APP_CORES}
-   parameter N_THREADS = 4; 
 
    parameter UNDO_LOG_THREADS = UNORDERED ? 1 : 4;
 

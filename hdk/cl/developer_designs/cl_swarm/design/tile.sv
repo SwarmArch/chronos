@@ -51,12 +51,12 @@ logic rst_main_n_sync;
    ); 
 
 
-logic  [1:0]     cores_cm_wvalid ;
-logic  [1:0]     cores_cm_wready ;
-task_t [1:0]     cores_cm_wdata  ;
-logic  [1:0]     cores_cm_enq_untied ;
-cq_slice_slot_t [1:0]     cores_cm_cq_slot  ;
-child_id_t [1:0]     cores_cm_child_id  ;
+logic  [2:0]     cores_cm_wvalid ;
+logic  [2:0]     cores_cm_wready ;
+task_t [2:0]     cores_cm_wdata  ;
+logic  [2:0]     cores_cm_enq_untied ;
+cq_slice_slot_t [2:0]     cores_cm_cq_slot  ;
+child_id_t [2:0]     cores_cm_child_id  ;
 
 
 logic [N_THREADS+UNDO_LOG_THREADS-1:0]     finish_task_valid ;
@@ -264,7 +264,7 @@ coalescer
   .stack_lock_in (splitter_stack_lock)
 );
 axi_decoder #(
-   .ID_BASE( (TILE_ID<<11) + (ID_COAL<<4)),
+   .ID_BASE( L2_ID_COAL << 8 ),
    .MAX_ARSIZE(2),
    .MAX_AWSIZE( $clog2(TQ_WIDTH) -3 )
 ) COAL_L1 (
@@ -289,9 +289,9 @@ splitter #(
   .splitter_ready(splitter_deq_ready),
   .splitter_task (splitter_deq_task ),
 
-  .task_wvalid(cores_cm_wvalid[ID_SPLITTER]),
-  .task_wdata (cores_cm_wdata [ID_SPLITTER]),
-  .task_wready(cores_cm_wready[ID_SPLITTER]),
+  .task_wvalid(cores_cm_wvalid[2]),
+  .task_wdata (cores_cm_wdata [2]),
+  .task_wready(cores_cm_wready[2]),
 
   .l1(splitter_l1),
   .stack_lock_in (coal_stack_lock),
@@ -302,7 +302,7 @@ splitter #(
 );
 
 axi_decoder #(
-   .ID_BASE( (TILE_ID<<11) + (ID_SPLITTER<<4)),
+   .ID_BASE( L2_ID_SPLITTER << 8 ),
    .MAX_ARSIZE( $clog2(TQ_WIDTH) -3),
    .MAX_AWSIZE(2)
 ) SPLITTER_L1 (
@@ -329,7 +329,7 @@ end else begin
    assign l1_arb[L2_ID_SPLITTER].rready = 1'b1;
    assign reg_bus[ID_SPLITTER].rvalid = 1'b1;
    
-   assign cores_cm_wvalid[ID_SPLITTER] = 1'b0; // so as not to confuse the tsb
+   assign cores_cm_wvalid[2] = 1'b0; // so as not to confuse the tsb
    assign splitter_deq_ready = 1'b0;
 
    assign splitter_lvt_out = '1;
@@ -1092,6 +1092,7 @@ conflict_serializer #(
 
 logic rw_read_out_fifo_full;
 logic rw_read_out_fifo_empty;
+fifo_size_t rw_read_out_fifo_occ;
 
 logic rw_read_out_valid;
 logic rw_read_out_ready;
@@ -1130,18 +1131,17 @@ read_rw
    .task_out_valid(rw_read_out_valid),
    .task_out_ready(rw_read_out_ready),
    .task_out      (rw_read_out_data ),  
+   .task_out_fifo_occ (rw_read_out_fifo_occ),
    
    .reg_bus( reg_bus[ID_RW_READ])
 );
 
 assign rw_l2.araddr[63:32] = '0;
-assign rw_l2.awvalid = 1'b0;
-assign rw_l2.wvalid = 1'b0;
 assign rw_l2.bready = 1'b1;
 
 fifo #(
       .WIDTH( $bits(rw_read_out_data)),
-      .LOG_DEPTH(4)
+      .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
    ) RW_READ_OUT_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1152,12 +1152,15 @@ fifo #(
       .empty( rw_read_out_fifo_empty),
 
       .rd_en( rw_write_in_ready ),
-      .rd_data( rw_write_in_data )
+      .rd_data( rw_write_in_data ),
+
+      .size(rw_read_out_fifo_occ)
 
    );
 
 logic rw_write_out_fifo_full;
 logic rw_write_out_fifo_empty;
+fifo_size_t rw_write_out_fifo_occ;
 
 logic rw_write_out_valid;
 logic rw_write_out_ready;
@@ -1190,6 +1193,7 @@ write_rw
    .task_out_ready(rw_write_out_ready),
    .task_out(rw_write_out_data),  
    .task_out_cq_slot(rw_write_out_cq_slot),  
+   .task_out_fifo_occ (rw_write_out_fifo_occ),
 
    .unlock_locale (unlock_thread_valid),
    .finish_task(),
@@ -1200,7 +1204,7 @@ write_rw
 
 fifo #(
       .WIDTH( $bits(rw_write_out_data) + $bits(rw_write_out_cq_slot)),
-      .LOG_DEPTH(4)
+      .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
    ) RW_WRITE_OUT_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1211,8 +1215,9 @@ fifo #(
       .empty( rw_write_out_fifo_empty),
 
       .rd_en( ro1_in_ready ),
-      .rd_data( {ro1_in_data, ro1_in_cq_slot} )
+      .rd_data( {ro1_in_data, ro1_in_cq_slot} ),
 
+      .size(rw_write_out_fifo_occ)
    );
 
 assign rw_l2.wvalid = rw_l2.awvalid;
@@ -1221,8 +1226,7 @@ assign rw_l2.bready = 1'b1;
 
 logic ro1_out_fifo_full;
 logic ro1_out_fifo_empty;
-logic ro1_out_fifo_almost_full;
-logic [5:0] ro1_out_fifo_size;
+fifo_size_t ro1_out_fifo_occ;
 
 logic ro1_out_valid;
 logic ro1_out_ready;
@@ -1230,7 +1234,6 @@ ro2_in_t ro2_in_data;
 logic ro2_in_valid;
 logic ro2_in_ready;
 
-assign ro1_out_fifo_almost_full = (ro1_out_fifo_size > 5);
 assign ro1_out_ready = !ro1_out_fifo_full;
 assign ro2_in_valid = !ro1_out_fifo_empty;
 ro2_in_t ro2_in_task;
@@ -1272,7 +1275,7 @@ read_only_stage
    .out_valid (ro1_out_valid),
    .out_ready (ro1_out_ready),
 
-   .out_almost_full (ro1_out_fifo_almost_full),
+   .out_fifo_occ (ro1_out_fifo_occ),
 
    .out_task (ro1_out_task),
    .out_cq_slot (ro1_out_cq_slot),
@@ -1291,7 +1294,7 @@ assign l1_arb[0].bready = 1;
 
 fifo #(
       .WIDTH( $bits(ro1_out_task) + RO1_DATA_WIDTH + $bits(rw_write_out_cq_slot) + 1),
-      .LOG_DEPTH(5)
+      .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
    ) RO1_OUT_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1300,7 +1303,7 @@ fifo #(
 
       .full(  ro1_out_fifo_full ),
       .empty( ro1_out_fifo_empty),
-      .size (ro1_out_fifo_size),
+      .size (ro1_out_fifo_occ),
 
       .rd_en( ro2_in_ready ),
       .rd_data( {ro2_in_task, ro2_in_cq_slot, ro2_in_last} )
@@ -1346,7 +1349,7 @@ read_only_stage
    .out_valid (ro2_out_valid),
    .out_ready (ro2_out_ready),
    
-   .out_almost_full (1'b0),
+   .out_fifo_occ (0),
 
    .out_task (ro2_out_task),
    .out_cq_slot (ro2_out_cq_slot),

@@ -68,7 +68,10 @@ initial begin
       for (int j=0;j<6;j++) begin
          ocl_poke(i, ID_ALL_APP_CORES, j*4, file[j]);
       end
+      ocl_poke(i, ID_ALL_APP_CORES, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 10);
+      ocl_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS, 4);
    end
+
 
    // Application specific initialization
    if (APP_NAME == "des") begin
@@ -589,7 +592,11 @@ task initialize_spilling_structures;
 /*
       ocl_addr[15:8] = ID_TASK_UNIT;
       ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
-      ocl_data = 6;
+      ocl_data = 32;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      ocl_addr[7:0] = TASK_UNIT_SPILL_SIZE;
+      ocl_data = 8;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 
@@ -600,10 +607,6 @@ task initialize_spilling_structures;
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
       ocl_addr[15:8] = ID_TASK_UNIT;
       ocl_addr[7:0] = TASK_UNIT_TIED_CAPACITY;
-      ocl_data = 16;
-      tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
-      ocl_addr[7:0] = TASK_UNIT_SPILL_SIZE;
       ocl_data = 16;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 

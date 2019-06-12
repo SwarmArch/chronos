@@ -62,6 +62,8 @@
    typedef logic [5:0] core_id_t;
    typedef logic [$clog2(N_THREADS)-1:0] thread_id_t;
    typedef logic [EPOCH_WIDTH-1:0] epoch_t;
+
+   typedef logic [LOG_STAGE_FIFO_SIZE:0] fifo_size_t;
    
    typedef struct packed {
       task_t            task_desc;

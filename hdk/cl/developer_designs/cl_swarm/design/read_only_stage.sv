@@ -31,7 +31,7 @@ module read_only_stage
    output logic                  out_valid,
    input                         out_ready,
 
-   input                         out_almost_full,
+   input  fifo_size_t            out_fifo_occ,
 
 
    output logic [OUT_WIDTH-1:0]  out_task,
@@ -51,6 +51,10 @@ logic [FREE_LIST_SIZE-1:0] arid_free_list_next;
 logic arid_free_list_add_valid;
 logic arid_free_list_remove_valid;
 logic arid_free_list_empty;
+
+fifo_size_t fifo_out_almost_full_thresh;
+logic out_almost_full;
+assign out_almost_full = (fifo_out_almost_full_thresh < out_fifo_occ);
 
 thread_id_t thread_free_list_add;
 thread_id_t thread_free_list_next;
@@ -383,6 +387,17 @@ end
 endgenerate
 
 
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      fifo_out_almost_full_thresh <= '1;
+   end else begin
+      if (reg_bus.wvalid) begin
+         case (reg_bus.waddr) 
+            CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : fifo_out_almost_full_thresh <= reg_bus.wdata;
+         endcase
+      end
+   end
+end
 
 
 

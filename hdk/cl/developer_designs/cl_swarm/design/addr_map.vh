@@ -7,7 +7,7 @@
    parameter ID_SPLITTER = 6;
    parameter ID_COAL = 7;
    parameter ID_TASK_UNIT = 8; 
-   parameter CM_PORTS = 2;
+   parameter CM_PORTS = 3;
    // end all modules with an L2 port
    parameter ID_L2_RW = 9;
    parameter ID_L2_RO = 10;
@@ -78,7 +78,8 @@
    parameter CORE_BASE_NEIGHBORS      = 8'h28;
    parameter CORE_LOCALE              = 8'h30;
    parameter CORE_TS                  = 8'h34;
-   parameter CORE_STATE_STATS_BEGIN   = 8'b01xx_xxxx;
+   parameter CORE_STATE_STATS_BEGIN   = 8'b01xx_xxxx; // deprecated
+   parameter CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD = 8'h40;
 
    parameter DES_SPARSE_OUTPUT       = 8'h80;
 
@@ -210,6 +211,7 @@
    parameter CM_CHILD_PTR_DATA= 8'h28;
    parameter CM_MISC          = 8'h2c;
 
+   parameter SERIALIZER_N_THREADS = 8'h10;
    parameter SERIALIZER_ARVALID = 8'h20;
    parameter SERIALIZER_READY_LIST = 8'h24;
    parameter SERIALIZER_REG_VALID = 8'h28;

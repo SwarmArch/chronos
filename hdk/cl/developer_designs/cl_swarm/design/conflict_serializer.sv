@@ -91,8 +91,11 @@ module conflict_serializer #(
 
    logic free_list_empty;
 
-   assign next_thread_valid = !free_list_empty;
+   assign next_thread_valid = !free_list_empty & (free_list_size > (N_THREADS - active_threads));
    assign issue_task = s_valid & s_ready;
+
+   logic [ $clog2(N_THREADS):0] free_list_size, active_threads;
+
 
    free_list #(
       .LOG_DEPTH( $clog2(N_THREADS) )
@@ -108,7 +111,7 @@ module conflict_serializer #(
       .empty(free_list_empty),
       .rd_data(s_thread),
 
-      .size()
+      .size(free_list_size)
    );
    
    lowbit #(
@@ -320,6 +323,7 @@ module conflict_serializer #(
          almost_full_threshold    <= READY_LIST_SIZE - 4;
          full_threshold    <= READY_LIST_SIZE - 1;
          ready_list_stall_threshold <= READY_LIST_SIZE - 4;
+         active_threads <= 2**N_THREADS;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
@@ -328,99 +332,12 @@ module conflict_serializer #(
                   full_threshold <= reg_bus.wdata[15:8];
                   ready_list_stall_threshold <= reg_bus.wdata[23:16];
                end
+               SERIALIZER_N_THREADS: active_threads <= reg_bus.wdata;
             endcase
          end
       end
    end
-   always_ff @(posedge clk) begin
-      if (!rstn) begin
-         reg_bus.rvalid <= 1'b0;
-         reg_bus.rdata <= 'x;
-      end else
-      if (reg_bus.arvalid) begin
-         reg_bus.rvalid <= 1'b1;
-         casex (reg_bus.araddr) 
-         //   DEBUG_CAPACITY : reg_bus.rdata <= log_size;
-         //   SERIALIZER_ARVALID : reg_bus.rdata <= s_arvalid;
-            SERIALIZER_READY_LIST : reg_bus.rdata <= {ready_list_valid, ready_list_conflict};
-         endcase
-      end else begin
-         reg_bus.rvalid <= 1'b0;
-      end
-   end
-
-/*
-   // Stats
-   logic [4:0] num_arvalid_cores;
-
-   logic [31:0] core_stats [N_THREADS * 8];
-   logic [7:0] stat_read_addr;
-
-   logic [39:0] cum_cq_stall_cycles;
-generate 
-if (SERIALIZER_STATS) begin
-   always_comb begin
-      num_arvalid_cores = '0;
-      for (integer i=1;i<=N_THREADS;i=i+1) begin
-         num_arvalid_cores += s_arvalid[i];
-      end
-   end
-   always_ff @(posedge clk) begin
-      if (!rstn) begin
-         cum_cq_stall_cycles <= 0;
-      end else begin
-         if (cq_full) begin
-            cum_cq_stall_cycles <= cum_cq_stall_cycles + num_arvalid_cores;
-         end
-      end
-   end
-   initial begin
-      for (integer i=0;i<N_THREADS*8;i++) begin
-         core_stats[i] = 0;
-      end
-   end
-   for (i=0;i<N_THREADS;i+=1) begin
-      always_ff @(posedge clk) begin
-         if (!s_arvalid[i] || (reg_valid & (i==reg_core_id))) begin
-            // core is busy.
-            core_stats[i*8 +0] <= core_stats[i*8 +0] + 1;
-         end else begin 
-            if (can_take_request[core_select]) begin
-               if (core_select == i) begin
-                  // servicing request for core i
-                  core_stats[i*8 +1] <= core_stats[i*8 +1] + 1;
-               end else begin
-                  // servicing request for another core
-                  core_stats[i*8 +2] <= core_stats[i*8 +2] + 1;
-               end
-            end else if ( ready_list_size < ready_list_stall_threshold) begin
-               if (cq_full) begin
-                  // stalled because CQ is full
-                  core_stats[i*8 +3] <= core_stats[i*8 +3] + 1;
-               end else begin
-                  // Stalled because no task
-                  core_stats[i*8 +4] <= core_stats[i*8 +4] + 1;
-               end  
-            end else begin
-               if ( (ready_list_valid & !ready_list_conflict) ) begin
-                  // there is a non-conflict valid task but for whatever reason
-                  // it is not being dequeued. weird
-                  core_stats[i*8 +5] <= core_stats[i*8 +5] + 1;
-               end else begin
-                  // all ready tasks are conflicting with a running task
-                  core_stats[i*8 +6] <= core_stats[i*8 +6] + 1;
-               end
-            end
-         end
-      end
-   end
-
-end 
-endgenerate
-
-
-// Debug
-logic [LOG_LOG_DEPTH:0] log_size; 
+   logic [LOG_LOG_DEPTH:0] log_size; 
    always_ff @(posedge clk) begin
       if (!rstn) begin
          reg_bus.rvalid <= 1'b0;
@@ -430,25 +347,14 @@ logic [LOG_LOG_DEPTH:0] log_size;
          reg_bus.rvalid <= 1'b1;
          casex (reg_bus.araddr) 
             DEBUG_CAPACITY : reg_bus.rdata <= log_size;
-            SERIALIZER_ARVALID : reg_bus.rdata <= s_arvalid;
             SERIALIZER_READY_LIST : reg_bus.rdata <= {ready_list_valid, ready_list_conflict};
-            SERIALIZER_REG_VALID : reg_bus.rdata <= {reg_core_id, reg_valid};
-            SERIALIZER_CAN_TAKE_REQ_0 : reg_bus.rdata <=
-               {can_take_request[ 3], can_take_request[ 2], can_take_request[ 1], can_take_request[ 0]};
-            SERIALIZER_CAN_TAKE_REQ_1 : reg_bus.rdata <=
-               {can_take_request[ 7], can_take_request[ 6], can_take_request[ 5], can_take_request[ 4]};
-            SERIALIZER_CAN_TAKE_REQ_2 : reg_bus.rdata <=
-               {can_take_request[11], can_take_request[10], can_take_request[ 9], can_take_request[ 8]};
-            SERIALIZER_CAN_TAKE_REQ_3 : reg_bus.rdata <=
-               {can_take_request[15], can_take_request[14], can_take_request[13], can_take_request[12]};
-            SERIALIZER_SIZE_CONTROL : reg_bus.rdata <= ready_list_size;
-            SERIALIZER_CQ_STALL_COUNT : reg_bus.rdata <= cum_cq_stall_cycles[39:8];
-            SERIALIZER_STAT_READ: reg_bus.rdata <= core_stats[stat_read_addr];
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;
       end
    end
+
+// Debug
 
 if (SERIALIZER_LOGGING[TILE_ID]) begin
    logic log_valid;
@@ -463,8 +369,8 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       logic [6:0] s_cq_slot;
       logic [3:0] s_rdata_ttype;
       logic finished_task_valid;
-      logic [4:0] finished_task_core;
-      logic [14:0] unused_1;
+      logic [5:0] finished_task_thread;
+      logic [13:0] unused_1;
       logic [31:0] ready_list_valid;
       logic [31:0] ready_list_conflict;
 
@@ -484,19 +390,19 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
    } cq_log_t;
    cq_log_t log_word;
    always_comb begin
-      log_valid = (m_valid & m_ready) | (s_rvalid != 0) | finished_task_valid;
+      log_valid = (m_valid & m_ready) | (s_valid) | unlock_valid;
 
       log_word = '0;
 
-      log_word.s_arvalid = s_arvalid;
-      log_word.s_rvalid = s_rvalid;
+      log_word.s_arvalid = s_valid;
+      log_word.s_rvalid = s_ready;
       log_word.s_rdata_locale = s_rdata.locale;
       log_word.s_rdata_ts = s_rdata.ts;
       log_word.s_rdata_ttype = s_rdata.ttype;
       log_word.s_cq_slot = s_cq_slot;
 
-      log_word.finished_task_valid = finished_task_valid;
-      log_word.finished_task_core = finished_task_core;
+      log_word.finished_task_valid = unlock_valid;
+      log_word.finished_task_thread = unlock_thread;
 
       log_word.ready_list_valid = ready_list_valid;
       log_word.ready_list_conflict = ready_list_conflict;
@@ -528,5 +434,4 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
 
    );
 end
-*/
 endmodule

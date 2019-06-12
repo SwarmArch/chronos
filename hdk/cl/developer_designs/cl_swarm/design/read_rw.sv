@@ -28,6 +28,8 @@ module read_rw
    output logic        task_out_valid,
    input               task_out_ready,
    output rw_write_t   task_out,  
+
+   input fifo_size_t   task_out_fifo_occ, 
    
    reg_bus_t         reg_bus
 );
@@ -38,12 +40,14 @@ cq_slice_slot_t task_cq_slot [0:N_THREADS-1];
 
 logic [31:0] base_rw_addr;
 
+fifo_size_t fifo_out_almost_full_thresh;
+
 assign arid = thread_id_in;
 assign araddr = base_rw_addr + (task_in.locale <<  RW_ARSIZE);
 always_comb begin
    arvalid = 1'b0;
    task_in_ready = 1'b0;
-   if (task_in_valid) begin
+   if (task_in_valid & (task_out_fifo_occ < fifo_out_almost_full_thresh)) begin
       arvalid = 1'b1;
       if (arready) begin
          task_in_ready = 1'b1;
@@ -82,10 +86,12 @@ end
 always_ff @(posedge clk) begin
    if (!rstn) begin
       base_rw_addr <= 0;
+      fifo_out_almost_full_thresh <= '1;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
             RW_BASE_ADDR : base_rw_addr <= {reg_bus.wdata[29:0], 2'b00};
+            CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : fifo_out_almost_full_thresh <= reg_bus.wdata;
          endcase
       end
    end
