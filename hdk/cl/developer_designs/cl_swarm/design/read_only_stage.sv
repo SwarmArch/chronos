@@ -365,7 +365,7 @@ sssp_stage_2
    .clk  (clk),
    .rstn (rstn),
 
-   .task_in_valid (task_in_valid),
+   .task_in_valid (task_in_valid &!out_almost_full),
    .task_in_ready (task_in_ready),
 
    .in_task       (in_task), 

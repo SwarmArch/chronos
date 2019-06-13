@@ -111,7 +111,7 @@ always_ff @(posedge clk) begin
          coal_ts <= spill_fifo_rd_data.ts;
       end else if (NON_SPEC) begin
          if (coal_ts > spill_fifo_rd_data.ts) begin
-            coal_ts <= spill_fifo_rd_data;
+            coal_ts <= spill_fifo_rd_data.ts;
          end
       end
    end
@@ -255,6 +255,7 @@ always_comb begin
          coal_child_task.ts = coal_ts;
          coal_child_task.locale = (coal_id<< 16) + ((TILE_ID)<<4); // route to same tile 
          coal_child_task.ttype = TASK_TYPE_SPLITTER;
+         coal_child_task.args = 0;
          coal_child_task.producer = 1'b1;
          coal_child_task.no_write = 1'b1;
          coal_child_task.no_read = 1'b0;

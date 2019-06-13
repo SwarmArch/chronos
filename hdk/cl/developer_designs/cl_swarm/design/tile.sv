@@ -1316,10 +1316,20 @@ fifo #(
 logic ro2_out_valid;
 logic ro2_out_ready;
 
-ro2_out_t ro2_out_task;
+ro2_out_t ro2_out_task, ro3_in_task;
 cq_slice_slot_t ro2_out_cq_slot;
-logic [RO2_DATA_WIDTH-1:0] ro2_out_data;
+logic [RO2_DATA_WIDTH-1:0] ro2_out_data, ro3_in_data;
 logic ro2_out_last;
+
+logic ro2_out_fifo_full;
+logic ro2_out_fifo_empty;
+fifo_size_t ro2_out_fifo_occ;
+
+logic ro3_in_valid;
+logic ro3_in_ready;
+
+assign ro2_out_ready = !ro2_out_fifo_full; 
+assign ro3_in_valid = !ro2_out_fifo_empty;
 
 read_only_stage
 #(
@@ -1353,7 +1363,7 @@ read_only_stage
    .out_valid (ro2_out_valid),
    .out_ready (ro2_out_ready),
    
-   .out_fifo_occ (0),
+   .out_fifo_occ (ro2_out_fifo_occ),
 
    .out_task (ro2_out_task),
    .out_cq_slot (ro2_out_cq_slot),
@@ -1371,6 +1381,24 @@ assign l1_arb[1].awvalid = 0;
 assign l1_arb[1].wvalid = 0;
 assign l1_arb[1].bready = 1;
 
+fifo #(
+      .WIDTH( $bits(ro2_out_task) + $bits(ro2_out_data)),
+      .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
+   ) RO2_OUT_FIFO (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+      .wr_en(ro2_out_valid & !ro2_out_fifo_full),
+      .wr_data( {ro2_out_task, ro2_out_data} ),
+
+      .full(  ro2_out_fifo_full ),
+      .empty( ro2_out_fifo_empty),
+      .size (ro2_out_fifo_occ),
+
+      .rd_en( ro3_in_ready ),
+      .rd_data( {ro3_in_task, ro3_in_data} )
+
+   );
+
 sssp_gen_child
 #(
    .TILE_ID(TILE_ID)
@@ -1379,11 +1407,11 @@ sssp_gen_child
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
 
-   .task_in_valid(ro2_out_valid),
-   .task_in_ready(ro2_out_ready),
+   .task_in_valid(ro3_in_valid),
+   .task_in_ready(ro3_in_ready),
 
-   .in_task(ro2_out_task), 
-   .in_data(ro2_out_data),
+   .in_task(ro3_in_task), 
+   .in_data(ro3_in_data),
 
    .out_valid(cores_cm_wvalid[1]),
    .out_ready(cores_cm_wready[1]),

@@ -592,11 +592,11 @@ task initialize_spilling_structures;
 /*
       ocl_addr[15:8] = ID_TASK_UNIT;
       ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
-      ocl_data = 32;
+      ocl_data = 48;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
       ocl_addr[7:0] = TASK_UNIT_SPILL_SIZE;
-      ocl_data = 8;
+      ocl_data = 16;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 
