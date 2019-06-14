@@ -118,7 +118,6 @@ initial begin
       if (NON_SPEC) begin
          for (int i=0;i<N_TILES;i++) begin
             ocl_peek(i, 0, OCL_DONE, ocl_data); 
-            ocl_data = (ocl_data == 1) ? '1 :0;
             if (ocl_data == 0) begin
                break;
             end

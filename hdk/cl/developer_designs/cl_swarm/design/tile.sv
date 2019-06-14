@@ -194,7 +194,7 @@ axi_bus_t ocl_bus_q();
    );
 
 axi_bus_t core_l1();
-logic done;
+logic [31:0] done;
 ocl_slave  
 #(
    .TILE_ID(TILE_ID)
@@ -1581,7 +1581,7 @@ always @(posedge clk_main_a0) begin
    if (!rst_main_n_sync) begin
       done <= 0;
    end else begin
-      done <= tq_empty & tsb_empty & all_cores_idle & out_task_fifo_empty & ro1_idle & ro2_idle;
+      done <= { {26{1'b1}}, tq_empty, tsb_empty, all_cores_idle, out_task_fifo_empty, ro1_idle, ro2_idle};
    end
 
 end

@@ -30,7 +30,7 @@ module ocl_slave
 
    axi_bus_t.slave l1,
 
-   input done,
+   input [31:0] done,
    output logic [63:0] cur_cycle
 
    
@@ -233,7 +233,7 @@ module ocl_slave
                      end
                      OCL_DONE: begin
                         state <= OCL_SEND_R;
-                        data <= {31'b0, done};
+                        data <= done;
                      end
                   endcase
                end

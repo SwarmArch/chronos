@@ -84,7 +84,8 @@ package swarm;
    // both of the following should be changed together. Unfortunately cannot 
    // `define inside and if block in SV.
    parameter UNORDERED = 0;
-   `define TASK_UNIT_MODULE task_unit
+   //`define TASK_UNIT_MODULE task_unit
+   `define TASK_UNIT_MODULE task_unit_nonspec
    //`define TASK_UNIT_MODULE task_unit_unordered
 
    
