@@ -223,6 +223,7 @@ always_ff @(posedge clk) begin
    end
 end
 
+logic [$clog2(N_THREADS):0] thread_free_list_occ;
 
 free_list #(
    .LOG_DEPTH(FREE_LIST_SIZE)
@@ -255,7 +256,7 @@ free_list #(
    .empty(thread_free_list_empty),
    .rd_data(thread_free_list_next),
 
-   .size()
+   .size(thread_free_list_occ)
 );
 
 thread_id_t in_thread;
@@ -382,7 +383,6 @@ sssp_stage_2
    
    .reg_bus      (reg_bus)
 
-
 );
 
 end
@@ -411,6 +411,7 @@ always_ff @(posedge clk) begin
       casex (reg_bus.araddr) 
          DEBUG_CAPACITY : reg_bus.rdata <= log_size;
          CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : reg_bus.rdata <= out_fifo_occ;
+         CORE_THREAD_ID_FIFO_OCC : reg_bus.rdata <= thread_free_list_occ;
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;
@@ -434,6 +435,11 @@ if (LOGGING) begin
       logic [7:0] in_cq_slot;
       logic [3:0] in_last;
       logic [3:0] out_last;
+
+      logic [7:0] arid;
+      logic [7:0] rid;
+      logic [7:0] thread_id;
+      logic [7:0] thread_fifo_occ;
       
       logic [159:0] in_task;
       logic [95:0] out_task;
@@ -442,7 +448,7 @@ if (LOGGING) begin
    } rw_read_log_t;
    rw_read_log_t log_word;
    always_comb begin
-      log_valid = (task_in_valid & task_in_ready) | (out_valid & out_ready) ;
+      log_valid = (task_in_valid & task_in_ready) | (out_valid & out_ready) | (arvalid & arready) | (rvalid & rready) ;
 
       log_word = '0;
 
@@ -459,6 +465,11 @@ if (LOGGING) begin
       log_word.in_cq_slot = in_cq_slot;
       log_word.in_last = in_last;
       log_word.out_last = out_last;
+
+      log_word.arid = arid;
+      log_word.rid = rid;
+      log_word.thread_id = thread_free_list_next;
+      log_word.thread_fifo_occ = thread_free_list_occ;
 
       log_word.in_task = in_task;
       log_word.out_task = out_task;
