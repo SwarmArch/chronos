@@ -122,7 +122,7 @@ always_ff @(posedge clk) begin
       reg_rvalid <= 1'b0;
    end else begin
       if (rvalid & rready) begin
-         rid_mshr <= ro_mshr[rid[7:0]];
+         rid_mshr <= ro_mshr[rid[FREE_LIST_SIZE-1:0]];
          reg_rid <= rid;
          reg_rvalid <= rvalid;
          reg_rdata <= rdata;
@@ -422,7 +422,9 @@ end
 if (LOGGING) begin
    logic log_valid;
    typedef struct packed {
-      
+     
+      logic [31:0] rid_mshr;
+
       logic task_in_valid;
       logic task_in_ready;
       logic task_out_valid;
@@ -452,6 +454,8 @@ if (LOGGING) begin
 
       log_word = '0;
 
+      log_word.rid_mshr = rid_mshr;
+
       log_word.task_in_valid = task_in_valid;
       log_word.task_in_ready = task_in_ready;
       log_word.task_out_valid = out_valid;
@@ -466,8 +470,8 @@ if (LOGGING) begin
       log_word.in_last = in_last;
       log_word.out_last = out_last;
 
-      log_word.arid = arid;
-      log_word.rid = rid;
+      log_word.arid = arid[7:0];
+      log_word.rid = rid[7:0];
       log_word.thread_id = thread_free_list_next;
       log_word.thread_fifo_occ = thread_free_list_occ;
 
