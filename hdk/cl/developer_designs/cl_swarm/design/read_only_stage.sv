@@ -161,6 +161,11 @@ always_comb begin
    out_data_word_from_mem = mem_last_word[rid_mshr.thread];
 end
 
+logic [7:0] remaining_words_cur_rid;
+always_comb begin
+   remaining_words_cur_rid = remaining_words[rid_mshr.thread];
+end
+
 always_comb begin
    out_task = mem_task[rid_mshr.thread]; 
    out_cq_slot = mem_cq_slot[rid_mshr.thread]; 
@@ -172,17 +177,17 @@ always_comb begin
          out_data[31: 0] = out_data_word_0;
          out_data[63:32] = out_data_word_1;
          out_valid = 1'b1;
-         out_last = (remaining_words[rid_mshr.thread] == 2);
+         out_last = (remaining_words_cur_rid == 2);
       end else if (out_data_word_id == 0) begin
          out_data[31: 0] = out_data_word_from_mem ;
          out_data[63:32] = out_data_word_0; 
-         out_valid = (remaining_words[rid_mshr.thread] == 1);
-         out_last = (remaining_words[rid_mshr.thread] == 1);
+         out_valid = (remaining_words_cur_rid == 1);
+         out_last = (remaining_words_cur_rid == 1);
       end else if (out_data_word_id == 15) begin
          out_data[31: 0] = out_data_word_0; 
          out_data[63:32] = out_data_word_from_mem ;
-         out_valid = (remaining_words[rid_mshr.thread] == 1);
-         out_last = (remaining_words[rid_mshr.thread] == 1);
+         out_valid = (remaining_words_cur_rid == 1);
+         out_last = (remaining_words_cur_rid == 1);
       end 
    end
 end
@@ -423,6 +428,8 @@ if (LOGGING) begin
    logic log_valid;
    typedef struct packed {
      
+      logic [3:0] remaining_words_cur_rid;
+      logic [27:0] remaining_words;
       logic [31:0] rid_mshr;
 
       logic task_in_valid;
@@ -453,7 +460,12 @@ if (LOGGING) begin
       log_valid = (task_in_valid & task_in_ready) | (out_valid & out_ready) | (arvalid & arready) | (rvalid & rready) ;
 
       log_word = '0;
-
+   
+      log_word.remaining_words_cur_rid = remaining_words_cur_rid[3:0];
+      log_word.remaining_words = { remaining_words[6][3:0], remaining_words[5][3:0], 
+                                   remaining_words[4][3:0], remaining_words[3][3:0],
+                                   remaining_words[2][3:0], remaining_words[1][3:0],
+                                   remaining_words[0][3:0]};
       log_word.rid_mshr = rid_mshr;
 
       log_word.task_in_valid = task_in_valid;
