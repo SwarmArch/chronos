@@ -1415,7 +1415,8 @@ sssp_gen_child
 
    .out_valid(cores_cm_wvalid[1]),
    .out_ready(cores_cm_wready[1]),
-   .out_task(cores_cm_wdata[1])
+   .out_task(cores_cm_wdata[1]),
+   .out_task_untied(cores_cm_enq_untied[1])
    
 
 );

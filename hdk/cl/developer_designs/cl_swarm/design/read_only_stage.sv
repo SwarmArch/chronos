@@ -116,6 +116,7 @@ always_comb begin
    end
 end
 
+thread_id_t rid_thread;
 assign rready = !reg_rvalid;
 always_ff @(posedge clk) begin
    if (!rstn) begin
@@ -123,6 +124,7 @@ always_ff @(posedge clk) begin
    end else begin
       if (rvalid & rready) begin
          rid_mshr <= ro_mshr[rid[FREE_LIST_SIZE-1:0]];
+         rid_thread <= ro_mshr[rid[FREE_LIST_SIZE-1:0]].thread;
          reg_rid <= rid;
          reg_rvalid <= rvalid;
          reg_rdata <= rdata;
@@ -142,7 +144,7 @@ end
 assign arid_free_list_add_valid = rvalid & rready;
 assign arid_free_list_add = rid[7:0];
 assign thread_free_list_add_valid = out_last & (out_valid & out_ready);
-assign thread_free_list_add = rid_mshr.thread;
+assign thread_free_list_add = rid_thread;
 
 logic [3:0] out_data_word_id;
    lowbit #(
@@ -158,17 +160,17 @@ always_comb begin
    out_data_word_1 = reg_rdata[ (out_data_word_id + 1) * 32 +: 32]; 
    out_data_word_0_valid = rid_mshr.valid_words[out_data_word_id];
    out_data_word_1_valid = (out_data_word_id < 15) & rid_mshr.valid_words[out_data_word_id + 1];
-   out_data_word_from_mem = mem_last_word[rid_mshr.thread];
+   out_data_word_from_mem = mem_last_word[rid_thread];
 end
 
 logic [7:0] remaining_words_cur_rid;
 always_comb begin
-   remaining_words_cur_rid = remaining_words[rid_mshr.thread];
+   remaining_words_cur_rid = remaining_words[rid_thread];
 end
 
 always_comb begin
-   out_task = mem_task[rid_mshr.thread]; 
-   out_cq_slot = mem_cq_slot[rid_mshr.thread]; 
+   out_task = mem_task[rid_thread]; 
+   out_cq_slot = mem_cq_slot[rid_thread]; 
    out_data = 'x;
    out_valid = 1'b0;
    out_last = 1'b0;
@@ -205,7 +207,7 @@ generate
                  3: remaining_words[i] <= (s_arlen + 1) << 1;
                  // TODO
                endcase
-            end else if (reg_rvalid & ( i == rid_mshr.thread)) begin
+            end else if (reg_rvalid & ( i == rid_thread)) begin
                if (out_valid) begin
                   if (out_ready & out_data_word_0_valid & out_data_word_1_valid) begin
                      remaining_words[i] <= remaining_words[i] -2;
@@ -224,7 +226,7 @@ endgenerate
 
 always_ff @(posedge clk) begin
    if (reg_rvalid) begin
-      mem_last_word[rid_mshr.thread] <= out_data_word_0; 
+      mem_last_word[rid_thread] <= out_data_word_0; 
    end
 end
 
@@ -429,8 +431,10 @@ if (LOGGING) begin
    typedef struct packed {
      
       logic [3:0] remaining_words_cur_rid;
-      logic [27:0] remaining_words;
-      logic [31:0] rid_mshr;
+      logic [4:0] rid_mshr_thread_id;
+      logic [2:0] out_data_word_valid;
+      logic [19:0] remaining_words;
+      logic [31:0] valid_words;
 
       logic task_in_valid;
       logic task_in_ready;
@@ -462,11 +466,13 @@ if (LOGGING) begin
       log_word = '0;
    
       log_word.remaining_words_cur_rid = remaining_words_cur_rid[3:0];
-      log_word.remaining_words = { remaining_words[6][3:0], remaining_words[5][3:0], 
+      log_word.remaining_words = {  
                                    remaining_words[4][3:0], remaining_words[3][3:0],
                                    remaining_words[2][3:0], remaining_words[1][3:0],
                                    remaining_words[0][3:0]};
-      log_word.rid_mshr = rid_mshr;
+      log_word.valid_words = {rid_mshr.valid_words[15:0], next_valid_words};
+      log_word.rid_mshr_thread_id = rid_thread;
+      log_word.out_data_word_valid = {out_data_word_0_valid, out_data_word_1_valid};
 
       log_word.task_in_valid = task_in_valid;
       log_word.task_in_ready = task_in_ready;
@@ -679,7 +685,8 @@ module sssp_gen_child
 
    output logic                  out_valid,
    input                         out_ready,
-   output task_t                 out_task
+   output task_t                 out_task,
+   output logic                  out_task_untied
    
 
 );
@@ -705,6 +712,7 @@ always_ff @(posedge clk) begin
 end
 
 assign task_in_ready = task_in_valid & (!out_valid | out_ready);
+assign out_task_untied = 1'b0;
 
 `ifdef XILINX_SIMULATOR
    logic [63:0] cycle;
