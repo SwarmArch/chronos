@@ -77,7 +77,7 @@ cq_slice_slot_t       mem_cq_slot [0:N_THREADS-1];
 
 logic [31:0] mem_last_word[0:N_THREADS-1];
 
-logic [7:0] remaining_words [0:N_THREADS-1] ;
+logic [0:N_THREADS-1][7:0] remaining_words ;
 
 logic reg_rvalid, reg_rready;
 logic [511:0] reg_rdata;
