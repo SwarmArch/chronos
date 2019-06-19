@@ -59,7 +59,6 @@ logic out_almost_full;
 assign out_almost_full = (fifo_out_almost_full_thresh < out_fifo_occ);
 
 thread_id_t thread_free_list_add;
-thread_id_t thread_free_list_next;
 logic thread_free_list_add_valid;
 logic thread_free_list_remove_valid;
 logic thread_free_list_empty;
@@ -77,7 +76,8 @@ cq_slice_slot_t       mem_cq_slot [0:N_THREADS-1];
 
 logic [31:0] mem_last_word[0:N_THREADS-1];
 
-logic [0:N_THREADS-1][7:0] remaining_words ;
+typedef logic [7:0] remaining_words_t;
+remaining_words_t remaining_words [0:N_THREADS-1];
 
 logic reg_rvalid, reg_rready;
 logic [511:0] reg_rdata;
@@ -163,7 +163,7 @@ always_comb begin
    out_data_word_from_mem = mem_last_word[rid_thread];
 end
 
-logic [7:0] remaining_words_cur_rid;
+remaining_words_t remaining_words_cur_rid;
 always_comb begin
    remaining_words_cur_rid = remaining_words[rid_thread];
 end
@@ -201,7 +201,7 @@ generate
          if (!rstn) begin
             remaining_words[i] <= 0;
          end else begin
-            if (s_arvalid & s_arready & (i==in_thread)) begin
+            if (s_arvalid & s_arready & (i == in_thread)) begin
                case (s_arsize) 
                  2: remaining_words[i] <= (s_arlen + 1);
                  3: remaining_words[i] <= (s_arlen + 1) << 1;
@@ -231,6 +231,7 @@ always_ff @(posedge clk) begin
 end
 
 logic [$clog2(N_THREADS):0] thread_free_list_occ;
+thread_id_t in_thread;
 
 free_list #(
    .LOG_DEPTH(FREE_LIST_SIZE)
@@ -261,13 +262,11 @@ free_list #(
 
    .full(idle), 
    .empty(thread_free_list_empty),
-   .rd_data(thread_free_list_next),
+   .rd_data(in_thread),
 
    .size(thread_free_list_occ)
 );
 
-thread_id_t in_thread;
-assign in_thread = thread_free_list_next;
 
 assign thread_free_list_remove_valid = task_in_ready & s_out_valid;
 
@@ -490,7 +489,7 @@ if (LOGGING) begin
 
       log_word.arid = arid[7:0];
       log_word.rid = rid[7:0];
-      log_word.thread_id = thread_free_list_next;
+      log_word.thread_id = in_thread;
       log_word.thread_fifo_occ = thread_free_list_occ;
 
       log_word.in_task = in_task;
