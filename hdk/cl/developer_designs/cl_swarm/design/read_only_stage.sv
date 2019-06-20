@@ -280,9 +280,9 @@ generate
          end else begin
             if (s_arvalid & s_arready & (in_thread == i)) begin
                case (s_arsize) 
-                 2: remaining_words[i] <= (s_arlen + 1);
-                 3: remaining_words[i] <= (s_arlen + 1) << 1;
-                 // TODO
+                 3'd2: remaining_words[i] <= (s_arlen + 1);
+                 3'd3: remaining_words[i] <= (s_arlen + 1) << 1;
+                 default: remaining_words[i] <= remaining_words[i];
                endcase
             end else if (reg_rvalid & ( i == rid_thread)) begin
                if (out_valid) begin
@@ -621,6 +621,7 @@ always_comb begin
    out_task = in_task;
    out_task_is_child = 1'b1;
    task_in_ready = 1'b0;
+   resp_subtype = 'x;
    
    if (task_in_valid) begin
       case (in_subtype) 
