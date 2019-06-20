@@ -43,7 +43,7 @@ module conflict_serializer #(
    // finishing tasks's locale will be set conflict-free.
    
    typedef struct packed {
-      logic [TASK_TYPE_WIDTH-1:0] ttype;
+      logic [LOG_READY_LIST_SIZE-1:0] id;
       logic [LOCALE_WIDTH-1:0] locale;
    } task_t_ser;
 
@@ -62,10 +62,10 @@ module conflict_serializer #(
    logic [N_THREADS-1:0] running_task_locale_valid;
 
    task_t_ser [READY_LIST_SIZE-1:0] ready_list;
-   ts_t [READY_LIST_SIZE-1:0] ready_list_ts;
-   args_t [READY_LIST_SIZE-1:0] ready_list_args; 
 
+   task_t [READY_LIST_SIZE-1:0] ready_list_task;
    cq_slice_slot_t [READY_LIST_SIZE-1:0] ready_list_cq_slot;
+
    logic [READY_LIST_SIZE-1:0] ready_list_valid;
    logic [READY_LIST_SIZE-1:0] ready_list_conflict;
 
@@ -85,6 +85,10 @@ module conflict_serializer #(
    end
    assign all_cores_idle = (ready_list_valid ==0) && (running_task_locale_valid==0); 
 
+   logic ready_list_free_empty;
+   logic ready_list_free_full;
+   logic [LOG_READY_LIST_SIZE-1:0] ready_list_next_free_id;
+   logic [LOG_READY_LIST_SIZE:0] ready_list_free_occ, ready_list_size;
 
    logic next_thread_valid;
    logic issue_task;
@@ -95,7 +99,30 @@ module conflict_serializer #(
    assign issue_task = s_valid & s_ready;
 
    logic [ $clog2(N_THREADS):0] free_list_size, active_threads;
+   
+   task_t_ser out_entry;
+   always_comb begin
+      out_entry = ready_list[task_select];
+   end
 
+   free_list #(
+      .LOG_DEPTH( LOG_READY_LIST_SIZE)
+   ) READY_LIST_ID (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wr_en(s_valid & s_ready),
+      .rd_en(m_valid & m_ready),
+      .wr_data(out_entry.id),
+
+      .full(ready_list_free_full), 
+      .empty(ready_list_free_empty),
+      .rd_data(ready_list_next_free_id),
+
+      .size(ready_list_free_occ)
+   );
+
+   assign ready_list_size = (READY_LIST_SIZE - ready_list_free_occ);
 
    free_list #(
       .LOG_DEPTH( $clog2(N_THREADS) )
@@ -189,7 +216,6 @@ module conflict_serializer #(
       always_ff @(posedge clk) begin
          if (!rstn) begin
             ready_list_valid[i] <= 1'b0;
-            ready_list_cq_slot[i] <= 'x;
             ready_list_conflict[i] <= 1'b0; 
             ready_list[i] <= 'x;
          end else
@@ -198,23 +224,13 @@ module conflict_serializer #(
             // shift right existing tasks with the incoming task going at the
             // back
             if (m_valid & m_ready & (next_insert_location== i+1)) begin
-               ready_list[i].ttype <= new_enq_task.ttype;
+               ready_list[i].id <= ready_list_next_free_id;
                ready_list[i].locale <= new_enq_task.locale;
-               if (NON_SPEC) begin
-                  ready_list_args[i] <= new_enq_task.args; 
-                  ready_list_ts[i] <= new_enq_task.ts; 
-               end
-               ready_list_cq_slot[i] <= m_cq_slot;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
             end else if (i != READY_LIST_SIZE-1) begin
                ready_list[i] <= ready_list[i+1];
-               ready_list_cq_slot[i] <= ready_list_cq_slot[i+1];
                ready_list_valid[i] <= ready_list_valid[i+1];
-               if (NON_SPEC) begin
-                  ready_list_ts[i] <= ready_list_ts[i+1]; 
-                  ready_list_args[i] <= ready_list_args[i+1]; 
-               end
                if ((finished_task_locale_match_select == i+1) & finished_task_locale_match[i+1]) begin
                   ready_list_conflict[i] <= 1'b0;
                end else begin
@@ -224,20 +240,14 @@ module conflict_serializer #(
                // (i== READY_LIST_SIZE-1) and dequeue/no_enqueue -> need to
                // shift in a 0 
                ready_list[i] <= 'x;
-               ready_list_cq_slot[i] <= 'x; // set these to x so that waveform is easier to read
                ready_list_valid[i] <= 1'b0;
                ready_list_conflict[i] <= 1'b0;
             end
          end else begin
             // No dequeue, only enqueue
             if (m_valid & m_ready & (next_insert_location== i)) begin
-               ready_list[i].ttype <= new_enq_task.ttype;
+               ready_list[i].id <= ready_list_next_free_id;
                ready_list[i].locale <= new_enq_task.locale;
-               if (NON_SPEC) begin
-                  ready_list_args[i] <= new_enq_task.args; 
-                  ready_list_ts[i] <= new_enq_task.ts; 
-               end
-               ready_list_cq_slot[i] <= m_cq_slot;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
             end else begin 
@@ -252,47 +262,19 @@ module conflict_serializer #(
 
    end
    endgenerate
-   
-   generate 
-   if (NON_SPEC) begin
-      always_comb begin
-         s_rdata.ttype = ready_list[task_select].ttype;
-         s_rdata.locale = ready_list[task_select].locale;
-         s_rdata.args = ready_list_args[task_select];
-         s_rdata.ts = ready_list_ts[task_select];
-         s_rdata.producer = 1'b0;
-         s_rdata.no_write = 1'b0; // not implemented
-         s_rdata.no_read = 1'b0; // not implemented
-         s_cq_slot = ready_list_cq_slot[task_select];
-      end
-   end else begin
-      /*
-      task_t ready_list_ram [0:2**LOG_CQ_SLICE_SIZE-1];
-      always_ff @(posedge clk) begin
-         if (m_valid & m_ready) begin
-            ready_list_ram[m_cq_slot] <= new_enq_task;
-         end
-         s_rdata <= ready_list_ram[ ready_list_cq_slot[task_select]];
-      end
 
-      always_comb begin
-         s_cq_slot = ready_list_cq_slot[reg_task_select];
-      end
-      */
-   end
-   endgenerate
-
-   logic [LOG_READY_LIST_SIZE-1:0] ready_list_size;
-   logic ready_list_size_inc, ready_list_size_dec;
-   assign ready_list_size_inc = (m_valid & m_ready);
-   assign ready_list_size_dec = issue_task;
    always_ff @(posedge clk) begin
-      if (!rstn) begin
-         ready_list_size <= 0;
-      end else begin
-         ready_list_size <= ready_list_size + ready_list_size_inc - ready_list_size_dec;
+      if (m_valid & m_ready) begin
+         ready_list_task[ready_list_next_free_id] <= m_task;
+         ready_list_cq_slot[ready_list_next_free_id] <= m_cq_slot;
       end
    end
+   
+   always_comb begin
+      s_rdata = ready_list_task[out_entry.id];
+      s_cq_slot = ready_list_cq_slot[out_entry.id];
+   end
+
    assign almost_full = (ready_list_size >= almost_full_threshold);
    
    

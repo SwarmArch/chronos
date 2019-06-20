@@ -44,18 +44,17 @@ package swarm;
    // a bitmask specifying which tiles are being actively logged. 
    // eg: TASK_UNIT_LOGGING = 'hf means first four tiles' task units are being
    // logged.
-   parameter TASK_UNIT_LOGGING = 1;
+   parameter TASK_UNIT_LOGGING = 0;
    parameter COMMIT_QUEUE_LOGGING = 0;
    parameter SPLITTER_LOGGING = 1;
    parameter UNDO_LOG_LOGGING = 0;
-   parameter SERIALIZER_LOGGING = 1;
-   parameter L2_LOGGING = 1;
+   parameter SERIALIZER_LOGGING = 0;
+   parameter L2_LOGGING = 0;
    parameter CORE_LOGGING = 0; // deprecated
-   parameter READ_RW_LOGGING = 1;
+   parameter READ_RW_LOGGING = 0;
    parameter WRITE_RW_LOGGING = 0;
-   parameter READ_ONLY_1_LOGGING = 1;
-   parameter READ_ONLY_2_LOGGING = 1;
-   parameter PCI_LOGGING = 1;
+   parameter READ_ONLY_STAGE_LOGGING = 0;
+   parameter PCI_LOGGING = 0;
 
    // Stats parameters. The value of each parameter is a bitmask specifying
    // which tiles' stats are beign recorded. 
@@ -84,8 +83,8 @@ package swarm;
    // both of the following should be changed together. Unfortunately cannot 
    // `define inside and if block in SV.
    parameter UNORDERED = 0;
-   //`define TASK_UNIT_MODULE task_unit
-   `define TASK_UNIT_MODULE task_unit_nonspec
+   `define TASK_UNIT_MODULE task_unit
+   //`define TASK_UNIT_MODULE task_unit_nonspec
    //`define TASK_UNIT_MODULE task_unit_unordered
 
    
@@ -133,7 +132,7 @@ package swarm;
    parameter LOG_CQ_TS_BANKS = LOG_CQ_SLICE_SIZE - LOG_GVT_PERIOD;
 
    parameter L2_BANKS = (1<<LOG_L2_BANKS);
-   parameter L2_PORTS = RO_STAGES + 2;
+   parameter L2_PORTS = 3;
    
 
    parameter UNDO_LOG_THREADS = UNORDERED ? 1 : 4;

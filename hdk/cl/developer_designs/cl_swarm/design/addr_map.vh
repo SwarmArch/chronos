@@ -1,21 +1,19 @@
 
    parameter ID_RW_READ = 1;
    parameter ID_RW_WRITE = 2;
-   parameter ID_RO_STAGE_1 = 3;
-   parameter ID_RO_STAGE_2 = 4;
-   parameter ID_RO_STAGE_3 = 5;
-   parameter ID_SPLITTER = 6;
-   parameter ID_COAL = 7;
-   parameter ID_TASK_UNIT = 8; 
+   parameter ID_RO_STAGE = 3;
+   parameter ID_SPLITTER = 4;
+   parameter ID_COAL = 5;
+   parameter ID_TASK_UNIT = 6; 
    parameter CM_PORTS = 3;
    // end all modules with an L2 port
-   parameter ID_L2_RW = 9;
-   parameter ID_L2_RO = 10;
-   parameter ID_TSB     = 11;
-   parameter ID_CQ      = 12;
-   parameter ID_CM      = 13;
-   parameter ID_SERIALIZER    = 14;
-   parameter ID_LAST = 15;
+   parameter ID_L2_RW = 7;
+   parameter ID_L2_RO = 8;
+   parameter ID_TSB     = 9;
+   parameter ID_CQ      = 10;
+   parameter ID_CM      = 11;
+   parameter ID_SERIALIZER    = 12;
+   parameter ID_LAST = 13;
    
    parameter ID_ALL_CORES = 32;
    parameter ID_ALL_APP_CORES = 33;
@@ -30,8 +28,8 @@
    parameter TASK_TYPE_SPLITTER = 14;
    parameter TASK_TYPE_UNDO_LOG_RESTORE = 15;
 
-   parameter L2_ID_COAL = RO_STAGES;
-   parameter L2_ID_SPLITTER = RO_STAGES + 1;
+   parameter L2_ID_COAL = 1;
+   parameter L2_ID_SPLITTER = 2;
 
    // CL Register Addresses OCL is only 32 MiB (25 bit)
    // [23:16] is tile, [15:8] component, [7:0] addr 

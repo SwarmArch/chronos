@@ -73,3 +73,6 @@
       cache_addr_t      cache_addr;
    } rw_write_t;
    
+   typedef logic [LOG_N_SUB_TYPES-1:0] subtype_t;
+   typedef logic [DATA_WIDTH-1:0] data_t;
+   

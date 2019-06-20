@@ -59,11 +59,10 @@ cq_slice_slot_t [2:0]     cores_cm_cq_slot  ;
 child_id_t [2:0]     cores_cm_child_id  ;
 
 
-logic [N_THREADS+UNDO_LOG_THREADS-1:0]     finish_task_valid ;
-logic [N_THREADS+UNDO_LOG_THREADS-1:0]     finish_task_ready ;
-cq_slice_slot_t [N_THREADS+UNDO_LOG_THREADS-1:0] finish_task_slot  ;
-child_id_t      [N_THREADS+UNDO_LOG_THREADS-1:0] finish_task_num_children ;
-logic           [N_THREADS+UNDO_LOG_THREADS-1:0] finish_task_undo_log_write ;
+logic finish_task_valid ;
+logic finish_task_ready ;
+cq_slice_slot_t finish_task_slot  ;
+child_id_t      finish_task_num_children ;
 
 logic [N_THREADS-1:0]     abort_running_task ;
 cq_slice_slot_t         abort_running_slot;
@@ -893,41 +892,8 @@ logic                           cut_ties_ack_ready;
 cq_slice_slot_t                 cut_ties_ack_cq_slot;
 
 
-logic             finish_task_select_valid;
-logic             finish_task_select_ready;
 logic             finish_task_is_undo_log_restore;
-core_id_t         finish_task_select_core;
-cq_slice_slot_t   finish_task_select_cq_slot;
-child_id_t        finish_task_select_num_children;
-logic             finish_task_select_undo_log_write;
 
-lowbit #(
-   .OUT_WIDTH($bits(finish_task_select_core)),
-   .IN_WIDTH(N_THREADS + UNDO_LOG_THREADS)
-) FINISH_TASK_SELECT (
-   .in(finish_task_valid),
-   .out(finish_task_select_core)
-);
-assign finish_task_is_undo_log_restore = (finish_task_select_core >= N_THREADS);
-generate
-for (i=0;i<UNDO_LOG_THREADS;i++) begin
-   assign finish_task_num_children[N_THREADS+i] = 0;
-   assign finish_task_undo_log_write[N_THREADS+i] = 0;
-end
-endgenerate
-always_comb begin
-   finish_task_select_valid       = finish_task_valid       [finish_task_select_core];
-   finish_task_select_cq_slot     = finish_task_slot        [finish_task_select_core];
-   finish_task_select_num_children= finish_task_num_children[finish_task_select_core];
-   finish_task_select_undo_log_write= finish_task_undo_log_write[finish_task_select_core];
-end
-
-generate 
-   for (i=0;i<N_THREADS + UNDO_LOG_THREADS;i++) begin
-      assign finish_task_ready[i] = finish_task_select_valid & finish_task_select_ready & 
-         (finish_task_select_core ==i);
-   end
-endgenerate
 
 logic no_idle_cores;
 assign no_idle_cores = 1'b0; 
@@ -961,12 +927,12 @@ cq_slice #(
    .start_task_ready    (start_task_ready),
    .start_task_slot     (start_task_slot),
    
-   .finish_task_valid         (finish_task_select_valid         ),
-   .finish_task_slot          (finish_task_select_cq_slot       ),
+   .finish_task_valid         (finish_task_valid         ),
+   .finish_task_slot          (finish_task_cq_slot       ),
    .finish_task_is_undo_log_restore    (finish_task_is_undo_log_restore       ),
-   .finish_task_num_children  (finish_task_select_num_children  ),
-   .finish_task_undo_log_write  (finish_task_select_undo_log_write  ),
-   .finish_task_ready         (finish_task_select_ready         ),
+   .finish_task_num_children  (finish_task_num_children  ),
+   .finish_task_undo_log_write  (1'b0  ),
+   .finish_task_ready         (finish_task_ready         ),
    
    .abort_running_task   (abort_running_task),
    .abort_running_slot   (abort_running_slot),
@@ -1050,8 +1016,6 @@ fifo #(
 
    );
 
-logic cc_finish_task_valid; 
-assign cc_finish_task_valid = finish_task_select_valid & finish_task_select_ready;
 
 logic issue_task_valid;
 logic issue_task_ready;
@@ -1165,13 +1129,28 @@ fifo_size_t rw_write_out_fifo_occ;
 
 logic rw_write_out_valid;
 logic rw_write_out_ready;
-ro1_in_t rw_write_out_data, ro1_in_data;
-cq_slice_slot_t rw_write_out_cq_slot, ro1_in_cq_slot;
-logic ro1_in_valid;
-logic ro1_in_ready;
+task_t rw_write_out_data;
+cq_slice_slot_t rw_write_out_cq_slot;
 
 assign rw_write_out_ready = !rw_write_out_fifo_full;
-assign ro1_in_valid = !rw_write_out_fifo_empty;
+
+logic           [N_SUB_TYPES-1:0]  fifo_wr_en;
+logic           [N_SUB_TYPES-1:0]  fifo_rd_en;
+task_t          [N_SUB_TYPES-1:0]  fifo_in_task;
+data_t          [N_SUB_TYPES-1:0]  fifo_in_data; 
+cq_slice_slot_t [N_SUB_TYPES-1:0]  fifo_in_cq_slot;
+logic           [N_SUB_TYPES-1:0]  fifo_in_last;
+
+task_t          [N_SUB_TYPES-1:0]  fifo_out_task; 
+data_t          [N_SUB_TYPES-1:0]  fifo_out_data; 
+cq_slice_slot_t [N_SUB_TYPES-1:0]  fifo_out_cq_slot;
+logic           [N_SUB_TYPES-1:0]  fifo_out_last;
+                 
+logic           [N_SUB_TYPES-1:0]  fifo_full;
+logic           [N_SUB_TYPES-1:0]  fifo_empty;
+
+fifo_size_t     [N_SUB_TYPES-1:0]  fifo_occ;
+
 
 write_rw 
 #(
@@ -1194,7 +1173,7 @@ write_rw
    .task_out_ready(rw_write_out_ready),
    .task_out(rw_write_out_data),  
    .task_out_cq_slot(rw_write_out_cq_slot),  
-   .task_out_fifo_occ (rw_write_out_fifo_occ),
+   .task_out_fifo_occ (fifo_occ[0]),
 
    .unlock_locale (unlock_thread_valid),
    .finish_task(),
@@ -1203,67 +1182,84 @@ write_rw
    .reg_bus(reg_bus[ID_RW_WRITE])
 );
 
-fifo #(
-      .WIDTH( $bits(rw_write_out_data) + $bits(rw_write_out_cq_slot)),
-      .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
-   ) RW_WRITE_OUT_FIFO (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
-      .wr_en(rw_write_out_valid & !rw_write_out_fifo_full),
-      .wr_data( {rw_write_out_data, rw_write_out_cq_slot} ),
-
-      .full(  rw_write_out_fifo_full ),
-      .empty( rw_write_out_fifo_empty),
-
-      .rd_en( ro1_in_ready ),
-      .rd_data( {ro1_in_data, ro1_in_cq_slot} ),
-
-      .size(rw_write_out_fifo_occ)
-   );
 
 assign rw_l2.wvalid = rw_l2.awvalid;
 assign rw_l2.awaddr[63:32] = '0;
 assign rw_l2.bready = 1'b1;
 
-logic ro1_out_fifo_full;
-logic ro1_out_fifo_empty;
-fifo_size_t ro1_out_fifo_occ;
 
-logic ro1_out_valid;
-logic ro1_out_ready;
-ro2_in_t ro2_in_data;
-logic ro2_in_valid;
-logic ro2_in_ready;
 
-assign ro1_out_ready = !ro1_out_fifo_full;
-assign ro2_in_valid = !ro1_out_fifo_empty;
-ro2_in_t ro2_in_task;
-cq_slice_slot_t ro1_out_cq_slot, ro2_in_cq_slot;
-logic [$bits(ro2_in_data) - RO2_DATA_WIDTH -1 :0] ro1_out_task;
-logic [RO1_DATA_WIDTH-1:0] ro1_out_data;
-logic ro1_out_last, ro2_in_last;
+logic ro_out_task_valid;
+logic ro_out_task_ready;
+subtype_t ro_out_task_subtype;
+task_t ro_out_task;
+data_t ro_out_data;
+cq_slice_slot_t ro_out_cq_slot;
+logic ro_out_task_last;
 
-logic ro1_idle, ro2_idle;
+logic ro_idle;
+
+generate 
+for (i=0;i<N_SUB_TYPES;i++) begin
+   fifo #(
+         .WIDTH( $bits(fifo_in_task[0]) + $bits(fifo_in_data[0])+ $bits(fifo_in_cq_slot[0]) + 1),
+         .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
+      ) TASK_TYPE_FIFO (
+         .clk(clk_main_a0),
+         .rstn(rst_main_n_sync),
+         .wr_en(fifo_wr_en[i] & !fifo_full[i]),
+         .wr_data( {fifo_in_task[i], fifo_in_data[i], fifo_in_cq_slot[i], fifo_in_last[i]} ),
+
+         .full(  fifo_full[i] ),
+         .empty( fifo_empty[i] ),
+
+         .rd_en( fifo_rd_en[i] ),
+         .rd_data( {fifo_out_task[i], fifo_out_data[i], fifo_out_cq_slot[i], fifo_out_last[i]} ),
+
+         .size( fifo_occ[i])
+      );
+
+   if (i==0) begin
+      assign fifo_wr_en[i] = rw_write_out_valid;
+      assign fifo_in_task[i] = rw_write_out_data;
+      assign fifo_in_data[i] = 0;
+      assign fifo_in_cq_slot[i] = rw_write_out_cq_slot;
+      assign fifo_in_last[i] = 1'b0;
+   end else begin
+      assign fifo_wr_en[i] = ro_out_task_valid & (ro_out_task_subtype == i);
+      assign fifo_in_task[i] = ro_out_task;
+      assign fifo_in_data[i] = ro_out_data;
+      assign fifo_in_cq_slot[i] = ro_out_cq_slot;
+      assign fifo_in_last[i] = ro_out_last;
+   end
+   
+end
+assign rw_write_out_fifo_full = fifo_full[0];
+assign rw_write_out_fifo_empty = fifo_empty[0];
+always_comb begin
+   ro_out_task_ready = ro_out_task_valid & !fifo_full[ro_out_task_subtype];
+end
+
+endgenerate
 
 read_only_stage
 #(
-   .TILE_ID(TILE_ID),
-   .STAGE_ID (1),
-   .IN_WIDTH ($bits(ro1_in_data)),
-   .OUT_WIDTH ( $bits(ro1_out_task) ),
-   .DATA_WIDTH( RO1_DATA_WIDTH ),
-   .LOGGING(READ_ONLY_1_LOGGING[TILE_ID])
-) RO_STAGE_1 (
+   .TILE_ID(TILE_ID)
+) RO_STAGE (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
 
-   .task_in_valid (ro1_in_valid),
-   .task_in_ready (ro1_in_ready),
+   .task_in_valid (~fifo_empty),
+   .task_in_ready (fifo_rd_en),
+   .in_task       (fifo_out_task), 
+   .in_data       (fifo_out_data), 
+   .in_cq_slot    (fifo_out_cq_slot),
+   .in_last       (fifo_out_last),
+   
+   .in_fifo_occ    (fifo_occ),
 
-   .in_task (ro1_in_data), 
-   .in_cq_slot(ro1_in_cq_slot),
-   .in_last(1'b1),
-
+   .task_aborted(0),
+   
    .arvalid(l1_arb[0].arvalid),
    .arready(l1_arb[0].arready),
    .araddr (l1_arb[0].araddr[31:0] ),
@@ -1274,20 +1270,28 @@ read_only_stage
    .rdata (l1_arb[0].rdata ),
    .rid   (l1_arb[0].rid   ),
 
-   .out_valid (ro1_out_valid),
-   .out_ready (ro1_out_ready),
-
-   .out_fifo_occ (ro1_out_fifo_occ),
-
-   .out_task (ro1_out_task),
-   .out_cq_slot (ro1_out_cq_slot),
-   .out_data (ro1_out_data),
-   .out_last (ro1_out_last),
-
-   .idle(ro1_idle),
+   .out_valid   (ro_out_task_valid),
+   .out_ready   (ro_out_task_ready),
+   .out_task    (ro_out_task),
+   .out_subtype (ro_out_task_subtype),
+   .out_cq_slot (ro_out_cq_slot),
+   .out_data    (ro_out_data),
+   .out_last    (ro_out_last),
    
-   .reg_bus( reg_bus[ID_RO_STAGE_1]),
-   .pci_debug(pci_debug[ID_RO_STAGE_1])
+   .child_valid (cores_cm_wvalid[1]),
+   .child_ready (cores_cm_wready[1]),
+   .child_task  (cores_cm_wdata [1]),
+   .child_untied(cores_cm_enq_untied[1]),
+  
+   .finish_valid (finish_task_valid),
+   .finish_ready (finish_task_ready),
+   .finish_task_slot(finish_task_cq_slot),
+   .finish_task_num_children(finish_task_num_children),
+
+   .idle(ro_idle),
+   
+   .reg_bus( reg_bus[ID_RO_STAGE]),
+   .pci_debug(pci_debug[ID_RO_STAGE])
 );
 
 assign l1_arb[0].araddr[63:32] = 0;
@@ -1295,131 +1299,6 @@ assign l1_arb[0].awvalid = 0;
 assign l1_arb[0].wvalid = 0;
 assign l1_arb[0].bready = 1;
 
-fifo #(
-      .WIDTH( $bits(ro1_out_task) + RO1_DATA_WIDTH + $bits(rw_write_out_cq_slot) + 1),
-      .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
-   ) RO1_OUT_FIFO (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
-      .wr_en(ro1_out_valid & !ro1_out_fifo_full),
-      .wr_data( {ro1_out_task, ro1_out_data, rw_write_out_cq_slot, ro1_out_last} ),
-
-      .full(  ro1_out_fifo_full ),
-      .empty( ro1_out_fifo_empty),
-      .size (ro1_out_fifo_occ),
-
-      .rd_en( ro2_in_ready ),
-      .rd_data( {ro2_in_task, ro2_in_cq_slot, ro2_in_last} )
-
-   );
-
-logic ro2_out_valid;
-logic ro2_out_ready;
-
-ro2_out_t ro2_out_task, ro3_in_task;
-cq_slice_slot_t ro2_out_cq_slot;
-logic [RO2_DATA_WIDTH-1:0] ro2_out_data, ro3_in_data;
-logic ro2_out_last;
-
-logic ro2_out_fifo_full;
-logic ro2_out_fifo_empty;
-fifo_size_t ro2_out_fifo_occ;
-
-logic ro3_in_valid;
-logic ro3_in_ready;
-
-assign ro2_out_ready = !ro2_out_fifo_full; 
-assign ro3_in_valid = !ro2_out_fifo_empty;
-
-read_only_stage
-#(
-   .TILE_ID(TILE_ID),
-   .STAGE_ID (2),
-   .IN_WIDTH ($bits(ro2_in_data)),
-   .OUT_WIDTH ( $bits(ro2_out_task) ),
-   .DATA_WIDTH( RO2_DATA_WIDTH ),
-   .LOGGING(READ_ONLY_2_LOGGING[TILE_ID])
-) RO_STAGE_2 (
-   .clk(clk_main_a0),
-   .rstn(rst_main_n_sync),
-
-   .task_in_valid (ro2_in_valid),
-   .task_in_ready (ro2_in_ready),
-
-   .in_task (ro2_in_task), 
-   .in_cq_slot(ro2_in_cq_slot),
-   .in_last(ro2_in_last),
-
-   .arvalid(l1_arb[1].arvalid),
-   .arready(l1_arb[1].arready),
-   .araddr (l1_arb[1].araddr[31:0] ),
-   .arid   (l1_arb[1].arid   ),
-
-   .rvalid(l1_arb[1].rvalid),
-   .rready(l1_arb[1].rready),
-   .rdata (l1_arb[1].rdata ),
-   .rid   (l1_arb[1].rid   ),
-
-   .out_valid (ro2_out_valid),
-   .out_ready (ro2_out_ready),
-   
-   .out_fifo_occ (ro2_out_fifo_occ),
-
-   .out_task (ro2_out_task),
-   .out_cq_slot (ro2_out_cq_slot),
-   .out_data (ro2_out_data),
-   .out_last (ro2_out_last),
-   
-   .idle(ro2_idle),
-   
-   .reg_bus( reg_bus[ID_RO_STAGE_2]),
-   .pci_debug(pci_debug[ID_RO_STAGE_2])
-);
-
-assign l1_arb[1].araddr[63:32] = 0;
-assign l1_arb[1].awvalid = 0;
-assign l1_arb[1].wvalid = 0;
-assign l1_arb[1].bready = 1;
-
-fifo #(
-      .WIDTH( $bits(ro2_out_task) + $bits(ro2_out_data)),
-      .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
-   ) RO2_OUT_FIFO (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
-      .wr_en(ro2_out_valid & !ro2_out_fifo_full),
-      .wr_data( {ro2_out_task, ro2_out_data} ),
-
-      .full(  ro2_out_fifo_full ),
-      .empty( ro2_out_fifo_empty),
-      .size (ro2_out_fifo_occ),
-
-      .rd_en( ro3_in_ready ),
-      .rd_data( {ro3_in_task, ro3_in_data} )
-
-   );
-
-sssp_gen_child
-#(
-   .TILE_ID(TILE_ID)
-) GEN_CHILD (
-
-   .clk(clk_main_a0),
-   .rstn(rst_main_n_sync),
-
-   .task_in_valid(ro3_in_valid),
-   .task_in_ready(ro3_in_ready),
-
-   .in_task(ro3_in_task), 
-   .in_data(ro3_in_data),
-
-   .out_valid(cores_cm_wvalid[1]),
-   .out_ready(cores_cm_wready[1]),
-   .out_task(cores_cm_wdata[1]),
-   .out_task_untied(cores_cm_enq_untied[1])
-   
-
-);
 
 logic             cm_tsb_valid;
 logic             cm_tsb_ready;
@@ -1582,7 +1461,7 @@ always @(posedge clk_main_a0) begin
    if (!rst_main_n_sync) begin
       done <= 0;
    end else begin
-      done <= { {26{1'b1}}, tq_empty, tsb_empty, all_cores_idle, out_task_fifo_empty, ro1_idle, ro2_idle};
+      done <= { {27{1'b1}}, tq_empty, tsb_empty, all_cores_idle, out_task_fifo_empty, ro_idle};
    end
 
 end
