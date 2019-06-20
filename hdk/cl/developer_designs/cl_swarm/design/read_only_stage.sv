@@ -2,7 +2,7 @@ import swarm::*;
 
 module read_only_stage
 #(
-   parameter TILE_ID
+   parameter TILE_ID=1
 ) (
    input clk,
    input rstn,
@@ -278,7 +278,7 @@ generate
          if (!rstn) begin
             remaining_words[i] <= 0;
          end else begin
-            if (s_arvalid & s_arready & (i == in_thread)) begin
+            if (s_arvalid & s_arready & (in_thread == i)) begin
                case (s_arsize) 
                  2: remaining_words[i] <= (s_arlen + 1);
                  3: remaining_words[i] <= (s_arlen + 1) << 1;
