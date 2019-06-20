@@ -25,8 +25,11 @@ module write_rw
    input fifo_size_t   task_out_fifo_occ, 
 
    output logic        unlock_locale,
-   output logic        finish_task,
    output thread_id_t  unlock_thread,
+   
+   output logic        finish_task_valid,
+   input               finish_task_ready,
+   output cq_slice_slot_t finish_task_slot,
    
    reg_bus_t         reg_bus
 );
@@ -53,6 +56,8 @@ always_ff @(posedge clk) begin
    end
 end
 
+logic s_finish_task_valid, s_finish_task_ready;
+
 logic [31:0] base_rw_addr;
 always_comb begin 
    wvalid = 0;
@@ -62,6 +67,7 @@ always_comb begin
    wdata [ task_in.task_desc.locale[3:0]* 32 +: 32 ] = task_in.task_desc.ts;
    wstrb [ task_in.task_desc.locale[3:0]* 4 +: 4]  = '1;
    task_in_ready = 1'b0;
+   s_finish_task_valid = 1'b0; 
    if (task_in_valid & (task_out_fifo_occ < fifo_out_almost_full_thresh) ) begin
       if (task_in.object > task_in.task_desc.ts) begin
          wvalid = !task_out_valid | task_out_ready;
@@ -71,13 +77,16 @@ always_comb begin
          //waddr = task_in.cache_addr;
              
       end else begin
-         task_in_ready = 1'b1;
+         s_finish_task_valid = 1'b1;
+         if (s_finish_task_ready) begin
+            task_in_ready = 1'b1;
+         end
       end
    end
 end
 
 assign unlock_locale = task_in_ready;
-assign finish_task = task_in_ready;
+assign finish_task_slot = task_in.cq_slot;
 
 
 always_ff @(posedge clk) begin
@@ -98,5 +107,27 @@ always_ff @(posedge clk) begin
    reg_bus.rvalid <= reg_bus.arvalid;
 end
 assign reg_bus.rdata = 0;
+
+logic finish_task_fifo_empty, finish_task_fifo_full;
+
+fifo #(
+      .WIDTH( $bits(finish_task_cq_slot)),
+      .LOG_DEPTH(1)
+   ) FINISHED_TASK_FIFO (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+      .wr_en(s_finish_task_valid & s_finish_task_ready),
+      .wr_data(task_in.cq_slot),
+
+      .full(finish_task_fifo_full),
+      .empty(finish_task_fifo_empty),
+
+      .rd_en(finish_task_valid & finish_task_ready),
+      .rd_data(finish_task_cq_slot)
+
+   );
+
+assign finish_task_valid = !finish_task_fifo_empty;
+assign s_finish_task_ready = !finish_task_ready;
 
 endmodule

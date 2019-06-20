@@ -1151,6 +1151,11 @@ logic           [N_SUB_TYPES-1:0]  fifo_empty;
 
 fifo_size_t     [N_SUB_TYPES-1:0]  fifo_occ;
 
+logic rw_finish_task_valid, rw_finish_task_ready;
+logic ro_finish_task_valid, ro_finish_task_ready;
+cq_slice_slot_t rw_finish_task_slot, ro_finish_task_slot;
+child_id_t ro_finish_task_num_children;
+
 
 write_rw 
 #(
@@ -1176,8 +1181,11 @@ write_rw
    .task_out_fifo_occ (fifo_occ[0]),
 
    .unlock_locale (unlock_thread_valid),
-   .finish_task(),
    .unlock_thread(unlock_thread),
+   
+   .finish_task_valid (rw_finish_task_valid),
+   .finish_task_ready (rw_finish_task_ready),
+   .finish_task_slot(rw_finish_task_cq_slot),
    
    .reg_bus(reg_bus[ID_RW_WRITE])
 );
@@ -1283,10 +1291,10 @@ read_only_stage
    .child_task  (cores_cm_wdata [1]),
    .child_untied(cores_cm_enq_untied[1]),
   
-   .finish_valid (finish_task_valid),
-   .finish_ready (finish_task_ready),
-   .finish_task_slot(finish_task_cq_slot),
-   .finish_task_num_children(finish_task_num_children),
+   .finish_task_valid (ro_finish_task_valid),
+   .finish_task_ready (ro_finish_task_ready),
+   .finish_task_slot(ro_finish_task_cq_slot),
+   .finish_task_num_children(ro_finish_task_num_children),
 
    .idle(ro_idle),
    
@@ -1298,6 +1306,27 @@ assign l1_arb[0].araddr[63:32] = 0;
 assign l1_arb[0].awvalid = 0;
 assign l1_arb[0].wvalid = 0;
 assign l1_arb[0].bready = 1;
+
+always_comb begin
+   finish_task_valid = 1'b0;
+   rw_finish_task_ready = 1'b0;
+   ro_finish_task_ready = 1'b0;
+   if (rw_finish_task_valid) begin
+      finish_task_valid = 1'b1;
+      finish_task_slot = rw_finish_task_slot;
+      finish_task_num_children = 0;
+      if (finish_task_ready) begin
+         rw_finish_task_ready = 1'b1;
+      end
+   end else if (ro_finish_task_valid) begin
+      finish_task_valid = 1'b1;
+      finish_task_slot = ro_finish_task_slot;
+      finish_task_num_children = ro_finish_task_num_children;
+      if (finish_task_ready) begin
+         ro_finish_task_ready = 1'b1;
+      end
+   end
+end
 
 
 logic             cm_tsb_valid;

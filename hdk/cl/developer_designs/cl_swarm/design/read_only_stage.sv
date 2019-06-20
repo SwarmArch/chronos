@@ -41,8 +41,8 @@ module read_only_stage
    output task_t                 child_task,
    output logic                  child_untied,
   
-   output logic                  finish_valid,
-   input                         finish_ready,
+   output logic                  finish_task_valid,
+   input                         finish_task_ready,
    output cq_slice_slot_t        finish_task_slot,
    output child_id_t             finish_task_num_children,
 
@@ -107,6 +107,8 @@ logic last_read_in_burst;
 task_t s_out_task;
 logic s_out_valid, s_out_ready;
 subtype_t s_out_subtype;
+
+logic s_finish_task_valid, s_finish_task_ready;
 
 // TODO sizes other than 64
 logic [31:0] out_data_word_0;
@@ -322,6 +324,7 @@ logic [$clog2(N_THREADS):0] thread_free_list_occ;
 
 // out task
 
+child_id_t num_children [0:2**LOG_CQ_SLICE_SIZE-1];
 
 logic [3:0] out_data_word_id;
    lowbit #(
@@ -384,7 +387,44 @@ end
 assign child_untied = 1'b0;
 assign s_out_ready = !child_valid | child_ready;
 
+always_ff @(posedge clk) begin
+   if (s_finish_task_valid) begin 
+      num_children[worker_in_cq_slot] <= 0;
+   end else if (s_out_valid & s_out_ready & s_out_task_is_child) begin
+      num_children[worker_in_cq_slot] <= num_children[worker_in_cq_slot] + 1;
+   end
+end
 
+cq_slice_slot_t s_finish_task_slot; 
+child_id_t      s_finish_task_num_children;
+
+assign s_finish_task_slot = worker_in_cq_slot;
+always_comb begin
+   s_finish_task_num_children = num_children[worker_in_cq_slot] + 
+         (s_out_valid & s_out_ready & s_out_task_is_child) ? 1 : 0;
+end
+
+
+logic finish_task_fifo_empty, finish_task_fifo_full;
+
+fifo #(
+      .WIDTH( $bits(finish_task_cq_slot) + $bits(finish_task_num_children)),
+      .LOG_DEPTH(1)
+   ) FINISHED_TASK_FIFO (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+      .wr_en(s_finish_task_valid & s_finish_task_ready),
+      .wr_data({s_finish_task_slot, s_finish_task_num_children}),
+
+      .full(finish_task_fifo_full),
+      .empty(finish_task_fifo_empty),
+
+      .rd_en(finish_task_valid & finish_task_ready),
+      .rd_data({finish_task_cq_slot, finish_task_num_children})
+
+   );
+assign finish_task_valid = !finish_task_fifo_empty;
+assign s_finish_task_ready = !finish_task_ready;
 
 
 free_list #(
@@ -440,7 +480,8 @@ sssp_worker
    .out_subtype            (s_out_subtype),
 
    .out_task_is_child      (s_out_task_is_child),     // if 0, out_task is re-enqueued back to a FIFO, else sent to CM
-
+   .finish_task_valid      (s_finish_task_valid),
+   .finish_task_ready      (s_finish_task_ready),
 
    .reg_bus      (reg_bus)
 
@@ -477,7 +518,6 @@ always_ff @(posedge clk) begin
       reg_bus.rvalid <= 1'b0;
    end
 end
-
 
 if (READ_ONLY_STAGE_LOGGING) begin
    logic log_valid;
@@ -601,6 +641,9 @@ module sssp_worker
    output task_t           out_task,
    output subtype_t        out_subtype,
 
+   output logic            finish_task_valid,
+   input                   finish_task_ready,
+
    output logic            out_task_is_child, // if 0, out_task is re-enqueued back to a FIFO, else sent to CM
 
    reg_bus_t               reg_bus
@@ -622,6 +665,7 @@ always_comb begin
    out_task_is_child = 1'b1;
    task_in_ready = 1'b0;
    resp_subtype = 'x;
+   finish_task_valid = 1'b0;
    
    if (task_in_valid) begin
       case (in_subtype) 
@@ -639,16 +683,19 @@ always_comb begin
             arlen = (in_data[63:32] - in_data[31:0])-1;
             resp_subtype = 2;
             resp_mark_last = 1'b1;
+            finish_task_valid = (in_data[31:0] == in_data[63:32]);
          end
          2: begin
             out_valid = 1'b1;
             out_task.locale = in_data[31:0];
             out_task.ts = in_task.ts + in_data[63:32];
             out_task_is_child = 1'b1;
+            finish_task_valid = in_last;
          end
       endcase
 
-      if ( (!arvalid | arready) & (!out_valid | out_ready)) begin
+      if ( (!arvalid | arready) & (!out_valid | out_ready) 
+            & (!finish_task_valid | finish_task_ready)) begin
          // Doesn't work if arvalid & arready & out_valid &!out_ready
          task_in_ready = 1'b1;
       end   
