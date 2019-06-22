@@ -6,10 +6,11 @@ import swarm::*;
 
 typedef enum logic[2:0] {
    UNUSED,
-   DEQUEUED,  // cleared conflict detection, but not locale serializer
-   RUNNING, // actively running on a core
-   ABORTED, // waiting for child-abort acks to be received (or for a core to start this task if the task was aborted before it started running)
-   UNDO_LOG_WAITING, // undo-log request sent, waiting for completion
+   RUNNING, // actively running on a core or waiting in serializer
+   ABORTED, // aborted but waiting for pipeline to be cleared
+   // waiting for child-abort acks to be received (or for a core to start this task if the task was aborted before it started running)
+   WAITING_CHILDREN, // Waiting for child abort acks
+   UNDO_LOG_WAITING, // waiting for undo-log-restore complete
    FINISHED, // task ran to completion. but waiting for GVT to advance to this task's vt
    COMMITTED // waiting for cut_ties_ack before the slot can be freed
 } cq_state_t;
@@ -39,23 +40,14 @@ module cq_slice
    output logic            out_task_valid,
    input                   out_task_ready,
 
-   // Start Task - Core notifies the CQ of it starting a task
-   input [N_THREADS-1:0]                    start_task_valid,
-   output logic [N_THREADS-1:0]             start_task_ready,
-   input cq_slice_slot_t [N_THREADS-1:0]    start_task_slot,
-   
    // Finish Task - Core notifies the CQ of it finishing a task
    input                       finish_task_valid,
    input cq_slice_slot_t       finish_task_slot,
    input                       finish_task_is_undo_log_restore,
    input child_id_t            finish_task_num_children,
-   input                       finish_task_undo_log_write,
    output logic                finish_task_ready,
    
-   // Abort Task to Core
-   output logic [N_THREADS-1:0]             abort_running_task,
-   output cq_slice_slot_t                 abort_running_slot,
-
+   output logic [2**LOG_CQ_SLICE_SIZE-1:0] task_aborted,
 
    output logic                           gvt_task_slot_valid,
    output cq_slice_slot_t                 gvt_task_slot,
@@ -117,6 +109,8 @@ module cq_slice
    pci_debug_bus_t.master                 pci_debug,
    reg_bus_t.master                       reg_bus
 );
+typedef enum logic[2:0] {IDLE, DEQ_CHECK_TS, ABORT_REQUEUE, UNDO_LOG_RESTORE,
+      DEQ_PUSH_TASK } cq_fsm_state_t;
 generate
 if (NON_SPEC) begin : gen 
    
@@ -132,9 +126,7 @@ if (NON_SPEC) begin : gen
    assign out_task_slot = 0;
    assign deq_task_ready = out_task_ready;
    assign deq_task_cq_slot = 0;
-   assign start_task_ready = '1;
    assign finish_task_ready = 1;
-   assign abort_running_task = '0;
    assign abort_running_slot = 0;
    assign to_tq_abort_valid = 1'b0;
    
@@ -181,8 +173,6 @@ end else begin : gen
    
 
 
-typedef enum logic[2:0] {IDLE, DEQ_CHECK_TS, ABORT_CHILDREN, ABORT_REQUEUE, UNDO_LOG_RESTORE,
-      DEQ_PUSH_TASK } cq_fsm_state_t;
 cq_fsm_state_t state;
 
 logic      [2**LOG_CQ_SLICE_SIZE-1:0]  cq_valid; 
@@ -197,9 +187,7 @@ task_type_t  cq_ttype [0:2**LOG_CQ_SLICE_SIZE-1];
 
 logic       cq_terminate_task [ 0:2**LOG_CQ_SLICE_SIZE-1];
 
-core_id_t  cq_running_core [0:2**LOG_CQ_SLICE_SIZE-1];
 child_id_t cq_num_children [0:2**LOG_CQ_SLICE_SIZE-1];  
-logic      cq_undo_log_write [0:2**LOG_CQ_SLICE_SIZE-1];  
 
 logic      cq_undo_log_ack_pending[0:2**LOG_CQ_SLICE_SIZE-1];
 
@@ -225,13 +213,7 @@ assign lvt_cycle = cur_cycle[LOG_GVT_PERIOD-1:0];
 
 // bitmap of tasks whose undo log tasks have not been sent out
 logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending; 
-// in the current iterations
-logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad; 
-
-logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending_diff; 
-logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad_diff; 
 cq_slice_slot_t undo_log_abort_max_ts_index;
-cq_slice_slot_t undo_log_abort_next_cand;
 vt_t            undo_log_abort_max_ts;
 
 // A task of type TASK_TYPE_TERMINATE has committed; 
@@ -252,14 +234,11 @@ always_comb begin
          if (from_tq_abort_valid) begin
             ts_array_raddr = from_tq_abort_slot;
          end
-      end else if (state == UNDO_LOG_WAITING) begin
-         ts_array_raddr = undo_log_abort_next_cand;
       end
    end
 end
 
 logic resource_abort_start;
-logic gvt_induced_abort_start;
 
 // Allows changing cq_size at runtime. This might be costly in terms of resources.
 // Consider cutting it in when building high-tile-count systems
@@ -328,14 +307,6 @@ logic [31:0] n_tasks_conflict_miss;
 logic [31:0] n_tasks_real_conflict; 
 
 
-
-
-always_comb begin
-   undo_log_abort_pending_diff = undo_log_abort_pending;
-   undo_log_abort_pending_diff[out_task_slot] = 1'b0;
-   undo_log_abort_scratchpad_diff = undo_log_abort_scratchpad;
-   undo_log_abort_scratchpad_diff[undo_log_abort_next_cand] = 1'b0;
-end
 
 // Task currently in the FSM, dequeued from TQ but not enqueued to FIFOs
 task_t cur_task;
@@ -435,22 +406,6 @@ always_comb begin
 end
 
 
-// Nuke core 1 on a gvt induced abort. FIXME This will not work if core 1 does
-// not support gvt task type
-cq_slice_slot_t core_1_running_task_slot;
-logic can_abort_core_1_task;
-always_ff @(posedge clk) begin
-   if (!rstn) begin
-      can_abort_core_1_task <= 1'b0;
-      core_1_running_task_slot <= 'x;
-   end else
-   if (start_task_valid[1] & start_task_ready[1]) begin
-      core_1_running_task_slot <= start_task_slot[1];
-      can_abort_core_1_task <= 1'b1;
-   end else if (gvt_induced_abort_start & !(from_tq_abort_valid & from_tq_abort_ready)) begin
-      can_abort_core_1_task <= 1'b0;
-   end
-end
 
 assign resource_abort_start = (state == IDLE) 
             & deq_task_valid & ((deq_task.ts < max_vt_fixed.ts) |
@@ -460,10 +415,6 @@ assign resource_abort_start = (state == IDLE)
             & cq_full 
             & (     (cq_state[max_vt_pos_fixed] == RUNNING) 
                   | (cq_state[max_vt_pos_fixed] == FINISHED)); 
-assign gvt_induced_abort_start = (state == IDLE) & can_abort_core_1_task & gvt_task_slot_valid & 
-                           (cq_state[gvt_task_slot] == DEQUEUED) & no_idle_cores & 
-                           (cq_state[core_1_running_task_slot] == RUNNING) & 
-                           tsb_almost_full ;
 
 assign cq_full =  (deq_task_cq_slot >= cq_size) ||  (cq_next_idle_in == 0);
 
@@ -475,9 +426,6 @@ always_comb begin
       end else if (resource_abort_start) begin
          ref_locale = cq_locale[max_vt_pos_fixed];
          ref_read_only = cq_read_only_task[max_vt_fixed];
-      end else if (gvt_induced_abort_start) begin
-         ref_locale = cq_locale[core_1_running_task_slot]; 
-         ref_read_only = cq_read_only_task[core_1_running_task_slot];
       end else begin
          ref_locale = deq_task.locale;
          ref_read_only = deq_task.no_write;
@@ -496,7 +444,8 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
             // if MSB of locale is set, its a read-only locale. No conflicts between
             // RO tasks
             &  !(cq_read_only_task[i] & ref_read_only)
-            & (cq_state[i] != ABORTED) & (cq_state[i] != UNDO_LOG_WAITING);
+            & (cq_state[i] != ABORTED) &  (cq_state[i] == WAITING_CHILDREN) &
+                     (cq_state[i] != UNDO_LOG_WAITING);
    assign cq_next_idle_in[i] = !cq_valid[i];
 end
 
@@ -575,13 +524,6 @@ always_ff @(posedge clk) begin
                cur_task_slot <= from_tq_abort_slot;
                reg_from_tq_abort_slot <= from_tq_abort_slot;
             end else 
-            if (gvt_induced_abort_start) begin
-               state <= DEQ_CHECK_TS;
-               in_gvt_induced_abort <= 1'b1;
-               ref_tb <= gvt.tb;
-               cur_task.ts <= gvt.ts;
-               cur_task.locale <= ref_locale;
-            end else
             if (deq_task_valid & deq_task_ready) begin
                cur_task <= deq_task;
                if (should_terminate) begin
@@ -612,35 +554,28 @@ always_ff @(posedge clk) begin
                cur_task.ts <= max_vt_fixed.ts;
                cur_task.locale <= ref_locale;
             end 
+            undo_log_abort_max_ts <= '0;
          end
          DEQ_CHECK_TS: begin
             if (reg_conflict ==0) begin
-               state <= (undo_log_abort_pending != 0)   ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
-               undo_log_abort_scratchpad <= undo_log_abort_pending;
-               undo_log_abort_max_ts <= '0;
+               state <= (undo_log_abort_max_ts > 0) ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
             end else begin
                if (abort_ts_check_task) begin
                   if (cq_state[ts_check_id] == FINISHED) begin
-                     // if undo_log_write[] then heap_ready
-                     state <=(abort_children_count == 0)
-                                       ? ABORT_REQUEUE : ABORT_CHILDREN;
-                     if (cq_undo_log_write[ts_check_id]) begin
-                        // undo_log_walk_required = 1
-                        undo_log_abort_pending[ts_check_id] <= 1'b1;
+                     if (!abort_children_valid | abort_children_ready) begin
+                        state <= ABORT_REQUEUE;
                      end
-                  end else if (cq_state[ts_check_id] == DEQUEUED) begin
-                     // task dequeued but a core has not started running yet
+                  end else if (cq_state[ts_check_id] == RUNNING) begin
                      state <= ABORT_REQUEUE;
+                  end
+                  if (check_vt > undo_log_abort_max_ts) begin
+                     undo_log_abort_max_ts <= check_vt;
+                     undo_log_abort_max_ts_index <= ts_check_id;
                   end
                end else begin
                   reg_conflict[ts_check_id] <= 1'b0;
                   state <= DEQ_CHECK_TS;
                end
-            end
-         end
-         ABORT_CHILDREN: begin
-            if (abort_children_valid & abort_children_ready) begin
-               state <= ABORT_REQUEUE;
             end
          end
          ABORT_REQUEUE: begin
@@ -655,26 +590,8 @@ always_ff @(posedge clk) begin
             end
          end
          UNDO_LOG_RESTORE: begin
-            // double loop
-            // first check inner loop, if it is terminating check outer loop
-            if (undo_log_abort_scratchpad_diff == 0) begin
-               // out_task_valid should be set
-               if (out_task_valid & out_task_ready) begin
-                  if (undo_log_abort_pending_diff == 0) begin
-                     state <= DEQ_PUSH_TASK;
-                  end
-                  // start next outer loop iteration after removing current cand
-                  // element
-                  undo_log_abort_scratchpad <= undo_log_abort_pending_diff;
-                  undo_log_abort_max_ts <= '0;
-                  undo_log_abort_pending <= undo_log_abort_pending_diff;
-               end
-            end else begin
-               if (undo_log_abort_max_ts < check_vt) begin
-                  undo_log_abort_max_ts <= check_vt;
-                  undo_log_abort_max_ts_index <= undo_log_abort_next_cand;
-               end
-               undo_log_abort_scratchpad <= undo_log_abort_scratchpad_diff;
+            if (out_task_valid & out_task_ready) begin
+               state <= DEQ_PUSH_TASK;
             end
          end
          DEQ_PUSH_TASK: begin
@@ -697,17 +614,16 @@ always_comb begin
       out_task = cur_task;
       out_task_slot = cur_task_slot;
    end else if (state == UNDO_LOG_RESTORE) begin
-      out_task_valid = (undo_log_abort_scratchpad_diff ==0);
+      out_task_valid = 1'b1; 
       out_task.ttype = TASK_TYPE_UNDO_LOG_RESTORE;
       out_task.locale = cur_task.locale;
       out_task.ts = 'x;
       out_task.args = 'x;
+      out_task.no_read = 1'b1;
+      out_task.no_write = 1'b0;
+      out_task.producer = 1'b0;
       // other fields doesn't matter
-      if (undo_log_abort_max_ts < check_vt) begin
-         out_task_slot = undo_log_abort_next_cand;
-      end else begin
-         out_task_slot = undo_log_abort_max_ts_index;
-      end
+      out_task_slot = undo_log_abort_max_ts_index;
    end else begin
       out_task_valid = 1'b0;
       out_task = 'x;
@@ -728,31 +644,30 @@ always_comb begin
    end
 end
 
-cq_slice_slot_t start_task_slot_select;
-core_id_t start_core_select;
 
 assign abort_ts_check_task = (state == DEQ_CHECK_TS) 
    & (check_vt >= ref_vt) 
-   & (cur_task.locale[30:0] == cq_locale[ts_check_id][30:0]) // not a false hit in BF 
+   & (cur_task.locale == cq_locale[ts_check_id]) // not a false hit in BF 
    & (reg_conflict != 0);
-for (i=0;i<N_THREADS;i++) begin
-   assign abort_running_task[i] = (abort_ts_check_task & 
-         // aborting task is already running
-       (  ( (cq_state[ts_check_id] == RUNNING)   & (cq_running_core[ts_check_id] == i)) |
-          // OR aborting task is being started this cycle
-          ( (start_task_slot_select==ts_check_id & start_task_valid[start_core_select]) 
-               & start_core_select == i)  ) ) |
-         // task was aborted, but is starting now
-            start_task_valid[start_core_select] & (cq_state[start_task_slot_select] == ABORTED) 
-               & (start_core_select == i)
 
-               ;
+always_comb begin
+   abort_children_valid = 1'b0;
+   abort_children_cq_slot = 'x;
+   abort_children_count = 0;
+   if (state == DEQ_CHECK_TS) begin
+      if (abort_ts_check_task & (cq_num_children[ts_check_id] > 0) ) begin
+         abort_children_valid = 1'b1;
+         abort_children_cq_slot = ts_check_id;
+         abort_children_count = cq_num_children[ts_check_id];
+      end
+   end else if (finish_task_valid & task_aborted[finish_task_slot] 
+         & finish_task_num_children >0) begin
+      abort_children_valid = 1'b1;
+      abort_children_cq_slot = finish_task_slot;
+      abort_children_count = finish_task_num_children;
+   end
 end
-assign abort_running_slot = ts_check_id;
 
-assign abort_children_valid = (state == ABORT_CHILDREN);
-assign abort_children_cq_slot = ts_check_id;
-assign abort_children_count = cq_num_children[ts_check_id];
 child_id_t commit_children_count;
 assign commit_children_count = cq_num_children[commit_task_slot];
 
@@ -760,8 +675,8 @@ assign commit_children_count = cq_num_children[commit_task_slot];
 assign deq_task_ready = (state == IDLE) & !from_tq_abort_valid & 
             !cq_full &
             // if cc is almost full, only let the gvt task proceed
-            (!cc_almost_full | (deq_task_valid & ((deq_task.ts == gvt.ts) | deq_task_force))) &
-            !gvt_induced_abort_start; 
+            (!cc_almost_full | (deq_task_valid & ((deq_task.ts == gvt.ts) | deq_task_force))) 
+            ; 
 
 
 // Commit Task
@@ -815,43 +730,17 @@ assign to_tq_abort_epoch = tq_epoch[ts_check_id];
 // TQ logic can be simplified if the CQ can provide this timestamp
 assign to_tq_abort_ts = check_vt.ts; 
 
-
-lowbit #(
-   .OUT_WIDTH($bits(start_core_select)),
-   .IN_WIDTH(N_THREADS)
-) START_TASK_SELECT (
-   .in(start_task_valid),
-   .out(start_core_select)
-);
-
-
 always_comb begin
-   start_task_slot_select = start_task_slot[start_core_select];
-end
-
-cq_state_t start_task_state;
-assign start_task_state = cq_state[start_task_slot_select];
-
-logic undo_log_walk_required;
-assign undo_log_walk_required = abort_ts_check_task & (cq_state[ts_check_id] == FINISHED) & 
-          (cq_undo_log_write[ts_check_id]);
-always_comb begin
-   if (undo_log_walk_required) begin
-      // conflict on cq_undo_log_ack_pending
+   if ( (state == DEQ_CHECK_TS) || (state == ABORT_REQUEUE) || (state == UNDO_LOG_RESTORE)) begin  
+      // conflict on abort_children
       finish_task_ready = 1'b0; 
+      abort_ack_ready = 1'b0;
    end else begin
+      abort_ack_ready = 1'b1;
       finish_task_ready = finish_task_valid; 
    end
 end
 
-logic undo_log_ack_pending_on_abort_ack;
-assign undo_log_ack_pending_on_abort_ack = cq_undo_log_ack_pending[abort_ack_cq_slot];
-
-for (i=0;i<N_THREADS;i++) begin
-   assign start_task_ready[i] = start_task_valid[i] & (i==start_core_select); 
-end
-
-assign abort_ack_ready = 1'b1;
 assign cut_ties_ack_ready = 1'b1;
 
 cq_slice_slot_t cur_ts_read_indices [0:2**LOG_CQ_TS_BANKS-1];
@@ -871,15 +760,12 @@ lowbit #(
 assign commit_task_slot = cur_ts_read_indices[cur_ts_read_commit_index];
 assign commit_task_valid = cur_ts_read_task_can_commit[cur_ts_read_commit_index];
 
-logic start_task_at [0:2**LOG_CQ_SLICE_SIZE-1];
 logic abort_task_at [0:2**LOG_CQ_SLICE_SIZE-1];
 
 for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
    assign cq_valid[i] = (cq_state[i] != UNUSED);
    assign abort_task_at[i] = (ts_check_id == i) & abort_ts_check_task;
-   assign start_task_at[i] = (start_task_slot_select == i) 
-                        & start_task_valid[start_core_select]
-                        & start_task_ready[start_core_select] ;
+   assign task_aborted[i] = (cq_state[i] == ABORTED);
    always_ff @(posedge clk) begin
       if (!rstn) begin
          cq_state[i] <= UNUSED;
@@ -888,37 +774,29 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
             UNUSED: begin
                if (out_task_valid & out_task_ready) begin
                   if (state== DEQ_PUSH_TASK & (i==out_task_slot) ) begin
-                     cq_state[i] <= DEQUEUED;
+                     cq_state[i] <= RUNNING;
                   end
                end
             end
-            DEQUEUED: begin
-               // a race is possible between start_task and abort_ts_check_task; 
-               // Let the abort win;, core is notified by asserting both 
-               // start_task_ready & abort_running_task
-               if ( abort_task_at[i] ) begin
-                  cq_state[i] <= start_task_at[i] ? UNUSED : ABORTED;
-               end else if ( start_task_at[i] ) begin
-                  cq_state[i] <= RUNNING;
-               end
-            end   
-            RUNNING: begin 
-               if (finish_task_valid & finish_task_ready & (finish_task_slot == i)) begin
+            RUNNING: begin
+               if (abort_task_at[i]) begin
+                  cq_state[i] <= ABORTED;
+               end else if (finish_task_valid & finish_task_ready & (finish_task_slot == i)) begin
                   cq_state[i] <= FINISHED;
                end
             end
             FINISHED: begin
                if (commit_task_valid & commit_task_ready & (commit_task_slot == i)  )  begin
                   cq_state[i] <= (commit_children_count == 0) ? UNUSED : COMMITTED;
-               end else if (abort_ts_check_task & (ts_check_id == i)) begin
+               end else if (abort_task_at[i]) begin
                   if (abort_children_count == 0) begin
-                     if (cq_undo_log_ack_pending[ts_check_id] | undo_log_walk_required) begin
+                     if (cq_undo_log_ack_pending[ts_check_id]) begin
                         cq_state[i] <= UNDO_LOG_WAITING;
                      end else begin
                         cq_state[i] <= UNUSED;
                      end
-                  end else begin
-                     cq_state[i] <= ABORTED;
+                  end else if (abort_children_valid & abort_children_ready) begin
+                     cq_state[i] <= WAITING_CHILDREN;
                   end
                end
             end
@@ -931,10 +809,18 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                if (finish_task_valid & finish_task_ready &
                      (finish_task_slot == i) &
                      !finish_task_is_undo_log_restore) begin
-                  // Task was found to be aborted on dequeue
-                  cq_state[i] <= UNUSED;
-               end else if (abort_ack_valid & abort_ack_ready & (abort_ack_cq_slot ==i)) begin
-                  if (undo_log_ack_pending_on_abort_ack) begin
+                  if (abort_children_valid & abort_children_ready) begin
+                     cq_state[i] <= WAITING_CHILDREN;
+                  end else if (cq_undo_log_ack_pending[i]) begin
+                     cq_state[i] <= UNDO_LOG_WAITING;
+                  end else begin
+                     cq_state[i] <= UNUSED;
+                  end
+               end
+            end
+            WAITING_CHILDREN: begin
+               if (abort_ack_valid & abort_ack_ready & (abort_ack_cq_slot ==i)) begin
+                  if (cq_undo_log_ack_pending[i]) begin
                      cq_state[i] <= UNDO_LOG_WAITING;
                   end else begin
                      cq_state[i] <= UNUSED;
@@ -957,8 +843,8 @@ initial begin
    end
 end
 always_ff @(posedge clk) begin
-   if (undo_log_walk_required) begin 
-      cq_undo_log_ack_pending[ts_check_id] <= 1'b1;
+   if (state == UNDO_LOG_RESTORE) begin 
+      cq_undo_log_ack_pending[undo_log_abort_max_ts_index] <= 1'b1;
    end else if (finish_task_valid & finish_task_ready & finish_task_is_undo_log_restore) begin
       cq_undo_log_ack_pending[finish_task_slot] <= 1'b0;
    end
@@ -974,26 +860,13 @@ always_ff @(posedge clk) begin
 
    end
 end
-always_ff @(posedge clk) begin
-   if (start_task_valid[start_core_select]) begin
-      cq_running_core[start_task_slot_select] <= start_core_select;
-   end
-end
 
 always_ff @(posedge clk) begin
    if (finish_task_valid & finish_task_ready) begin
       cq_num_children[finish_task_slot] <= finish_task_num_children;
-      cq_undo_log_write[finish_task_slot] <= finish_task_undo_log_write;
    end
 end
   
-lowbit #(
-   .OUT_WIDTH(LOG_CQ_SLICE_SIZE),
-   .IN_WIDTH(2**LOG_CQ_SLICE_SIZE)
-) UNDO_LOG_WALK_CAND (
-   .in(undo_log_abort_scratchpad),
-   .out(undo_log_abort_next_cand)
-);
 
 
 logic [31:0] cycles_in_resource_abort;
@@ -1027,9 +900,6 @@ if (CQ_STATS[TILE_ID]) begin
    end
 
    always_ff @(posedge clk) begin
-      if (start_task_valid[start_core_select] & start_task_ready[start_core_select]) begin
-         start_task_cycle[start_task_slot_select] <= cur_cycle;
-      end
       if (finish_task_valid & finish_task_ready & !finish_task_is_undo_log_restore) begin
          task_cycles[ finish_task_slot] <= (cur_cycle - start_task_cycle[finish_task_slot]); 
       end
@@ -1331,13 +1201,6 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.gvt_tb = gvt.tb;
       log_word.gvt_ts = gvt.ts;
 
-      if (start_task_valid[start_core_select] & start_task_ready[start_core_select]) begin
-         log_valid = 1'b1;
-      end
-      log_word.start_task_valid = start_task_valid[start_core_select];
-      log_word.start_task_ready = start_task_ready[start_core_select];
-      log_word.start_task_core = start_core_select;
-      log_word.start_task_slot = start_task_slot_select;
 
       if (finish_task_valid) begin
          log_valid = 1'b1;
@@ -1346,15 +1209,9 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.finish_task_ready = finish_task_ready;
       log_word.finish_task_slot = finish_task_slot;
       log_word.finish_task_num_children = finish_task_num_children;
-      log_word.finish_task_undo_log_write = finish_task_undo_log_write;
 
-      if (|abort_running_task) begin
-         log_valid = 1'b1;
-      end
-      log_word.abort_running_task = abort_running_task;
       log_word.gvt_task_slot_valid = gvt_task_slot_valid;
       log_word.gvt_task_slot = gvt_task_slot;
-      log_word.abort_running_slot = abort_running_slot;
       log_word.max_vt_slot = max_vt_pos_fixed; 
      
       if (to_tq_abort_valid & to_tq_abort_ready) begin
@@ -1419,11 +1276,6 @@ end
    end
 
    always_ff @(posedge clk) begin
-      if (start_task_valid[start_core_select]  & start_task_ready[start_core_select]) begin
-         $fwrite(file,"[%5d] [cq-%2d] start_task core:%2d slot:%4d \n",
-            cycle, 0, 
-            start_core_select, start_task_slot_select) ;
-      end
       if (finish_task_valid & finish_task_ready & !finish_task_is_undo_log_restore) begin
          $fwrite(file,"[%5d] [cq-%2d] finish_task slot:%4d \n",
             cycle, 0, 

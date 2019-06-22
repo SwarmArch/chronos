@@ -40,6 +40,8 @@ module read_only_stage
    input                         child_ready,
    output task_t                 child_task,
    output logic                  child_untied,
+   output cq_slice_slot_t        child_cq_slot,
+   output child_id_t             child_id,
   
    output logic                  finish_task_valid,
    input                         finish_task_ready,
@@ -188,7 +190,7 @@ always_ff @(posedge clk) begin
          reg_thread <= in_thread;
          mem_task[in_thread] <= s_resp_task;
          mem_subtype[in_thread] <= s_resp_subtype;
-         mem_cq_slot[in_thread] <= in_cq_slot;
+         mem_cq_slot[in_thread] <= worker_in_cq_slot;
          mem_resp_mark_last[in_thread] <= s_resp_mark_last;
          case (s_arsize) 
            2: reg_n_words <= (s_arlen + 1);
@@ -238,6 +240,7 @@ assign arid_free_list_remove_valid = (arvalid & arready);
 // Memory Response
 logic [31:0] out_data_word_from_mem;
 logic is_last_resp;
+logic [3:0] out_data_word_id;
 
 always_comb begin
    next_valid_words = rid_mshr.valid_words;
@@ -326,7 +329,6 @@ logic [$clog2(N_THREADS):0] thread_free_list_occ;
 
 child_id_t num_children [0:2**LOG_CQ_SLICE_SIZE-1];
 
-logic [3:0] out_data_word_id;
    lowbit #(
       .OUT_WIDTH(4),
       .IN_WIDTH(16)   
@@ -379,6 +381,8 @@ always_ff @(posedge clk) begin
       if (s_out_valid & s_out_ready & s_out_task_is_child) begin
          child_valid <= 1'b1;
          child_task <= s_out_task;
+         child_cq_slot <= worker_in_cq_slot;
+         child_id <= num_children[worker_in_cq_slot];
       end else if (child_valid & child_ready) begin
          child_valid <= 1'b0;
       end
@@ -387,6 +391,12 @@ end
 assign child_untied = 1'b0;
 assign s_out_ready = !child_valid | child_ready;
 
+
+initial begin
+   for (int i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
+      num_children[i] = 0;
+   end
+end
 always_ff @(posedge clk) begin
    if (s_finish_task_valid) begin 
       num_children[worker_in_cq_slot] <= 0;
@@ -401,18 +411,18 @@ child_id_t      s_finish_task_num_children;
 assign s_finish_task_slot = worker_in_cq_slot;
 always_comb begin
    s_finish_task_num_children = num_children[worker_in_cq_slot] + 
-         (s_out_valid & s_out_ready & s_out_task_is_child) ? 1 : 0;
+        ( (s_out_valid & s_out_ready & s_out_task_is_child) ? 1 : 0);
 end
 
 
 logic finish_task_fifo_empty, finish_task_fifo_full;
 
 fifo #(
-      .WIDTH( $bits(finish_task_cq_slot) + $bits(finish_task_num_children)),
+      .WIDTH( $bits(finish_task_slot) + $bits(finish_task_num_children)),
       .LOG_DEPTH(1)
    ) FINISHED_TASK_FIFO (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
+      .clk(clk),
+      .rstn(rstn),
       .wr_en(s_finish_task_valid & s_finish_task_ready),
       .wr_data({s_finish_task_slot, s_finish_task_num_children}),
 
@@ -420,7 +430,7 @@ fifo #(
       .empty(finish_task_fifo_empty),
 
       .rd_en(finish_task_valid & finish_task_ready),
-      .rd_data({finish_task_cq_slot, finish_task_num_children})
+      .rd_data({finish_task_slot, finish_task_num_children})
 
    );
 assign finish_task_valid = !finish_task_fifo_empty;

@@ -30,6 +30,7 @@ module write_rw
    output logic        finish_task_valid,
    input               finish_task_ready,
    output cq_slice_slot_t finish_task_slot,
+   output logic        finish_task_is_undo_log_restore,
    
    reg_bus_t         reg_bus
 );
@@ -38,7 +39,7 @@ fifo_size_t fifo_out_almost_full_thresh;
 assign unlock_thread = task_in.thread;
 
 always_ff @(posedge clk) begin
-   if (wvalid & wready) begin
+   if (s_task_out_valid) begin
       task_out <= task_in.task_desc;
       task_out_cq_slot <= task_in.cq_slot;
    end
@@ -48,7 +49,7 @@ always_ff @(posedge clk) begin
    if (!rstn) begin
       task_out_valid <= 1'b0;
    end else begin
-      if (wvalid & wready) begin
+      if (s_task_out_valid) begin
          task_out_valid <= 1'b1;
       end else if (task_out_valid & task_out_ready) begin
          task_out_valid <= 1'b0;
@@ -56,7 +57,8 @@ always_ff @(posedge clk) begin
    end
 end
 
-logic s_finish_task_valid, s_finish_task_ready;
+logic s_finish_task_valid, s_finish_task_ready, s_finish_task_is_undo_log_restore;
+logic s_task_out_valid;
 
 logic [31:0] base_rw_addr;
 always_comb begin 
@@ -68,11 +70,24 @@ always_comb begin
    wstrb [ task_in.task_desc.locale[3:0]* 4 +: 4]  = '1;
    task_in_ready = 1'b0;
    s_finish_task_valid = 1'b0; 
+   s_finish_task_is_undo_log_restore = 1'b0;
+   s_task_out_valid = 1'b0;
+
    if (task_in_valid & (task_out_fifo_occ < fifo_out_almost_full_thresh) ) begin
-      if (task_in.object > task_in.task_desc.ts) begin
+      if (task_in.task_desc.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
+         if (s_finish_task_ready) begin
+            wvalid = 1'b1;
+            s_finish_task_is_undo_log_restore = 1'b1;
+            if (wvalid & wready) begin
+               task_in_ready = 1'b1;
+               s_finish_task_valid = 1'b1;
+            end
+         end
+      end else if (task_in.object > task_in.task_desc.ts) begin
          wvalid = !task_out_valid | task_out_ready;
          if (wvalid & wready) begin
             task_in_ready = 1'b1;
+            s_task_out_valid = 1'b1;
          end
          //waddr = task_in.cache_addr;
              
@@ -85,9 +100,8 @@ always_comb begin
    end
 end
 
-assign unlock_locale = task_in_ready;
-assign finish_task_slot = task_in.cq_slot;
 
+assign unlock_locale = task_in_ready;
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
@@ -111,23 +125,23 @@ assign reg_bus.rdata = 0;
 logic finish_task_fifo_empty, finish_task_fifo_full;
 
 fifo #(
-      .WIDTH( $bits(finish_task_cq_slot)),
+      .WIDTH( $bits(finish_task_slot) + 1),
       .LOG_DEPTH(1)
    ) FINISHED_TASK_FIFO (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
+      .clk(clk),
+      .rstn(rstn),
       .wr_en(s_finish_task_valid & s_finish_task_ready),
-      .wr_data(task_in.cq_slot),
+      .wr_data({task_in.cq_slot, s_finish_task_is_undo_log_restore}),
 
       .full(finish_task_fifo_full),
       .empty(finish_task_fifo_empty),
 
       .rd_en(finish_task_valid & finish_task_ready),
-      .rd_data(finish_task_cq_slot)
+      .rd_data({finish_task_slot, finish_task_is_undo_log_restore})
 
    );
 
 assign finish_task_valid = !finish_task_fifo_empty;
-assign s_finish_task_ready = !finish_task_ready;
+assign s_finish_task_ready = !finish_task_fifo_full;
 
 endmodule

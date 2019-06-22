@@ -46,13 +46,21 @@ logic [31:0] dequeues_remaining;
 
 assign arid = thread_id_in;
 assign araddr = base_rw_addr + (task_in.locale <<  RW_ARSIZE);
+
+logic can_dequeue; 
+assign can_dequeue = (task_out_fifo_occ < fifo_out_almost_full_thresh) & (dequeues_remaining >0);
+
 always_comb begin
    arvalid = 1'b0;
    task_in_ready = 1'b0;
-   if (task_in_valid & (task_out_fifo_occ < fifo_out_almost_full_thresh) & (dequeues_remaining > 0)) begin
-      arvalid = 1'b1;
-      if (arready) begin
+   if (task_in_valid & can_dequeue) begin
+      if (task_in.no_read) begin
          task_in_ready = 1'b1;
+      end else begin
+         arvalid = 1'b1;
+         if (arready) begin
+            task_in_ready = 1'b1;
+         end
       end
    end
 end
@@ -64,6 +72,38 @@ always_ff @(posedge clk) begin
    end
 end
 
+object_t undo_log [0:2**LOG_CQ_SLICE_SIZE-1];
+object_t undo_log_read_word;
+
+logic             reg_task_valid;
+task_t            reg_task;
+cq_slice_slot_t   reg_slot;
+thread_id_t       reg_thread;
+
+always_ff @(posedge clk) begin
+   if (task_out_valid & task_out_ready) begin
+      undo_log[task_out.cq_slot] <= task_out.object;
+   end
+   if (task_in_valid & task_in_ready & task_in.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
+      undo_log_read_word <= undo_log[cq_slot_in];
+   end
+end
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      reg_task_valid <= 1'b0;
+   end
+   if (task_in_valid & task_in_ready) begin
+      undo_log_read_word <= undo_log[cq_slot_in];
+      reg_task <= task_in;
+      reg_slot <= cq_slot_in;
+      reg_thread <= thread_id_in;
+      reg_task_valid <= 1'b1;
+   end else if (task_out_valid & task_out_ready) begin
+      reg_task_valid <= 1'b0;
+   end
+
+end
 
 
 always_comb begin
@@ -75,7 +115,13 @@ always_comb begin
    task_out.cache_addr = rindex;
    task_out_valid = 1'b0;
    rready = 1'b0;
-   if (rvalid) begin
+   if (reg_task_valid & (reg_task.ttype == TASK_TYPE_UNDO_LOG_RESTORE)) begin
+      task_out.task_desc = reg_task;
+      task_out.cq_slot = reg_slot;
+      task_out.thread = reg_thread;
+      task_out.object = undo_log_read_word;
+      task_out_valid = 1'b1;
+   end else if (rvalid) begin
       task_out_valid = 1'b1;
       if (task_out_ready) begin
          rready = 1'b1;
@@ -126,9 +172,9 @@ end
       if (!rstn) cycle <=0;
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
-         $display("[%5d] [rob-%2d] [read_rw] [thread-%2d] ts:%8d locale:%4d",
-            cycle, TILE_ID, thread_id_in,
-            task_in.ts, task_in.locale) ;
+         $display("[%5d] [rob-%2d] [read_rw] [%2d] [thread-%2d] ts:%8d locale:%4d type:%1x",
+            cycle, TILE_ID, cq_slot_in, thread_id_in,
+            task_in.ts, task_in.locale, task_in.ttype) ;
       end
    end 
 `endif

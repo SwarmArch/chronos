@@ -63,9 +63,8 @@ logic finish_task_valid ;
 logic finish_task_ready ;
 cq_slice_slot_t finish_task_slot  ;
 child_id_t      finish_task_num_children ;
+logic finish_task_is_undo_log_restore;
 
-logic [N_THREADS-1:0]     abort_running_task ;
-cq_slice_slot_t         abort_running_slot;
 logic                   gvt_task_slot_valid;
 cq_slice_slot_t         gvt_task_slot;
 
@@ -892,9 +891,6 @@ logic                           cut_ties_ack_ready;
 cq_slice_slot_t                 cut_ties_ack_cq_slot;
 
 
-logic             finish_task_is_undo_log_restore;
-
-
 logic no_idle_cores;
 assign no_idle_cores = 1'b0; 
 logic cc_almost_full;
@@ -922,20 +918,12 @@ cq_slice #(
    .out_task_valid      (cq_out_task_valid   ),
    .out_task_ready      (cq_out_task_ready   ),
 
-   // Start Task - Core notifies the CQ of it starting a task
-   .start_task_valid    (start_task_valid),
-   .start_task_ready    (start_task_ready),
-   .start_task_slot     (start_task_slot),
-   
    .finish_task_valid         (finish_task_valid         ),
-   .finish_task_slot          (finish_task_cq_slot       ),
+   .finish_task_slot          (finish_task_slot       ),
    .finish_task_is_undo_log_restore    (finish_task_is_undo_log_restore       ),
    .finish_task_num_children  (finish_task_num_children  ),
-   .finish_task_undo_log_write  (1'b0  ),
    .finish_task_ready         (finish_task_ready         ),
    
-   .abort_running_task   (abort_running_task),
-   .abort_running_slot   (abort_running_slot),
    .gvt_task_slot_valid  (gvt_task_slot_valid ),
    .gvt_task_slot        (gvt_task_slot       ),
 
@@ -1155,6 +1143,7 @@ logic rw_finish_task_valid, rw_finish_task_ready;
 logic ro_finish_task_valid, ro_finish_task_ready;
 cq_slice_slot_t rw_finish_task_slot, ro_finish_task_slot;
 child_id_t ro_finish_task_num_children;
+logic rw_finish_task_is_undo_log_restore;
 
 
 write_rw 
@@ -1185,7 +1174,8 @@ write_rw
    
    .finish_task_valid (rw_finish_task_valid),
    .finish_task_ready (rw_finish_task_ready),
-   .finish_task_slot(rw_finish_task_cq_slot),
+   .finish_task_slot(rw_finish_task_slot),
+   .finish_task_is_undo_log_restore(rw_finish_task_is_undo_log_restore),
    
    .reg_bus(reg_bus[ID_RW_WRITE])
 );
@@ -1290,10 +1280,12 @@ read_only_stage
    .child_ready (cores_cm_wready[1]),
    .child_task  (cores_cm_wdata [1]),
    .child_untied(cores_cm_enq_untied[1]),
+   .child_cq_slot( cores_cm_cq_slot[1]),
+   .child_id    (cores_cm_child_id[1]),
   
    .finish_task_valid (ro_finish_task_valid),
    .finish_task_ready (ro_finish_task_ready),
-   .finish_task_slot(ro_finish_task_cq_slot),
+   .finish_task_slot(ro_finish_task_slot),
    .finish_task_num_children(ro_finish_task_num_children),
 
    .idle(ro_idle),
@@ -1311,10 +1303,14 @@ always_comb begin
    finish_task_valid = 1'b0;
    rw_finish_task_ready = 1'b0;
    ro_finish_task_ready = 1'b0;
+   finish_task_slot = 'x;
+   finish_task_num_children = 'x;
+   finish_task_is_undo_log_restore = 1'b0;
    if (rw_finish_task_valid) begin
       finish_task_valid = 1'b1;
       finish_task_slot = rw_finish_task_slot;
       finish_task_num_children = 0;
+      finish_task_is_undo_log_restore = rw_finish_task_is_undo_log_restore;
       if (finish_task_ready) begin
          rw_finish_task_ready = 1'b1;
       end
