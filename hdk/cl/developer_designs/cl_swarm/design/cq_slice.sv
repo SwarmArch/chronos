@@ -425,7 +425,7 @@ always_comb begin
          ref_read_only = cq_read_only_task[from_tq_abort_slot];
       end else if (resource_abort_start) begin
          ref_locale = cq_locale[max_vt_pos_fixed];
-         ref_read_only = cq_read_only_task[max_vt_fixed];
+         ref_read_only = cq_read_only_task[max_vt_pos_fixed];
       end else begin
          ref_locale = deq_task.locale;
          ref_read_only = deq_task.no_write;
@@ -444,7 +444,7 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
             // if MSB of locale is set, its a read-only locale. No conflicts between
             // RO tasks
             &  !(cq_read_only_task[i] & ref_read_only)
-            & (cq_state[i] != ABORTED) &  (cq_state[i] == WAITING_CHILDREN) &
+            & (cq_state[i] != ABORTED) &  (cq_state[i] != WAITING_CHILDREN) &
                      (cq_state[i] != UNDO_LOG_WAITING);
    assign cq_next_idle_in[i] = !cq_valid[i];
 end
@@ -655,13 +655,14 @@ always_comb begin
    abort_children_cq_slot = 'x;
    abort_children_count = 0;
    if (state == DEQ_CHECK_TS) begin
-      if (abort_ts_check_task & (cq_num_children[ts_check_id] > 0) ) begin
+      if (abort_ts_check_task & (cq_state[ts_check_id] == FINISHED)
+            & (cq_num_children[ts_check_id] > 0) ) begin
          abort_children_valid = 1'b1;
          abort_children_cq_slot = ts_check_id;
          abort_children_count = cq_num_children[ts_check_id];
       end
-   end else if (finish_task_valid & task_aborted[finish_task_slot] 
-         & finish_task_num_children >0) begin
+   end else if (finish_task_valid & finish_task_ready &
+         task_aborted[finish_task_slot] & finish_task_num_children >0) begin
       abort_children_valid = 1'b1;
       abort_children_cq_slot = finish_task_slot;
       abort_children_count = finish_task_num_children;

@@ -65,8 +65,8 @@ always_comb begin
    wvalid = 0;
    wdata = 'x;
    wstrb = 0;
+   wdata = 'x;
    waddr = base_rw_addr + ( task_in.task_desc.locale << 2) ;
-   wdata [ task_in.task_desc.locale[3:0]* 32 +: 32 ] = task_in.task_desc.ts;
    wstrb [ task_in.task_desc.locale[3:0]* 4 +: 4]  = '1;
    task_in_ready = 1'b0;
    s_finish_task_valid = 1'b0; 
@@ -77,6 +77,7 @@ always_comb begin
       if (task_in.task_desc.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
          if (s_finish_task_ready) begin
             wvalid = 1'b1;
+            wdata [ task_in.task_desc.locale[3:0]* 32 +: 32 ] = task_in.object;
             s_finish_task_is_undo_log_restore = 1'b1;
             if (wvalid & wready) begin
                task_in_ready = 1'b1;
@@ -85,6 +86,7 @@ always_comb begin
          end
       end else if (task_in.object > task_in.task_desc.ts) begin
          wvalid = !task_out_valid | task_out_ready;
+         wdata [ task_in.task_desc.locale[3:0]* 32 +: 32 ] = task_in.task_desc.ts;
          if (wvalid & wready) begin
             task_in_ready = 1'b1;
             s_task_out_valid = 1'b1;

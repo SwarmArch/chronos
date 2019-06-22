@@ -133,7 +133,7 @@ logic [N_SUB_TYPES-1:0] task_in_can_schedule;
 
 genvar i;
 generate
-   for (i=0;i<N_SUB_TYPES-1;i++) begin
+   for (i=0;i<N_SUB_TYPES;i++) begin
       assign task_in_can_schedule[i] = task_in_valid[i] & (in_fifo_occ[i+1] < fifo_out_almost_full_thresh);
       assign task_in_ready[i] = (i==worker_in_subtype) & worker_task_in_valid & worker_task_in_ready;
    end
@@ -434,7 +434,7 @@ fifo #(
 
    );
 assign finish_task_valid = !finish_task_fifo_empty;
-assign s_finish_task_ready = !finish_task_ready;
+assign s_finish_task_ready = !finish_task_fifo_full;
 
 
 free_list #(
@@ -685,30 +685,42 @@ always_comb begin
             arvalid = 1'b1;
             arlen = 0;
             resp_subtype = 1;
+            if (arready) begin
+               task_in_ready = 1'b1;
+            end
          end
          1: begin
-            araddr = neighbors_base_addr + (in_data[31:0] <<  3);
-            arvalid = (in_data[31:0] != in_data[63:32]);
-            arsize = 3;
-            arlen = (in_data[63:32] - in_data[31:0])-1;
-            resp_subtype = 2;
-            resp_mark_last = 1'b1;
-            finish_task_valid = (in_data[31:0] == in_data[63:32]);
+            if (in_data[31:0] == in_data[63:32]) begin
+               if (finish_task_ready) begin
+                  finish_task_valid = 1'b1;
+                  task_in_ready = 1'b1;
+               end
+            end else begin
+               araddr = neighbors_base_addr + (in_data[31:0] <<  3);
+               arvalid = 1'b1;
+               arsize = 3;
+               arlen = (in_data[63:32] - in_data[31:0])-1;
+               resp_subtype = 2;
+               resp_mark_last = 1'b1;
+               if (arready) begin
+                  task_in_ready = 1'b1;
+               end
+            end
          end
          2: begin
-            out_valid = 1'b1;
-            out_task.locale = in_data[31:0];
-            out_task.ts = in_task.ts + in_data[63:32];
-            out_task_is_child = 1'b1;
-            finish_task_valid = in_last;
+            if (!in_last | finish_task_ready) begin
+               out_valid = 1'b1;
+               out_task.locale = in_data[31:0];
+               out_task.ts = in_task.ts + in_data[63:32];
+               out_task_is_child = 1'b1;
+               finish_task_valid = in_last;
+               if (out_ready) begin
+                  task_in_ready = 1'b1;
+               end
+            end
          end
       endcase
 
-      if ( (!arvalid | arready) & (!out_valid | out_ready) 
-            & (!finish_task_valid | finish_task_ready)) begin
-         // Doesn't work if arvalid & arready & out_valid &!out_ready
-         task_in_ready = 1'b1;
-      end   
    end 
 end
 
