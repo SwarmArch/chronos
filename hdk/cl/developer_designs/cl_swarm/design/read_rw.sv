@@ -94,7 +94,6 @@ always_ff @(posedge clk) begin
       reg_task_valid <= 1'b0;
    end
    if (task_in_valid & task_in_ready) begin
-      undo_log_read_word <= undo_log[cq_slot_in];
       reg_task <= task_in;
       reg_slot <= cq_slot_in;
       reg_thread <= thread_id_in;
