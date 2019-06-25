@@ -890,6 +890,7 @@ logic                           cut_ties_ack_valid;
 logic                           cut_ties_ack_ready;
 cq_slice_slot_t                 cut_ties_ack_cq_slot;
 
+logic [2**LOG_CQ_SLICE_SIZE-1:0] task_aborted;
 
 logic no_idle_cores;
 assign no_idle_cores = 1'b0; 
@@ -923,6 +924,8 @@ cq_slice #(
    .finish_task_is_undo_log_restore    (finish_task_is_undo_log_restore       ),
    .finish_task_num_children  (finish_task_num_children  ),
    .finish_task_ready         (finish_task_ready         ),
+
+   .task_aborted              (task_aborted),
    
    .gvt_task_slot_valid  (gvt_task_slot_valid ),
    .gvt_task_slot        (gvt_task_slot       ),
@@ -1256,7 +1259,7 @@ read_only_stage
    
    .in_fifo_occ    (fifo_occ),
 
-   .task_aborted(0),
+   .task_aborted(task_aborted),
    
    .arvalid(l1_arb[0].arvalid),
    .arready(l1_arb[0].arready),

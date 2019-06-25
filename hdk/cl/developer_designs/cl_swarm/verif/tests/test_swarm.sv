@@ -118,7 +118,7 @@ initial begin
       if (NON_SPEC) begin
          for (int i=0;i<N_TILES;i++) begin
             ocl_peek(i, 0, OCL_DONE, ocl_data); 
-            if (ocl_data == 0) begin
+            if (ocl_data != '1) begin
                break;
             end
          end
@@ -647,6 +647,12 @@ task flush_caches;
    // Faster simulation by capping flushing to read-write data (BIG HACK)
    tb.card.fpga.CL.\tile[0].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[1].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[2].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[3].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[4].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[5].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[6].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[7].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    
    for (int i=0;i<N_TILES;i++) begin
       ocl_addr[23:16] = i;

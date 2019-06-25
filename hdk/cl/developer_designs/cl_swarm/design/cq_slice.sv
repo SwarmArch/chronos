@@ -791,7 +791,7 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                   cq_state[i] <= (commit_children_count == 0) ? UNUSED : COMMITTED;
                end else if (abort_task_at[i]) begin
                   if (abort_children_count == 0) begin
-                     if (cq_undo_log_ack_pending[ts_check_id]) begin
+                     if (check_vt > undo_log_abort_max_ts) begin // potential undo_log_write
                         cq_state[i] <= UNDO_LOG_WAITING;
                      end else begin
                         cq_state[i] <= UNUSED;
@@ -829,7 +829,10 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                end
             end
             UNDO_LOG_WAITING: begin
-               if (!cq_undo_log_ack_pending[i]) begin
+               if ( (state == DEQ_CHECK_TS) || (state == ABORT_REQUEUE) || (state == UNDO_LOG_RESTORE)) begin  
+                  // do not do anything. undo_log_ack_pending is valid only
+                  // after UNDO_LOG_RESTRORE
+               end else if (!cq_undo_log_ack_pending[i]) begin
                   cq_state[i] <= UNUSED;
                end
             end

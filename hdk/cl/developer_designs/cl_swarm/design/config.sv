@@ -37,7 +37,7 @@ package swarm;
    parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in locale serializer
    parameter CACHE_INDEX_WIDTH = 11; // index bits in cache
    parameter CACHE_NUM_WAYS = 4;     // number of cache ways
-   parameter NON_SPEC = 1;  // Non-spec version. 
+   parameter NON_SPEC = 0;  // Non-spec version. 
    parameter NO_SPILLING = 0; // disable all task_spilling hardware.  
 
    // Logging parameters. Used in debugging. The value of each parameter is

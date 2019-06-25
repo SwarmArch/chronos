@@ -55,7 +55,7 @@ module read_only_stage
    pci_debug_bus_t   pci_debug
 );
 
-localparam FREE_LIST_SIZE = 3;
+localparam FREE_LIST_SIZE = 5;
 
 logic [FREE_LIST_SIZE-1:0] arid_free_list_add;
 logic [FREE_LIST_SIZE-1:0] arid_free_list_next;
@@ -95,22 +95,35 @@ ro_stage_mshr_t rid_mshr;
 
 logic [15:0] next_valid_words;
 
-logic s_arvalid, reg_arvalid;
-logic s_arready;
-logic [31:0] s_araddr, reg_araddr;
+logic [N_SUB_TYPES-1:0] s_arvalid;
+logic [31:0] s_araddr [N_SUB_TYPES-1:0];
+logic [2:0] s_arsize [N_SUB_TYPES-1:0];
+byte_t [N_SUB_TYPES-1:0] s_arlen;
+task_t s_resp_task [N_SUB_TYPES-1:0];
+subtype_t s_resp_subtype [N_SUB_TYPES-1:0];
+logic [N_SUB_TYPES-1:0] s_resp_mark_last;
+task_t s_out_task [N_SUB_TYPES-1:0];
+logic [N_SUB_TYPES-1:0] s_out_valid;
+subtype_t s_out_subtype [N_SUB_TYPES-1:0];
+logic [N_SUB_TYPES-1:0] s_out_task_is_child;
+
+logic reg_arvalid;
+logic [31:0] reg_araddr;
 thread_id_t           reg_thread;
-logic [2:0] s_arsize, reg_arsize; 
-logic [7:0] s_arlen,  reg_n_words;
-task_t s_resp_task;
-subtype_t s_resp_subtype;
-logic s_resp_mark_last;
-ro_stage_mshr_t write_mshr; 
+logic [2:0] reg_arsize; 
+logic [7:0] reg_n_words;
+
 logic last_read_in_burst;
-task_t s_out_task;
-logic s_out_valid, s_out_ready;
-subtype_t s_out_subtype;
 
 logic s_finish_task_valid, s_finish_task_ready;
+logic s_arready;
+logic s_out_ready;
+
+logic [N_SUB_TYPES-1:0] s_sched_task_valid;
+logic [N_SUB_TYPES-1:0] s_sched_task_ready;
+logic [N_SUB_TYPES-1:0] s_sched_task_aborted;
+
+ro_stage_mshr_t write_mshr; 
 
 // TODO sizes other than 64
 logic [31:0] out_data_word_0;
@@ -121,40 +134,32 @@ thread_id_t rid_thread;
 
 thread_id_t in_thread;
 
-// Arbitrate among tasks
-logic worker_task_in_valid, worker_task_in_ready;
-task_t worker_in_task;
-data_t worker_in_data;
-cq_slice_slot_t worker_in_cq_slot;
-logic worker_in_last;
+logic         mem_access_subtype_valid;
+subtype_t     mem_access_subtype;
+logic         non_mem_subtype_valid;
+subtype_t     non_mem_subtype;
 
-subtype_t worker_in_subtype;
 logic [N_SUB_TYPES-1:0] task_in_can_schedule;
+
+cq_slice_slot_t s_finish_task_slot; 
+child_id_t      s_finish_task_num_children;
+
+cq_slice_slot_t mem_access_cq_slot;
+cq_slice_slot_t non_mem_cq_slot;
+
+always_comb begin
+   mem_access_cq_slot = in_cq_slot[mem_access_subtype];
+   non_mem_cq_slot = in_cq_slot[non_mem_subtype];
+end
 
 genvar i;
 generate
-   for (i=0;i<N_SUB_TYPES;i++) begin
+   for (i=0;i<N_SUB_TYPES-1;i++) begin
       assign task_in_can_schedule[i] = task_in_valid[i] & (in_fifo_occ[i+1] < fifo_out_almost_full_thresh);
-      assign task_in_ready[i] = (i==worker_in_subtype) & worker_task_in_valid & worker_task_in_ready;
    end
 endgenerate
 assign task_in_can_schedule[N_SUB_TYPES-1] = task_in_valid[N_SUB_TYPES-1];
 
-highbit #(
-   .OUT_WIDTH(LOG_N_SUB_TYPES),
-   .IN_WIDTH(N_SUB_TYPES)
-) COMMIT_TASK_SELECT (
-   .in(task_in_can_schedule),
-   .out(worker_in_subtype)
-);
-
-always_comb begin
-   worker_task_in_valid = task_in_can_schedule[worker_in_subtype];
-   worker_in_task = in_task[worker_in_subtype];
-   worker_in_data = in_data[worker_in_subtype];
-   worker_in_cq_slot = in_cq_slot[worker_in_subtype];
-   worker_in_last = in_last[worker_in_subtype];
-end
 
 
 // Memory Request
@@ -183,18 +188,18 @@ always_ff @(posedge clk) begin
       reg_araddr <= 'x;
       reg_arsize <= 'x;
    end else begin
-      if (s_arvalid & s_arready) begin
+      if (mem_access_subtype_valid & s_arready) begin
          reg_arvalid <= 1'b1;
-         reg_araddr <= s_araddr;
-         reg_arsize <= s_arsize;
+         reg_araddr <= s_araddr[mem_access_subtype];
+         reg_arsize <= s_arsize[mem_access_subtype];
          reg_thread <= in_thread;
-         mem_task[in_thread] <= s_resp_task;
-         mem_subtype[in_thread] <= s_resp_subtype;
-         mem_cq_slot[in_thread] <= worker_in_cq_slot;
-         mem_resp_mark_last[in_thread] <= s_resp_mark_last;
-         case (s_arsize) 
-           2: reg_n_words <= (s_arlen + 1);
-           3: reg_n_words <= (s_arlen + 1) << 1;
+         mem_task[in_thread] <= s_resp_task[mem_access_subtype];
+         mem_subtype[in_thread] <= s_resp_subtype[mem_access_subtype];
+         mem_cq_slot[in_thread] <= mem_access_cq_slot;
+         mem_resp_mark_last[in_thread] <= s_resp_mark_last[mem_access_subtype];
+         case (s_arsize[mem_access_subtype]) 
+           2: reg_n_words <= (s_arlen[mem_access_subtype] + 1);
+           3: reg_n_words <= (s_arlen[mem_access_subtype] + 1) << 1;
            // TODO
          endcase
       end else if (reg_arvalid) begin
@@ -211,7 +216,7 @@ always_ff @(posedge clk) begin
    end
 end
 
-assign thread_free_list_remove_valid = worker_task_in_valid & worker_task_in_ready & s_arvalid & s_arready ; 
+assign thread_free_list_remove_valid = mem_access_subtype_valid; 
 
 generate 
    for (i=0;i<16;i++) begin
@@ -224,7 +229,7 @@ assign write_mshr.arsize = reg_arsize;
 assign araddr = reg_araddr;
 assign arvalid = reg_arvalid & !arid_free_list_empty;
 assign arid =  arid_free_list_next;
-assign s_arready = s_arvalid & !thread_free_list_empty & ( !reg_arvalid | (arvalid & arready & last_read_in_burst) );
+assign s_arready = !thread_free_list_empty & ( !reg_arvalid | (arvalid & arready & last_read_in_burst) );
 assign last_read_in_burst = ((reg_araddr[5:2] + reg_n_words) <= 16);
 // if the number of words remaining in the cache line is greater than number of
 // words requested..
@@ -283,10 +288,10 @@ generate
          if (!rstn) begin
             remaining_words[i] <= 0;
          end else begin
-            if (s_arvalid & s_arready & (in_thread == i)) begin
-               case (s_arsize) 
-                 3'd2: remaining_words[i] <= (s_arlen + 1);
-                 3'd3: remaining_words[i] <= (s_arlen + 1) << 1;
+            if (mem_access_subtype_valid & s_arready & (in_thread == i)) begin
+               case (s_arsize[mem_access_subtype]) 
+                 3'd2: remaining_words[i] <= (s_arlen[mem_access_subtype] + 1);
+                 3'd3: remaining_words[i] <= (s_arlen[mem_access_subtype] + 1) << 1;
                  default: remaining_words[i] <= remaining_words[i];
                endcase
             end else if (reg_rvalid & ( i == rid_thread)) begin
@@ -373,16 +378,21 @@ always_comb begin
    out_last = is_last_resp & mem_resp_mark_last[rid_thread];
 end
 
+logic s_child_valid;
+always_comb begin
+   assign s_child_valid = non_mem_subtype_valid & s_out_valid[non_mem_subtype] & s_out_task_is_child[non_mem_subtype];
+end
+
 always_ff @(posedge clk) begin
    if (!rstn) begin
       child_valid <= 1'b0;
       child_task <= 'x;
    end else begin
-      if (s_out_valid & s_out_ready & s_out_task_is_child) begin
+      if (s_child_valid & s_out_ready) begin
          child_valid <= 1'b1;
-         child_task <= s_out_task;
-         child_cq_slot <= worker_in_cq_slot;
-         child_id <= num_children[worker_in_cq_slot];
+         child_task <= s_out_task[non_mem_subtype];
+         child_cq_slot <= non_mem_cq_slot;
+         child_id <= num_children[non_mem_cq_slot];
       end else if (child_valid & child_ready) begin
          child_valid <= 1'b0;
       end
@@ -399,19 +409,17 @@ initial begin
 end
 always_ff @(posedge clk) begin
    if (s_finish_task_valid) begin 
-      num_children[worker_in_cq_slot] <= 0;
-   end else if (s_out_valid & s_out_ready & s_out_task_is_child) begin
-      num_children[worker_in_cq_slot] <= num_children[worker_in_cq_slot] + 1;
+      num_children[s_finish_task_slot] <= 0;
+   end else if (s_child_valid & s_out_ready) begin
+      num_children[non_mem_cq_slot] <= num_children[non_mem_cq_slot] + 1;
    end
 end
 
-cq_slice_slot_t s_finish_task_slot; 
-child_id_t      s_finish_task_num_children;
 
-assign s_finish_task_slot = worker_in_cq_slot;
+assign s_finish_task_slot = non_mem_cq_slot;
 always_comb begin
-   s_finish_task_num_children = num_children[worker_in_cq_slot] + 
-        ( (s_out_valid & s_out_ready & s_out_task_is_child) ? 1 : 0);
+   s_finish_task_num_children = num_children[non_mem_cq_slot] + 
+        ( (s_child_valid & s_out_ready) ? 1 : 0);
 end
 
 
@@ -454,47 +462,100 @@ free_list #(
    .size(thread_free_list_occ)
 );
 
+logic [63:0] cycle;
+always_ff @(posedge clk) begin
+   if (!rstn) cycle <=0;
+   else cycle <= cycle + 1;
+end
 
 
+generate 
 
+for (i=0;i<N_SUB_TYPES;i++) begin
 sssp_worker
 #(
-   .TILE_ID(TILE_ID)
+   .TILE_ID(TILE_ID),
+   .SUBTYPE(i)
 ) 
    WORKER 
 (
    .clk  (clk),
    .rstn (rstn),
 
-   .task_in_valid(worker_task_in_valid),
-   .task_in_ready(worker_task_in_ready),
+   .task_in_valid(task_in_can_schedule[i]),
+   .task_in_ready(task_in_ready[i]),
 
-   .in_task (worker_in_task), 
-   .in_data (worker_in_data),
-   .in_subtype (worker_in_subtype),
-   .in_last (worker_in_last),
+   .in_task (in_task[i]), 
+   .in_data (in_data[i]),
+   .in_last (in_last[i]),
    
-   .arvalid      (s_arvalid),
-   .arready      (s_arready),
-   .araddr       (s_araddr),
-   .arsize       (s_arsize),
-   .arlen        (s_arlen),
+   .arvalid      (s_arvalid[i]),
+   .araddr       (s_araddr[i]),
+   .arsize       (s_arsize[i]),
+   .arlen        (s_arlen[i]),
 
-   .resp_task    (s_resp_task), //each mem resp will create a new task with this parameters
-   .resp_subtype (s_resp_subtype),
-   .resp_mark_last(s_resp_mark_last), // mark the last resp task as last
+   .resp_task    (s_resp_task[i]), //each mem resp will create a new task with this parameters
+   .resp_subtype (s_resp_subtype[i]),
+   .resp_mark_last(s_resp_mark_last[i]), // mark the last resp task as last
 
-   .out_valid              (s_out_valid),
-   .out_ready              (s_out_ready),
-   .out_task               (s_out_task ),
-   .out_subtype            (s_out_subtype),
+   .out_valid              (s_out_valid[i]),
+   .out_task               (s_out_task [i]),
+   .out_subtype            (s_out_subtype[i]),
 
-   .out_task_is_child      (s_out_task_is_child),     // if 0, out_task is re-enqueued back to a FIFO, else sent to CM
-   .finish_task_valid      (s_finish_task_valid),
-   .finish_task_ready      (s_finish_task_ready),
+   .out_task_is_child      (s_out_task_is_child[i]),     // if 0, out_task is re-enqueued back to a FIFO, else sent to CM
+   
+   .sched_task_valid       (s_sched_task_valid[i]),
+   .sched_task_ready       (s_sched_task_ready[i]),
 
    .reg_bus      (reg_bus)
 
+
+);
+
+always_comb begin
+   s_sched_task_aborted[i] = s_sched_task_valid[i] & task_aborted[in_cq_slot[i]];
+end
+
+`ifdef XILINX_SIMULATOR
+   always_ff @(posedge clk) begin
+      if (task_in_valid[i] & task_in_ready[i]) begin
+         $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8d locale:%4d data:(%5d %5d)",
+            cycle, TILE_ID, i, in_cq_slot[i],
+            in_task[i].ts, in_task[i].locale, in_data[i][31:0], in_data[i][63:32]) ;
+      end
+   end 
+`endif
+
+end 
+endgenerate
+
+ro_scheduler SCHEDULER
+(
+   .clk   (clk),
+   .rstn  (rstn),
+
+   .task_valid    (s_sched_task_valid),
+   .arvalid       (s_arvalid & ~s_sched_task_aborted),
+   .arlen         (s_arlen),
+   .task_cq_slot  (in_cq_slot),
+   
+   .out_valid     (s_out_valid & ~s_sched_task_aborted),
+   .out_task_is_child (s_out_task_is_child),
+
+   .task_aborted  (task_aborted),
+
+   .task_ready    (s_sched_task_ready),
+
+   .s_arready     (s_arready),
+   .child_out_ready (s_out_ready),
+   .finish_task_ready (s_finish_task_ready),
+
+   .mem_access_subtype_valid (mem_access_subtype_valid),
+   .mem_access_subtype       (mem_access_subtype),
+   .non_mem_subtype_valid    (non_mem_subtype_valid),
+   .non_mem_subtype          (non_mem_subtype), 
+
+   .non_mem_task_finish      (s_finish_task_valid)
 
 );
 
@@ -623,7 +684,8 @@ endmodule
 
 module sssp_worker
 #(
-   parameter TILE_ID
+   parameter TILE_ID,
+   parameter SUBTYPE=0
 ) (
 
    input clk,
@@ -634,11 +696,9 @@ module sssp_worker
 
    input task_t            in_task, 
    input data_t            in_data,
-   input subtype_t         in_subtype,
    input logic             in_last,
    
    output logic            arvalid,
-   input                   arready,
    output logic [31:0]     araddr,
    output logic [2:0]      arsize,
    output logic [7:0]      arlen,
@@ -647,14 +707,14 @@ module sssp_worker
    output logic            resp_mark_last, // mark the last resp task as last
 
    output logic            out_valid,
-   input                   out_ready,
    output task_t           out_task,
    output subtype_t        out_subtype,
 
-   output logic            finish_task_valid,
-   input                   finish_task_ready,
-
    output logic            out_task_is_child, // if 0, out_task is re-enqueued back to a FIFO, else sent to CM
+
+   output logic            sched_task_valid,
+   input logic             sched_task_ready,
+
 
    reg_bus_t               reg_bus
 
@@ -662,6 +722,9 @@ module sssp_worker
 
 logic [31:0] offset_base_addr;
 logic [31:0] neighbors_base_addr;
+
+assign sched_task_valid = task_in_valid;
+assign task_in_ready = sched_task_ready;
 
 assign resp_task = in_task;
 always_comb begin
@@ -673,51 +736,30 @@ always_comb begin
    resp_mark_last = 1'b0;
    out_task = in_task;
    out_task_is_child = 1'b1;
-   task_in_ready = 1'b0;
    resp_subtype = 'x;
-   finish_task_valid = 1'b0;
    
    if (task_in_valid) begin
-      case (in_subtype) 
+      case (SUBTYPE) 
          0: begin
             araddr = offset_base_addr + (in_task.locale <<  2);
             arsize = 3;
             arvalid = 1'b1;
             arlen = 0;
             resp_subtype = 1;
-            if (arready) begin
-               task_in_ready = 1'b1;
-            end
          end
          1: begin
-            if (in_data[31:0] == in_data[63:32]) begin
-               if (finish_task_ready) begin
-                  finish_task_valid = 1'b1;
-                  task_in_ready = 1'b1;
-               end
-            end else begin
-               araddr = neighbors_base_addr + (in_data[31:0] <<  3);
-               arvalid = 1'b1;
-               arsize = 3;
-               arlen = (in_data[63:32] - in_data[31:0])-1;
-               resp_subtype = 2;
-               resp_mark_last = 1'b1;
-               if (arready) begin
-                  task_in_ready = 1'b1;
-               end
-            end
+            araddr = neighbors_base_addr + (in_data[31:0] <<  3);
+            arvalid = (in_data[63:32] != in_data[31:0]);
+            arsize = 3;
+            arlen = (in_data[63:32] - in_data[31:0])-1;
+            resp_subtype = 2;
+            resp_mark_last = 1'b1;
          end
          2: begin
-            if (!in_last | finish_task_ready) begin
-               out_valid = 1'b1;
-               out_task.locale = in_data[31:0];
-               out_task.ts = in_task.ts + in_data[63:32];
-               out_task_is_child = 1'b1;
-               finish_task_valid = in_last;
-               if (out_ready) begin
-                  task_in_ready = 1'b1;
-               end
-            end
+            out_valid = 1'b1;
+            out_task.locale = in_data[31:0];
+            out_task.ts = in_task.ts + in_data[63:32];
+            out_task_is_child = 1'b1;
          end
       endcase
 
@@ -738,19 +780,156 @@ always_ff @(posedge clk) begin
    end
 end
 
-`ifdef XILINX_SIMULATOR
-   logic [63:0] cycle;
-   always_ff @(posedge clk) begin
-      if (!rstn) cycle <=0;
-      else cycle <= cycle + 1;
-      if (task_in_valid & task_in_ready) begin
-         $display("[%5d] [rob-%2d] [ro %2d] ts:%8d locale:%4d data:(%5d %5d)",
-            cycle, TILE_ID, in_subtype, 
-            in_task.ts, in_task.locale, in_data[31:0], in_data[63:32]) ;
-      end
-   end 
-`endif
 
 
 endmodule
 
+
+module ro_scheduler 
+(
+   input clk,
+   input rstn,
+
+   input logic [N_SUB_TYPES-1:0] task_valid,
+   input logic [N_SUB_TYPES-1:0] arvalid,
+   input byte_t [N_SUB_TYPES-1:0] arlen,
+   input cq_slice_slot_t [N_SUB_TYPES-1:0] task_cq_slot,
+   input logic [N_SUB_TYPES-1:0] out_valid,
+   input logic [N_SUB_TYPES-1:0] out_task_is_child,
+
+   input [2**LOG_CQ_SLICE_SIZE-1:0] task_aborted,
+
+   output logic [N_SUB_TYPES-1:0] task_ready,
+
+   input s_arready,
+   input child_out_ready,
+   input finish_task_ready,
+
+   output logic         mem_access_subtype_valid,
+   output subtype_t     mem_access_subtype,
+   output logic         non_mem_subtype_valid, // set only if non_mem task has a child/successor
+   output subtype_t     non_mem_subtype, 
+
+   output logic         non_mem_task_finish
+
+);
+
+
+// Needed to figure out when a task has finished.  
+byte_t n_dequeues [2**LOG_CQ_SLICE_SIZE];
+byte_t n_enqueues [2**LOG_CQ_SLICE_SIZE];
+
+
+highbit #(
+   .OUT_WIDTH(LOG_N_SUB_TYPES),
+   .IN_WIDTH(N_SUB_TYPES)
+) MEM_SUBTYPE_SELECT (
+   .in(arvalid), // assumes arvalid will not be set without task_valid being set
+   .out(mem_access_subtype)
+);
+
+logic [N_SUB_TYPES-1:0] non_mem_valid_tasks;
+assign non_mem_valid_tasks = task_valid & ~arvalid;
+
+subtype_t non_mem_valid_subtype;
+highbit #(
+   .OUT_WIDTH(LOG_N_SUB_TYPES),
+   .IN_WIDTH(N_SUB_TYPES)
+) NON_MEM_SUBTYPE_SELECT (
+   .in(non_mem_valid_tasks), // assumes arvalid will not be set without task_valid being set
+   .out(non_mem_valid_subtype)
+);
+
+cq_slice_slot_t mem_access_cq_slot, non_mem_cq_slot;
+
+
+logic mem_task_enq_child; 
+assign mem_task_enq_child = arvalid[mem_access_subtype] & out_valid[mem_access_subtype];
+
+assign non_mem_subtype = (mem_task_enq_child) ? mem_access_subtype : non_mem_valid_subtype;
+
+always_comb begin
+   mem_access_cq_slot = task_cq_slot[mem_access_subtype];
+   non_mem_cq_slot = task_cq_slot[non_mem_subtype];
+end
+
+logic is_non_mem_task_finished;
+always_comb begin
+   is_non_mem_task_finished = 1'b0;
+   if (task_valid[non_mem_subtype]) begin
+      if (mem_task_enq_child) begin
+         // TODO
+      end else begin
+         if (non_mem_subtype==0) begin
+            is_non_mem_task_finished = 1'b1;
+         end else begin
+            is_non_mem_task_finished = (n_dequeues[non_mem_cq_slot] + 1 == n_enqueues[non_mem_cq_slot]);
+         end
+      end
+   end
+end  
+
+logic can_process_mem_task, process_mem_task;
+logic can_process_non_mem_task, process_non_mem_task;
+
+assign non_mem_task_finish = process_non_mem_task & is_non_mem_task_finished;
+
+
+always_comb begin
+   can_process_mem_task = task_valid[mem_access_subtype] & arvalid[mem_access_subtype] & s_arready;
+   can_process_non_mem_task =  (task_valid[non_mem_subtype]) &
+            (! is_non_mem_task_finished | finish_task_ready) &
+            (! out_valid[non_mem_subtype] | child_out_ready);
+
+   if (mem_task_enq_child) begin
+      process_mem_task = (can_process_non_mem_task & can_process_mem_task);
+      process_non_mem_task = (can_process_non_mem_task & can_process_mem_task);
+   end else begin
+      process_mem_task = can_process_mem_task;
+      process_non_mem_task = can_process_non_mem_task;
+   end
+end
+
+
+always_comb begin
+   mem_access_subtype_valid = process_mem_task;
+   non_mem_subtype_valid = process_non_mem_task;
+end
+
+initial begin
+   for (int i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
+      n_dequeues[i] = 0;
+      n_enqueues[i] = 0;
+   end
+end
+always_ff @(posedge clk) begin
+   if (process_mem_task) begin
+      n_enqueues[ mem_access_cq_slot] <= n_enqueues[mem_access_cq_slot] 
+         + (mem_access_subtype_valid ? (arlen[mem_access_subtype] + 1) : 0)
+         - ((mem_access_subtype == 0)? 0 : 1);
+   end
+end
+always_ff @(posedge clk) begin
+   if (process_non_mem_task) begin
+      n_dequeues[ non_mem_cq_slot] <= n_dequeues[non_mem_cq_slot]
+               + ((non_mem_subtype == 0)? 0 : 1)
+               - ( (out_valid[non_mem_subtype] & !out_task_is_child[non_mem_subtype]) ? 1 :0);
+   end
+end
+
+genvar i;
+generate 
+for (i=0;i<N_SUB_TYPES;i++) begin
+   always_comb begin
+      task_ready[i] = 1'b0;
+      if (process_mem_task & (mem_access_subtype==i)) begin
+         task_ready[i] = 1'b1;
+      end else if (process_non_mem_task & (non_mem_subtype == i)) begin
+         task_ready[i] = 1'b1;
+      end
+   end
+end
+endgenerate
+
+
+endmodule

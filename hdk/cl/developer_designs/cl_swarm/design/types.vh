@@ -75,4 +75,5 @@
    
    typedef logic [LOG_N_SUB_TYPES-1:0] subtype_t;
    typedef logic [DATA_WIDTH-1:0] data_t;
-   
+  
+   typedef logic [7:0] byte_t;

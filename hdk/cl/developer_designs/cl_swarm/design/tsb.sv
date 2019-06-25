@@ -274,7 +274,7 @@ end else begin
 
    ts_t lvt_fixed;
    ts_t lvt_rolling;
-   logic [3:0] cur_cycle;
+   logic [LOG_TSB_SIZE-1:0] cur_cycle;
    always_ff @(posedge clk) begin
       if (!rstn) begin
          lvt_fixed <= 0;
