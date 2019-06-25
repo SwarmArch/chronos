@@ -380,7 +380,7 @@ end
 
 logic s_child_valid;
 always_comb begin
-   assign s_child_valid = non_mem_subtype_valid & s_out_valid[non_mem_subtype] & s_out_task_is_child[non_mem_subtype];
+   s_child_valid = non_mem_subtype_valid & s_out_valid[non_mem_subtype] & s_out_task_is_child[non_mem_subtype];
 end
 
 always_ff @(posedge clk) begin
