@@ -40,7 +40,7 @@ module fifo #(
             wr_ptr <= wr_ptr + 1;
          end
          if (rd_en) begin
-            assert(!empty)  else $error("rd when empty");
+            assert(!empty | wr_en)  else $error("rd when empty");
             rd_ptr <= rd_ptr + 1;
          end
       end
@@ -71,6 +71,73 @@ module fifo #(
             size <= size + 1;
          end else if (rd_en & !wr_en) begin
             size <= size - 1;
+         end
+      end
+   end
+
+endmodule
+
+// fifo that rotates elements on idle cycles
+module recirculating_fifo #(
+      parameter WIDTH = 32,
+      parameter LOG_DEPTH = 1
+) (
+   input  clk,
+   input  rstn,
+
+   input wr_en,
+   input rd_en,
+   input [WIDTH-1:0] wr_data,
+
+   output logic full, 
+   output logic empty,  // aka out_valid
+   output logic [WIDTH-1:0] rd_data,
+
+   output logic [LOG_DEPTH:0] size
+);
+
+logic s_wr_en, s_rd_en;
+logic [WIDTH-1:0] s_wr_data;
+
+always_comb begin
+   if (wr_en | rd_en) begin
+      s_wr_en = wr_en;
+      s_rd_en = rd_en;
+      s_wr_data = wr_data;
+   end else begin
+      s_wr_en = 1'b1;
+      s_rd_en = 1'b1;
+      s_wr_data = rd_data;
+   end
+end
+
+fifo #(
+      .WIDTH(WIDTH),
+      .LOG_DEPTH(LOG_DEPTH)
+   ) FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(s_wr_en),
+      .wr_data(s_wr_data),
+
+      .full(full),
+      .empty(empty),
+
+      .rd_en(s_rd_en),
+      .rd_data(rd_data),
+
+      .size(size)
+
+   );
+   
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+      end else begin
+         if (wr_en) begin
+            assert(!full | rd_en)  else $error("wr when full");
+         end
+         if (rd_en) begin
+            assert(!empty)  else $error("rd when empty");
          end
       end
    end

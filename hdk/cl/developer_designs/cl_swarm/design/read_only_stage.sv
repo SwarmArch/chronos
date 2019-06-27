@@ -17,6 +17,11 @@ module read_only_stage
    input  fifo_size_t    [N_SUB_TYPES-1:0]  in_fifo_occ,
 
    input logic [2**LOG_CQ_SLICE_SIZE-1:0]    task_aborted,
+
+   input logic         gvt_task_slot_valid,
+   cq_slice_slot_t     gvt_task_slot,
+
+   input               tsb_almost_full,
    
    output logic        arvalid,
    input               arready,
@@ -106,6 +111,7 @@ task_t s_out_task [N_SUB_TYPES-1:0];
 logic [N_SUB_TYPES-1:0] s_out_valid;
 subtype_t s_out_subtype [N_SUB_TYPES-1:0];
 logic [N_SUB_TYPES-1:0] s_out_task_is_child;
+logic [N_SUB_TYPES-1:0] s_out_child_untied;
 
 logic reg_arvalid;
 logic [31:0] reg_araddr;
@@ -117,7 +123,8 @@ logic last_read_in_burst;
 
 logic s_finish_task_valid, s_finish_task_ready;
 logic s_arready;
-logic s_out_ready;
+logic s_out_ready_tied;
+logic s_out_ready_untied;
 
 logic [N_SUB_TYPES-1:0] s_sched_task_valid;
 logic [N_SUB_TYPES-1:0] s_sched_task_ready;
@@ -155,7 +162,11 @@ end
 genvar i;
 generate
    for (i=0;i<N_SUB_TYPES-1;i++) begin
-      assign task_in_can_schedule[i] = task_in_valid[i] & (in_fifo_occ[i+1] < fifo_out_almost_full_thresh);
+      assign s_out_child_untied[i] = gvt_task_slot_valid & (gvt_task_slot == in_cq_slot[i]);
+      assign task_in_can_schedule[i] = task_in_valid[i] 
+            & (   (in_fifo_occ[i+1] < fifo_out_almost_full_thresh) 
+                | (gvt_task_slot_valid & gvt_task_slot == in_cq_slot[i])
+              );
    end
 endgenerate
 assign task_in_can_schedule[N_SUB_TYPES-1] = task_in_valid[N_SUB_TYPES-1];
@@ -380,7 +391,8 @@ end
 
 logic s_child_valid;
 always_comb begin
-   s_child_valid = non_mem_subtype_valid & s_out_valid[non_mem_subtype] & s_out_task_is_child[non_mem_subtype];
+   s_child_valid = non_mem_subtype_valid & s_out_valid[non_mem_subtype] & s_out_task_is_child[non_mem_subtype] 
+                  & !s_sched_task_aborted[non_mem_subtype];
 end
 
 always_ff @(posedge clk) begin
@@ -388,18 +400,19 @@ always_ff @(posedge clk) begin
       child_valid <= 1'b0;
       child_task <= 'x;
    end else begin
-      if (s_child_valid & s_out_ready) begin
+      if (s_child_valid) begin
          child_valid <= 1'b1;
          child_task <= s_out_task[non_mem_subtype];
          child_cq_slot <= non_mem_cq_slot;
          child_id <= num_children[non_mem_cq_slot];
+         child_untied <= s_out_child_untied[non_mem_subtype];
       end else if (child_valid & child_ready) begin
          child_valid <= 1'b0;
       end
    end
 end
-assign child_untied = 1'b0;
-assign s_out_ready = !child_valid | child_ready;
+assign s_out_ready_tied = (!child_valid | child_ready) & !tsb_almost_full;
+assign s_out_ready_untied = (!child_valid | child_ready);
 
 
 initial begin
@@ -410,7 +423,7 @@ end
 always_ff @(posedge clk) begin
    if (s_finish_task_valid) begin 
       num_children[s_finish_task_slot] <= 0;
-   end else if (s_child_valid & s_out_ready) begin
+   end else if (s_child_valid & !s_out_child_untied[non_mem_subtype]) begin
       num_children[non_mem_cq_slot] <= num_children[non_mem_cq_slot] + 1;
    end
 end
@@ -419,13 +432,13 @@ end
 assign s_finish_task_slot = non_mem_cq_slot;
 always_comb begin
    s_finish_task_num_children = num_children[non_mem_cq_slot] + 
-        ( (s_child_valid & s_out_ready) ? 1 : 0);
+        ( (s_child_valid & !s_out_child_untied[non_mem_subtype] ) ? 1 : 0);
 end
 
 
 logic finish_task_fifo_empty, finish_task_fifo_full;
 
-fifo #(
+recirculating_fifo #(
       .WIDTH( $bits(finish_task_slot) + $bits(finish_task_num_children)),
       .LOG_DEPTH(1)
    ) FINISHED_TASK_FIFO (
@@ -441,7 +454,7 @@ fifo #(
       .rd_data({finish_task_slot, finish_task_num_children})
 
    );
-assign finish_task_valid = !finish_task_fifo_empty;
+assign finish_task_valid = !finish_task_fifo_empty & !(child_valid & (child_cq_slot == finish_task_slot));
 assign s_finish_task_ready = !finish_task_fifo_full;
 
 
@@ -541,13 +554,15 @@ ro_scheduler SCHEDULER
    
    .out_valid     (s_out_valid & ~s_sched_task_aborted),
    .out_task_is_child (s_out_task_is_child),
+   .out_child_untied  (s_out_child_untied),
 
    .task_aborted  (task_aborted),
 
    .task_ready    (s_sched_task_ready),
 
    .s_arready     (s_arready),
-   .child_out_ready (s_out_ready),
+   .child_out_ready_tied (s_out_ready_tied),
+   .child_out_ready_untied (s_out_ready_untied),
    .finish_task_ready (s_finish_task_ready),
 
    .mem_access_subtype_valid (mem_access_subtype_valid),
@@ -600,32 +615,59 @@ if (READ_ONLY_STAGE_LOGGING) begin
       logic [19:0] remaining_words;
       logic [31:0] valid_words;
 
-      logic task_in_valid;
-      logic task_in_ready;
-      logic task_out_valid;
-      logic task_out_ready;
-      logic arvalid;
-      logic arready;
-      logic rvalid;
-      logic rready;
-      logic [7:0] out_fifo_occ;
-      logic [7:0] in_cq_slot;
-      logic [3:0] in_last;
-      logic [3:0] out_last;
-
       logic [7:0] arid;
       logic [7:0] rid;
       logic [7:0] thread_id;
       logic [7:0] thread_fifo_occ;
+
+      logic [31:0] out_fifo_occ;
       
-      logic [159:0] in_task;
-      logic [95:0] out_task;
-      logic [63:0] out_data;
+      logic arvalid;
+      logic arready;
+      logic rvalid;
+      logic rready;
+      logic mem_access_subtype_valid;
+      logic non_mem_subtype_valid;
+      logic non_mem_task_finish;
+      logic gvt_task_slot_valid;
+      logic [7:0] gvt_task_slot;
+      logic [7:0] unused;
+      logic [3:0] out_child_id;
+      logic [3:0] out_ttype;
+
+      logic [3:0] task_in_valid;
+      logic [3:0] task_in_ready;
+      logic [3:0] sched_task_aborted;
+      logic [3:0] s_out_valid;
+      logic [3:0] s_out_task_is_child;
+      logic [3:0] s_out_child_untied;
+      logic [3:0] s_arvalid;
+      logic s_arready;
+      logic s_out_ready_tied;
+      logic s_out_ready_untied;
+      logic s_finish_task_ready;
+
+      logic [31:0] out_ts;
+      logic [31:0] out_locale;
+      
+      logic [3:0] mem_subtype;
+      logic [3:0] non_mem_subtype;
+      logic [3:0] mem_ttype;
+      logic [3:0] non_mem_ttype;
+      logic [7:0] mem_cq_slot;
+      logic [7:0] non_mem_cq_slot;
+
+      logic [31:0] non_mem_ts;
+      logic [31:0] non_mem_locale;
+
+      logic [31:0] mem_ts;
+      logic [31:0] mem_locale;
+
       
    } rw_read_log_t;
    rw_read_log_t log_word;
    always_comb begin
-      log_valid = (task_in_valid & task_in_ready) | (out_valid & out_ready) | (arvalid & arready) | (rvalid & rready) ;
+      log_valid = mem_access_subtype_valid | non_mem_subtype_valid  | (arvalid & arready) | (rvalid & rready) ;
 
       log_word = '0;
    
@@ -638,28 +680,59 @@ if (READ_ONLY_STAGE_LOGGING) begin
       log_word.rid_mshr_thread_id = rid_thread;
       log_word.out_data_word_valid = {out_data_word_0_valid, out_data_word_1_valid};
 
-      log_word.task_in_valid = task_in_valid;
-      log_word.task_in_ready = task_in_ready;
-      log_word.task_out_valid = out_valid;
-      log_word.task_out_ready = out_ready;
       log_word.arvalid = arvalid;
       log_word.arready = arready;
       log_word.rvalid = rvalid;
       log_word.rready = rready;
-      log_word.out_fifo_occ = in_fifo_occ[0];
 
-      log_word.in_cq_slot = in_cq_slot;
-      log_word.in_last = in_last;
-      log_word.out_last = out_last;
 
       log_word.arid = arid[7:0];
       log_word.rid = rid[7:0];
       log_word.thread_id = in_thread;
       log_word.thread_fifo_occ = thread_free_list_occ;
+      
+      log_word.out_fifo_occ[31:24] = in_fifo_occ[3];
+      log_word.out_fifo_occ[23:16] = in_fifo_occ[2];
+      log_word.out_fifo_occ[15: 8] = in_fifo_occ[1];
+      log_word.out_fifo_occ[ 7: 0] = in_fifo_occ[0];
+   
+      log_word.mem_access_subtype_valid = mem_access_subtype_valid;
+      log_word.non_mem_subtype_valid = non_mem_subtype_valid;
+      log_word.non_mem_task_finish = s_finish_task_valid;
 
-      log_word.in_task = in_task;
-      log_word.out_task = out_task;
-      log_word.out_data = out_data;
+      log_word.gvt_task_slot_valid = gvt_task_slot_valid;
+      log_word.gvt_task_slot = gvt_task_slot;
+      log_word.out_child_id = num_children[non_mem_cq_slot];
+      log_word.out_ttype = s_out_task[non_mem_subtype].ttype;
+
+      log_word.task_in_valid = task_in_valid;
+      log_word.task_in_ready = task_in_ready;
+      log_word.sched_task_aborted = s_sched_task_aborted;
+      log_word.s_out_valid = s_out_valid;
+      log_word.s_out_child_untied = s_out_child_untied;
+      log_word.s_out_task_is_child = s_out_task_is_child;
+      log_word.s_arvalid = s_arvalid;
+
+      log_word.s_arready = s_arready; 
+      log_word.s_out_ready_tied = s_out_ready_tied;
+      log_word.s_out_ready_untied = s_out_ready_untied;
+      log_word.s_finish_task_ready = s_finish_task_ready;
+
+      log_word.out_ts = s_out_task[non_mem_subtype].ts;
+      log_word.out_locale = s_out_task[non_mem_subtype].locale;
+      
+      log_word.mem_subtype = mem_access_subtype;
+      log_word.non_mem_subtype = non_mem_subtype;
+   
+      log_word.non_mem_ttype = in_task[non_mem_subtype].ttype;
+      log_word.mem_ttype = in_task[mem_access_subtype].ttype;
+      log_word.non_mem_cq_slot = in_cq_slot[non_mem_subtype];
+      log_word.mem_cq_slot = in_cq_slot[mem_access_subtype];
+
+      log_word.non_mem_ts = in_task[non_mem_subtype].ts;
+      log_word.non_mem_locale = in_task[non_mem_subtype].locale;
+      log_word.mem_ts = in_task[mem_access_subtype].ts;
+      log_word.mem_locale = in_task[mem_access_subtype].locale;
    end
 
    log #(
@@ -684,7 +757,7 @@ endmodule
 
 module sssp_worker
 #(
-   parameter TILE_ID,
+   parameter TILE_ID=0,
    parameter SUBTYPE=0
 ) (
 
@@ -796,13 +869,15 @@ module ro_scheduler
    input cq_slice_slot_t [N_SUB_TYPES-1:0] task_cq_slot,
    input logic [N_SUB_TYPES-1:0] out_valid,
    input logic [N_SUB_TYPES-1:0] out_task_is_child,
+   input logic [N_SUB_TYPES-1:0] out_child_untied,
 
    input [2**LOG_CQ_SLICE_SIZE-1:0] task_aborted,
 
    output logic [N_SUB_TYPES-1:0] task_ready,
 
    input s_arready,
-   input child_out_ready,
+   input child_out_ready_tied,
+   input child_out_ready_untied,
    input finish_task_ready,
 
    output logic         mem_access_subtype_valid,
@@ -829,8 +904,26 @@ highbit #(
 );
 
 logic [N_SUB_TYPES-1:0] non_mem_valid_tasks;
-assign non_mem_valid_tasks = task_valid & ~arvalid;
-
+genvar i;
+generate 
+for (i=0;i<N_SUB_TYPES;i++) begin
+   always_comb begin
+      non_mem_valid_tasks[i] = task_valid[i] & !(arvalid[i]); 
+      if (out_valid[i]) begin
+         if (out_task_is_child[i]) begin
+            if (out_child_untied[i] & !child_out_ready_untied) begin
+               non_mem_valid_tasks[i] = 1'b0;
+            end 
+            if (!out_child_untied[i] & !child_out_ready_tied) begin
+               non_mem_valid_tasks[i] = 1'b0;
+            end 
+         end else begin
+            // TODO
+         end
+      end
+   end
+end
+endgenerate
 subtype_t non_mem_valid_subtype;
 highbit #(
    .OUT_WIDTH(LOG_N_SUB_TYPES),
@@ -877,9 +970,28 @@ assign non_mem_task_finish = process_non_mem_task & is_non_mem_task_finished;
 
 always_comb begin
    can_process_mem_task = task_valid[mem_access_subtype] & arvalid[mem_access_subtype] & s_arready;
-   can_process_non_mem_task =  (task_valid[non_mem_subtype]) &
-            (! is_non_mem_task_finished | finish_task_ready) &
-            (! out_valid[non_mem_subtype] | child_out_ready);
+
+   can_process_non_mem_task = 1'b1;
+   if (!task_valid[non_mem_subtype]) begin
+      can_process_non_mem_task = 1'b0;
+   end else begin
+      if (is_non_mem_task_finished & !finish_task_ready) begin
+         can_process_non_mem_task = 1'b0;
+      end
+      if (out_valid[non_mem_subtype]) begin
+         if (out_task_is_child[non_mem_subtype]) begin
+            if (out_child_untied[non_mem_subtype] & !child_out_ready_untied) begin
+               can_process_non_mem_task = 1'b0;
+            end 
+            if (!out_child_untied[non_mem_subtype] & !child_out_ready_tied) begin
+               can_process_non_mem_task = 1'b0;
+            end 
+         end else begin
+            // TODO
+         end
+      end
+   
+   end
 
    if (mem_task_enq_child) begin
       process_mem_task = (can_process_non_mem_task & can_process_mem_task);
@@ -917,7 +1029,6 @@ always_ff @(posedge clk) begin
    end
 end
 
-genvar i;
 generate 
 for (i=0;i<N_SUB_TYPES;i++) begin
    always_comb begin

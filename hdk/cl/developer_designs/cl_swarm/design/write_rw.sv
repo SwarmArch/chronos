@@ -23,6 +23,9 @@ module write_rw
    output cq_slice_slot_t  task_out_cq_slot,  
    
    input fifo_size_t   task_out_fifo_occ, 
+   
+   input logic         gvt_task_slot_valid,
+   cq_slice_slot_t     gvt_task_slot,
 
    output logic        unlock_locale,
    output thread_id_t  unlock_thread,
@@ -73,7 +76,10 @@ always_comb begin
    s_finish_task_is_undo_log_restore = 1'b0;
    s_task_out_valid = 1'b0;
 
-   if (task_in_valid & (task_out_fifo_occ < fifo_out_almost_full_thresh) ) begin
+   if (task_in_valid & 
+       (  (task_out_fifo_occ < fifo_out_almost_full_thresh) 
+         | (gvt_task_slot_valid & (gvt_task_slot == task_in.cq_slot)) )     
+    ) begin
       if (task_in.task_desc.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
          if (s_finish_task_ready) begin
             wvalid = 1'b1;

@@ -16,7 +16,7 @@ module tsb
    input cq_slice_slot_t   s_cq_slot,
    input child_id_t        s_child_id,
 
-   output logic            s_only_untied,
+   output logic            almost_full,
 
    input                   retry_valid,
    output logic            retry_ready,
@@ -114,7 +114,7 @@ if (NON_SPEC) begin
    assign reg_bus.rdata = 0;
 
    assign s_wready = (!task_enq_valid | (task_enq_valid & task_enq_ready) ); 
-   assign s_only_untied = 1'b0;
+   assign almost_full = 1'b0;
    assign retry_ready = 1'b1;
    assign task_resp_ready = 1'b1;
 
@@ -131,7 +131,7 @@ end else begin
    child_id_t           tsb_entry_child_id [2**LOG_TSB_SIZE -1:0] ;
    tile_id_t            tsb_entry_tile_id  [2**LOG_TSB_SIZE -1:0] ;
    logic                tsb_entry_tied     [2**LOG_TSB_SIZE -1:0] ;
-   logic[TQ_WIDTH-1:0]  tsb_entry_task     [2**LOG_TSB_SIZE -1:0] ;
+   task_t               tsb_entry_task     [2**LOG_TSB_SIZE -1:0] ;
 
    tsb_entry_id_t next_tsb_entry;
    
@@ -246,7 +246,7 @@ end else begin
       end
    end
 
-   assign s_only_untied = (n_tsb_size > (2**LOG_TSB_SIZE -3));
+   assign almost_full = (n_tsb_size > (2**LOG_TSB_SIZE -4));
 
 
    genvar i, j;

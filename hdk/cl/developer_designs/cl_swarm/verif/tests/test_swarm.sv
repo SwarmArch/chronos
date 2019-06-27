@@ -606,9 +606,9 @@ task initialize_spilling_structures;
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
       ocl_addr[15:8] = ID_TASK_UNIT;
       ocl_addr[7:0] = TASK_UNIT_TIED_CAPACITY;
-      ocl_data = 16;
+      ocl_data = 32;
       tb.poke(.addr(ocl_addr), .data(ocl_data),
-             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+             .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL));
       ocl_addr[15:8] = ID_TASK_UNIT;
       ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
       // has to be greater than (TIED_CAPACITY + CQ_SIZE + SPILL_SIZE)

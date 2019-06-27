@@ -51,12 +51,12 @@ logic rst_main_n_sync;
    ); 
 
 
-logic  [2:0]     cores_cm_wvalid ;
-logic  [2:0]     cores_cm_wready ;
-task_t [2:0]     cores_cm_wdata  ;
-logic  [2:0]     cores_cm_enq_untied ;
-cq_slice_slot_t [2:0]     cores_cm_cq_slot  ;
-child_id_t [2:0]     cores_cm_child_id  ;
+logic  [CM_PORTS-1:0]     cores_cm_wvalid ;
+logic  [CM_PORTS-1:0]     cores_cm_wready ;
+task_t [CM_PORTS-1:0]     cores_cm_wdata  ;
+logic  [CM_PORTS-1:0]     cores_cm_enq_untied ;
+cq_slice_slot_t [CM_PORTS-1:0]     cores_cm_cq_slot  ;
+child_id_t [CM_PORTS-1:0]     cores_cm_child_id  ;
 
 
 logic finish_task_valid ;
@@ -89,7 +89,7 @@ task_t splitter_deq_task;
 
 cq_slice_slot_t cq_fifo_slot;
 
-logic             cm_tsb_only_untied;
+logic             tsb_almost_full;
 
 // per task FIFOs to conflict checker
 logic fifo_cc_valid;
@@ -933,7 +933,7 @@ cq_slice #(
    .no_idle_cores       (no_idle_cores),
    .all_idle_cores       (all_cores_idle),
    .cc_almost_full      (cc_almost_full),
-   .tsb_almost_full     (cm_tsb_only_untied),
+   .tsb_almost_full     (tsb_almost_full),
 
    
    // Abort Task To TQ (always with requeue)
@@ -990,7 +990,7 @@ assign fifo_cc_valid = !out_task_fifo_empty;
 logic out_task_fifo_wr_en;
 assign out_task_fifo_wr_en = cq_out_task_valid & cq_out_task_ready;
 
-fifo #(
+recirculating_fifo #(
       .WIDTH( $bits(cq_out_task) + $bits(cq_out_task_slot)),
       .LOG_DEPTH(1)
    ) OUT_TASK_FIFO (
@@ -1071,6 +1071,9 @@ read_rw
    .task_in       (issue_task      ), 
    .cq_slot_in    (issue_task_cq_slot),
    .thread_id_in  (issue_task_thread),
+   
+   .gvt_task_slot_valid  (gvt_task_slot_valid ),
+   .gvt_task_slot        (gvt_task_slot       ),
 
    .arvalid    (rw_l2.arvalid),
    .arready    (rw_l2.arready),
@@ -1095,7 +1098,7 @@ read_rw
 assign rw_l2.araddr[63:32] = '0;
 assign rw_l2.bready = 1'b1;
 
-fifo #(
+recirculating_fifo #(
       .WIDTH( $bits(rw_read_out_data)),
       .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
    ) RW_READ_OUT_FIFO (
@@ -1159,6 +1162,8 @@ write_rw
    .task_in_ready (rw_write_in_ready),
 
    .task_in (rw_write_in_data), 
+   .gvt_task_slot_valid  (gvt_task_slot_valid ),
+   .gvt_task_slot        (gvt_task_slot       ),
 
    .wvalid (rw_l2.awvalid),
    .wready (rw_l2.awready),
@@ -1202,7 +1207,7 @@ logic ro_idle;
 
 generate 
 for (i=0;i<N_SUB_TYPES;i++) begin
-   fifo #(
+   recirculating_fifo #(
          .WIDTH( $bits(fifo_in_task[0]) + $bits(fifo_in_data[0])+ $bits(fifo_in_cq_slot[0]) + 1),
          .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
       ) TASK_TYPE_FIFO (
@@ -1260,6 +1265,9 @@ read_only_stage
    .in_fifo_occ    (fifo_occ),
 
    .task_aborted(task_aborted),
+   .gvt_task_slot_valid  (gvt_task_slot_valid ),
+   .gvt_task_slot        (gvt_task_slot       ),
+   .tsb_almost_full (tsb_almost_full),
    
    .arvalid(l1_arb[0].arvalid),
    .arready(l1_arb[0].arready),
@@ -1373,7 +1381,7 @@ child_manager #(
    .task_enq_resp_cq_slot  (cm_tsb_cq_slot),
    .task_enq_resp_child_id (cm_tsb_child_id),
 
-   .task_enq_only_untied   (cm_tsb_only_untied),
+   .tsb_almost_full   (tsb_almost_full),
 
    .task_retry_valid    (cm_tsb_retry_valid),
    .task_retry_ready    (cm_tsb_retry_ready),
@@ -1444,7 +1452,7 @@ tsb TSB (
    .s_cq_slot  (cm_tsb_cq_slot),
    .s_child_id (cm_tsb_child_id),
 
-   .s_only_untied (cm_tsb_only_untied),
+   .almost_full (tsb_almost_full),
 
    .retry_valid   (cm_tsb_retry_valid),
    .retry_ready   (cm_tsb_retry_ready),

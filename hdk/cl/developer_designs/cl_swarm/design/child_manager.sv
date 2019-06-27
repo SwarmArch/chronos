@@ -53,7 +53,7 @@ module child_manager #(
    output cq_slice_slot_t  task_enq_resp_cq_slot,
    output child_id_t       task_enq_resp_child_id,
 
-   input                   task_enq_only_untied,
+   input                   tsb_almost_full,
 
    // TSB: Task retry after nack
    output logic            task_retry_valid,
@@ -472,8 +472,7 @@ end else begin : gen
          end else begin
             child_wr_data.state = CHILD_NACKED;
          end
-      end else if (can_take_new_task & s_wvalid[write_select] &
-                      (!task_enq_only_untied | s_enq_untied[write_select])) begin
+      end else if (can_take_new_task & s_wvalid[write_select]) begin
          children_array_process_new_enq = 1'b1;
          // Unfortunate to be calling this variable
          // 'children_array_process_new_enq' even when the new enq does not

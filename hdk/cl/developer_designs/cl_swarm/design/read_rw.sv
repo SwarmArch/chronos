@@ -13,6 +13,9 @@ module read_rw
    input task_t            task_in, 
    input cq_slice_slot_t   cq_slot_in,
    input thread_id_t       thread_id_in,
+   
+   input logic         gvt_task_slot_valid,
+   cq_slice_slot_t     gvt_task_slot,
 
    output logic        arvalid,
    input               arready,
@@ -48,7 +51,9 @@ assign arid = thread_id_in;
 assign araddr = base_rw_addr + (task_in.locale <<  RW_ARSIZE);
 
 logic can_dequeue; 
-assign can_dequeue = (task_out_fifo_occ < fifo_out_almost_full_thresh) & (dequeues_remaining >0);
+assign can_dequeue = (dequeues_remaining > 0) & 
+   ( (task_out_fifo_occ < fifo_out_almost_full_thresh) 
+    | (gvt_task_slot_valid & (gvt_task_slot == cq_slot_in)));
 
 always_comb begin
    arvalid = 1'b0;
