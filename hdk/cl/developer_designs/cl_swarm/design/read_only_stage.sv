@@ -1017,7 +1017,7 @@ end
 always_ff @(posedge clk) begin
    if (process_mem_task) begin
       n_enqueues[ mem_access_cq_slot] <= n_enqueues[mem_access_cq_slot] 
-         + (mem_access_subtype_valid ? (arlen[mem_access_subtype] + 1) : 0)
+         + (mem_access_subtype_valid ? (arlen[mem_access_subtype] + 8'd1) : 0)
          - ((mem_access_subtype == 0)? 0 : 1);
    end
 end
