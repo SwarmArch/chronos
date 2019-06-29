@@ -12,7 +12,7 @@ module read_only_stage
    input task_t          [N_SUB_TYPES-1:0]  in_task, 
    input data_t          [N_SUB_TYPES-1:0]  in_data, 
    input cq_slice_slot_t [N_SUB_TYPES-1:0]  in_cq_slot,
-   input                 [N_SUB_TYPES-1:0]  in_last,
+   input byte_t          [N_SUB_TYPES-1:0]  in_word_id,
    
    input  fifo_size_t    [N_SUB_TYPES-1:0]  in_fifo_occ,
 
@@ -39,7 +39,7 @@ module read_only_stage
    output subtype_t              out_subtype,
    output cq_slice_slot_t        out_cq_slot,
    output data_t                 out_data,
-   output logic                  out_last,
+   output byte_t                 out_word_id,
    
    output logic                  child_valid,
    input                         child_ready,
@@ -79,6 +79,7 @@ typedef struct packed {
    thread_id_t       thread;
    logic [15:0]      valid_words;
    logic [2:0]       arsize;
+   byte_t            start_word_id;
 } ro_stage_mshr_t;
 
 ro_stage_mshr_t ro_mshr [0:2**FREE_LIST_SIZE-1];
@@ -117,6 +118,7 @@ logic reg_arvalid;
 logic [31:0] reg_araddr;
 thread_id_t           reg_thread;
 logic [2:0] reg_arsize; 
+byte_t reg_start_word;
 logic [7:0] reg_n_words;
 
 logic last_read_in_burst;
@@ -196,8 +198,6 @@ logic [3:0] ar_read_words; // number of set bits in valid_words[]
 always_ff @(posedge clk) begin
    if (!rstn) begin
       reg_arvalid <= 1'b0;
-      reg_araddr <= 'x;
-      reg_arsize <= 'x;
    end else begin
       if (mem_access_subtype_valid & s_arready) begin
          reg_arvalid <= 1'b1;
@@ -211,13 +211,20 @@ always_ff @(posedge clk) begin
          case (s_arsize[mem_access_subtype]) 
            2: reg_n_words <= (s_arlen[mem_access_subtype] + 1);
            3: reg_n_words <= (s_arlen[mem_access_subtype] + 1) << 1;
+           4: reg_n_words <= (s_arlen[mem_access_subtype] + 1) << 2;
            // TODO
          endcase
+         reg_start_word <= 0;
       end else if (reg_arvalid) begin
          if (arvalid & arready) begin
             if (!last_read_in_burst) begin
                reg_araddr <= reg_araddr + (ar_read_words * 4); 
                reg_n_words <= reg_n_words - ar_read_words;
+               case (reg_arsize) 
+                 2: reg_start_word <= reg_start_word + ar_read_words;
+                 3: reg_start_word <= reg_start_word + (ar_read_words >> 1);
+                 4: reg_start_word <= reg_start_word + (ar_read_words >> 2);
+               endcase
             end else begin
                reg_arvalid <= 1'b0;
             end
@@ -236,6 +243,7 @@ generate
 endgenerate
 assign write_mshr.thread = reg_thread;
 assign write_mshr.arsize = reg_arsize;
+assign write_mshr.start_word_id = reg_start_word;
 
 assign araddr = reg_araddr;
 assign arvalid = reg_arvalid & !arid_free_list_empty;
@@ -269,7 +277,7 @@ always_comb begin
    end
 end
 
-assign rready = !reg_rvalid;
+assign rready = !reg_rvalid | (out_valid & out_ready & next_valid_words==0);
 always_ff @(posedge clk) begin
    if (!rstn) begin
       reg_rvalid <= 1'b0;
@@ -280,10 +288,12 @@ always_ff @(posedge clk) begin
          reg_rid <= rid;
          reg_rvalid <= rvalid;
          reg_rdata <= rdata;
+         out_word_id <= ro_mshr[rid[FREE_LIST_SIZE-1:0]].start_word_id;
       end else begin
          if (reg_rvalid) begin
             if ( (out_valid & out_ready) | (!out_valid & next_valid_words == 0)) begin
                rid_mshr.valid_words <= next_valid_words;
+               out_word_id <= out_word_id + 1;
                if (next_valid_words == 0) begin
                   reg_rvalid <= 1'b0;
                end
@@ -303,6 +313,7 @@ generate
                case (s_arsize[mem_access_subtype]) 
                  3'd2: remaining_words[i] <= (s_arlen[mem_access_subtype] + 1);
                  3'd3: remaining_words[i] <= (s_arlen[mem_access_subtype] + 1) << 1;
+                 3'd4: remaining_words[i] <= (s_arlen[mem_access_subtype] + 1) << 2;
                  default: remaining_words[i] <= remaining_words[i];
                endcase
             end else if (reg_rvalid & ( i == rid_thread)) begin
@@ -386,7 +397,6 @@ always_comb begin
          is_last_resp = (remaining_words_cur_rid == 1);
       end 
    end
-   out_last = is_last_resp & mem_resp_mark_last[rid_thread];
 end
 
 logic s_child_valid;
@@ -499,7 +509,7 @@ for (i=0;i<N_SUB_TYPES;i++) begin
 
    .in_task (in_task[i]), 
    .in_data (in_data[i]),
-   .in_last (in_last[i]),
+   .in_word_id (in_word_id[i]),
    
    .arvalid      (s_arvalid[i]),
    .araddr       (s_araddr[i]),

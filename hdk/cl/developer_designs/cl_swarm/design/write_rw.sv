@@ -44,7 +44,7 @@ assign unlock_thread = task_in.thread;
 logic s_finish_task_valid, s_finish_task_ready, s_finish_task_is_undo_log_restore;
 logic s_task_out_valid;
 
-logic s_valid;
+logic s_valid, s_ready;
 logic s_wvalid;
 logic [31:0] s_waddr;
 object_t s_wdata;

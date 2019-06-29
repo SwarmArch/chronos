@@ -73,7 +73,7 @@ module sssp_worker
 
    input task_t            in_task, 
    input data_t            in_data,
-   input logic             in_last,
+   input byte_t            in_word_id,
    
    output logic            arvalid,
    output logic [31:0]     araddr,

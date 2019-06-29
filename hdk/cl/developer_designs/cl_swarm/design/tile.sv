@@ -1133,12 +1133,12 @@ logic           [N_SUB_TYPES-1:0]  fifo_rd_en;
 task_t          [N_SUB_TYPES-1:0]  fifo_in_task;
 data_t          [N_SUB_TYPES-1:0]  fifo_in_data; 
 cq_slice_slot_t [N_SUB_TYPES-1:0]  fifo_in_cq_slot;
-logic           [N_SUB_TYPES-1:0]  fifo_in_last;
+byte_t          [N_SUB_TYPES-1:0]  fifo_in_word_id;
 
 task_t          [N_SUB_TYPES-1:0]  fifo_out_task; 
 data_t          [N_SUB_TYPES-1:0]  fifo_out_data; 
 cq_slice_slot_t [N_SUB_TYPES-1:0]  fifo_out_cq_slot;
-logic           [N_SUB_TYPES-1:0]  fifo_out_last;
+byte_t          [N_SUB_TYPES-1:0]  fifo_out_word_id;
                  
 logic           [N_SUB_TYPES-1:0]  fifo_full;
 logic           [N_SUB_TYPES-1:0]  fifo_empty;
@@ -1201,26 +1201,26 @@ subtype_t ro_out_task_subtype;
 task_t ro_out_task;
 data_t ro_out_data;
 cq_slice_slot_t ro_out_cq_slot;
-logic ro_out_task_last;
+byte_t ro_out_word_id;
 
 logic ro_idle;
 
 generate 
 for (i=0;i<N_SUB_TYPES;i++) begin
    recirculating_fifo #(
-         .WIDTH( $bits(fifo_in_task[0]) + $bits(fifo_in_data[0])+ $bits(fifo_in_cq_slot[0]) + 1),
+         .WIDTH( $bits(fifo_in_task[0]) + $bits(fifo_in_data[0])+ $bits(fifo_in_cq_slot[0]) + 8),
          .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
       ) TASK_TYPE_FIFO (
          .clk(clk_main_a0),
          .rstn(rst_main_n_sync),
          .wr_en(fifo_wr_en[i] & !fifo_full[i]),
-         .wr_data( {fifo_in_task[i], fifo_in_data[i], fifo_in_cq_slot[i], fifo_in_last[i]} ),
+         .wr_data( {fifo_in_task[i], fifo_in_data[i], fifo_in_cq_slot[i], fifo_in_word_id[i]} ),
 
          .full(  fifo_full[i] ),
          .empty( fifo_empty[i] ),
 
          .rd_en( fifo_rd_en[i] ),
-         .rd_data( {fifo_out_task[i], fifo_out_data[i], fifo_out_cq_slot[i], fifo_out_last[i]} ),
+         .rd_data( {fifo_out_task[i], fifo_out_data[i], fifo_out_cq_slot[i], fifo_out_word_id[i]} ),
 
          .size( fifo_occ[i])
       );
@@ -1230,13 +1230,13 @@ for (i=0;i<N_SUB_TYPES;i++) begin
       assign fifo_in_task[i] = rw_write_out_data;
       assign fifo_in_data[i] = 0;
       assign fifo_in_cq_slot[i] = rw_write_out_cq_slot;
-      assign fifo_in_last[i] = 1'b0;
+      assign fifo_in_word_id[i] = 0;
    end else begin
       assign fifo_wr_en[i] = ro_out_task_valid & (ro_out_task_subtype == i);
       assign fifo_in_task[i] = ro_out_task;
       assign fifo_in_data[i] = ro_out_data;
       assign fifo_in_cq_slot[i] = ro_out_cq_slot;
-      assign fifo_in_last[i] = ro_out_last;
+      assign fifo_in_word_id[i] = ro_out_word_id;
    end
    
 end
@@ -1260,7 +1260,7 @@ read_only_stage
    .in_task       (fifo_out_task), 
    .in_data       (fifo_out_data), 
    .in_cq_slot    (fifo_out_cq_slot),
-   .in_last       (fifo_out_last),
+   .in_word_id    (fifo_out_word_id),
    
    .in_fifo_occ    (fifo_occ),
 
@@ -1285,7 +1285,7 @@ read_only_stage
    .out_subtype (ro_out_task_subtype),
    .out_cq_slot (ro_out_cq_slot),
    .out_data    (ro_out_data),
-   .out_last    (ro_out_last),
+   .out_word_id (ro_out_word_id),
    
    .child_valid (cores_cm_wvalid[1]),
    .child_ready (cores_cm_wready[1]),
