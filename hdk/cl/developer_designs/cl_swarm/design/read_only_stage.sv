@@ -853,7 +853,7 @@ always_comb begin
          if (non_mem_subtype==0) begin
             is_non_mem_task_finished = 1'b1;
          end else begin
-            is_non_mem_task_finished = (n_dequeues[non_mem_cq_slot] + 1 == n_enqueues[non_mem_cq_slot]);
+            is_non_mem_task_finished = (n_dequeues[non_mem_cq_slot] + 8'd1 == n_enqueues[non_mem_cq_slot]);
          end
       end
    end
