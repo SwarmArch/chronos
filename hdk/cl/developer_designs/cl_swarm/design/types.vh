@@ -25,6 +25,7 @@
    typedef logic [TB_WIDTH-1:0] tb_t;
 
    typedef logic [31:0] cache_addr_t;
+   typedef logic [ARG_WIDTH-1:0] arg_t;
 
    // Gloabl type definitions
    typedef struct packed {
@@ -65,6 +66,7 @@
 
    typedef logic [LOG_STAGE_FIFO_SIZE:0] fifo_size_t;
    
+   typedef logic [RW_WIDTH-1:0] object_t; 
    typedef struct packed {
       task_t            task_desc;
       cq_slice_slot_t   cq_slot;
@@ -77,3 +79,4 @@
    typedef logic [DATA_WIDTH-1:0] data_t;
   
    typedef logic [7:0] byte_t;
+

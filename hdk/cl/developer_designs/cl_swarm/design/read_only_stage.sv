@@ -485,9 +485,8 @@ end
 generate 
 
 for (i=0;i<N_SUB_TYPES;i++) begin
-sssp_worker
+`RO_WORKER
 #(
-   .TILE_ID(TILE_ID),
    .SUBTYPE(i)
 ) 
    WORKER 
@@ -754,108 +753,6 @@ end
 
 endmodule
 
-
-module sssp_worker
-#(
-   parameter TILE_ID=0,
-   parameter SUBTYPE=0
-) (
-
-   input clk,
-   input rstn,
-
-   input logic             task_in_valid,
-   output logic            task_in_ready,
-
-   input task_t            in_task, 
-   input data_t            in_data,
-   input logic             in_last,
-   
-   output logic            arvalid,
-   output logic [31:0]     araddr,
-   output logic [2:0]      arsize,
-   output logic [7:0]      arlen,
-   output task_t           resp_task, //each mem resp will create a new task with this parameters
-   output subtype_t        resp_subtype,
-   output logic            resp_mark_last, // mark the last resp task as last
-
-   output logic            out_valid,
-   output task_t           out_task,
-   output subtype_t        out_subtype,
-
-   output logic            out_task_is_child, // if 0, out_task is re-enqueued back to a FIFO, else sent to CM
-
-   output logic            sched_task_valid,
-   input logic             sched_task_ready,
-
-
-   reg_bus_t               reg_bus
-
-);
-
-logic [31:0] offset_base_addr;
-logic [31:0] neighbors_base_addr;
-
-assign sched_task_valid = task_in_valid;
-assign task_in_ready = sched_task_ready;
-
-assign resp_task = in_task;
-always_comb begin
-   araddr = 'x;
-   arsize = 2;
-   arlen = 0;
-   arvalid = 1'b0;
-   out_valid = 1'b0;
-   resp_mark_last = 1'b0;
-   out_task = in_task;
-   out_task_is_child = 1'b1;
-   resp_subtype = 'x;
-   
-   if (task_in_valid) begin
-      case (SUBTYPE) 
-         0: begin
-            araddr = offset_base_addr + (in_task.locale <<  2);
-            arsize = 3;
-            arvalid = 1'b1;
-            arlen = 0;
-            resp_subtype = 1;
-         end
-         1: begin
-            araddr = neighbors_base_addr + (in_data[31:0] <<  3);
-            arvalid = (in_data[63:32] != in_data[31:0]);
-            arsize = 3;
-            arlen = (in_data[63:32] - in_data[31:0])-1;
-            resp_subtype = 2;
-            resp_mark_last = 1'b1;
-         end
-         2: begin
-            out_valid = 1'b1;
-            out_task.locale = in_data[31:0];
-            out_task.ts = in_task.ts + in_data[63:32];
-            out_task_is_child = 1'b1;
-         end
-      endcase
-
-   end 
-end
-
-always_ff @(posedge clk) begin
-   if (!rstn) begin
-      offset_base_addr <= 0;
-      neighbors_base_addr <= 0;
-   end else begin
-      if (reg_bus.wvalid) begin
-         case (reg_bus.waddr)
-            OFFSET_BASE_ADDR : offset_base_addr <= (reg_bus.wdata << 2);
-            NEIGHBOR_BASE_ADDR : neighbors_base_addr <= (reg_bus.wdata << 2);
-         endcase
-      end
-   end
-end
-
-
-
-endmodule
 
 
 module ro_scheduler 

@@ -48,7 +48,7 @@ fifo_size_t fifo_out_almost_full_thresh;
 logic [31:0] dequeues_remaining;
 
 assign arid = thread_id_in;
-assign araddr = base_rw_addr + (task_in.locale <<  RW_ARSIZE);
+assign araddr = base_rw_addr + (task_in.locale << (LOG_RW_WIDTH - 3) );
 
 logic can_dequeue; 
 assign can_dequeue = (dequeues_remaining > 0) & 
@@ -114,8 +114,7 @@ always_comb begin
    task_out.task_desc = task_desc[rid];
    task_out.cq_slot = task_cq_slot[rid];
    task_out.thread = rid;
-   task_out.object = rdata[ task_out.task_desc.locale[3:0] * 32 +: 32 ]; 
-   // TODO: generalize above to all RW_ARSIZEs
+   task_out.object = rdata[ task_out.task_desc.locale[ 3:0] * RW_WIDTH  +: RW_WIDTH ]; 
    task_out.cache_addr = rindex;
    task_out_valid = 1'b0;
    rready = 1'b0;

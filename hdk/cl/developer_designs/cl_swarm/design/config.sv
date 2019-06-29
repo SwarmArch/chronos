@@ -154,6 +154,9 @@ package swarm;
    parameter ABORT_RESP_DATA_WIDTH = (LOG_CQ_SLICE_SIZE + LOG_CHILDREN_PER_TASK +1);
    parameter CUT_TIES_DATA_WIDTH = (LOG_TQ_SIZE + EPOCH_WIDTH);
 
+   parameter LOG_RW_WIDTH = $clog2(RW_WIDTH);
+   parameter N_SUB_TYPES = 2**LOG_N_SUB_TYPES;
+
   
    `include "spill_config.vh"
    `include "types.vh"
