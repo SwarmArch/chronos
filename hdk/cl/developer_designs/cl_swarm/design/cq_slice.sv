@@ -554,11 +554,11 @@ always_ff @(posedge clk) begin
                cur_task.ts <= max_vt_fixed.ts;
                cur_task.locale <= ref_locale;
             end 
-            undo_log_abort_max_ts <= '0;
+            undo_log_abort_max_ts <= '1;
          end
          DEQ_CHECK_TS: begin
             if (reg_conflict ==0) begin
-               state <= (undo_log_abort_max_ts > 0) ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
+               state <= (undo_log_abort_max_ts < '1) ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
             end else begin
                if (abort_ts_check_task) begin
                   if (cq_state[ts_check_id] == FINISHED) begin
@@ -568,7 +568,7 @@ always_ff @(posedge clk) begin
                   end else if (cq_state[ts_check_id] == RUNNING) begin
                      state <= ABORT_REQUEUE;
                   end
-                  if (check_vt > undo_log_abort_max_ts) begin
+                  if (check_vt < undo_log_abort_max_ts) begin
                      undo_log_abort_max_ts <= check_vt;
                      undo_log_abort_max_ts_index <= ts_check_id;
                   end
@@ -791,7 +791,7 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                   cq_state[i] <= (commit_children_count == 0) ? UNUSED : COMMITTED;
                end else if (abort_task_at[i]) begin
                   if (abort_children_count == 0) begin
-                     if (check_vt > undo_log_abort_max_ts) begin // potential undo_log_write
+                     if (check_vt < undo_log_abort_max_ts) begin // potential undo_log_write
                         cq_state[i] <= UNDO_LOG_WAITING;
                      end else begin
                         cq_state[i] <= UNUSED;
