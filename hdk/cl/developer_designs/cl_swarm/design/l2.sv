@@ -99,6 +99,11 @@ module l2
    assign l1.rresp = 0;
 
    typedef struct packed {
+
+     logic [31:0] tag_rdata_3;
+     logic [31:0] tag_rdata_2;
+     logic [31:0] tag_rdata_1;
+     logic [31:0] tag_rdata_0;
      logic [63:0] wstrb; 
      logic [4:0] unused;
      id_t id;
@@ -120,6 +125,10 @@ module l2
    assign log_word.retry = retry_fifo_wr_en;
    always_comb begin
       log_word.repl_addr = tag_rdata[ log_word.way ].tag;
+      log_word.tag_rdata_0 = tag_rdata[0];
+      log_word.tag_rdata_1 = tag_rdata[1];
+      log_word.tag_rdata_2 = tag_rdata[2];
+      log_word.tag_rdata_3 = tag_rdata[3];
    end
 
 `ifdef XILINX_SIMULATOR
