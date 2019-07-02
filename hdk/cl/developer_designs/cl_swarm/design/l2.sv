@@ -56,6 +56,8 @@ module l2
    tag_entry_t tag_rdata, tag_wdata;
    logic tag_rvalid, tag_wvalid;
    logic tag_en;
+   
+   logic write_buf_match;
 
    cache_line_t  p12_wdata;
    logic [63:0]  p12_wstrb;
@@ -100,6 +102,17 @@ module l2
 
    typedef struct packed {
 
+     logic m_bvalid;
+     logic m_bready;
+     logic [13:0] m_bid;
+
+     logic m_awvalid;
+     logic m_awready;
+     logic write_buf_match;
+     logic [12:0] m_awid;
+     logic [15:0] write_buf_mshr_valid;
+     logic [31:0] m_awaddr;
+
      logic [31:0] tag_rdata_3;
      logic [31:0] tag_rdata_2;
      logic [31:0] tag_rdata_1;
@@ -123,6 +136,14 @@ module l2
    assign log_word.addr = p12_addr;
    assign log_word.op = p12_op;
    assign log_word.retry = retry_fifo_wr_en;
+   assign log_word.m_awvalid = mem_bus.awvalid;
+   assign log_word.m_awready = mem_bus.awready;
+   assign log_word.m_awid = mem_bus.awid;
+   assign log_word.m_awaddr = mem_bus.awaddr;
+   assign log_word.m_bvalid = mem_bus.bvalid;
+   assign log_word.m_bready = mem_bus.bready;
+   assign log_word.m_bid = mem_bus.bid;
+   assign log_word.write_buf_match = write_buf_match; 
    always_comb begin
       log_word.repl_addr = tag_rdata[ log_word.way ].tag;
       log_word.tag_rdata_0 = tag_rdata[0];
@@ -130,6 +151,16 @@ module l2
       log_word.tag_rdata_2 = tag_rdata[2];
       log_word.tag_rdata_3 = tag_rdata[3];
    end
+   logic log_valid;
+   logic log_bvalid;
+   always_ff@(posedge clk) begin
+      if (!rstn) begin
+         log_bvalid <= 1'b0;
+      end else if (reg_bus.wvalid & (reg_bus.waddr == L2_LOG_BVALID)) begin
+         log_bvalid <= reg_bus.wdata[0];
+      end
+   end
+   assign log_valid = ((p12_op != NONE) & !stall_in[2] & !stall_out[2]) | (log_bvalid & mem_bus.bvalid & mem_bus.bready);
 
 `ifdef XILINX_SIMULATOR
    if (1) begin
@@ -274,7 +305,7 @@ if (L2_LOGGING[TILE_ID] ) begin
       .clk(clk),
       .rstn(rstn),
 
-      .wvalid( (p12_op != NONE) & !stall_in[2] & !stall_out[2]),
+      .wvalid( log_valid ),
       .wdata(log_word),
 
       .pci(pci_debug),
@@ -388,7 +419,7 @@ endgenerate
 
    logic write_buf_available;
    logic [LOG_N_MSHR-1:0] write_buf_id;
-   logic write_buf_match;
+   
    
    write_buffer WRITE_BUFFER (
       .clk(clk),
@@ -407,7 +438,8 @@ endgenerate
       .awid(write_buf_id), 
 
       //if a writeback for this address is ongoing.
-      .match(write_buf_match)
+      .match(write_buf_match),
+      .debug_mshr_valid(log_word.write_buf_mshr_valid)
 
    );
 
@@ -1332,7 +1364,9 @@ module write_buffer (
    output logic [LOG_N_MSHR-1:0] awid, 
 
    //if a writeback for this address is ongoing.
-   output logic match
+   output logic match,
+
+   output logic [15:0] debug_mshr_valid
 
 );
 
@@ -1341,6 +1375,8 @@ module write_buffer (
 
    logic [N_MSHR-1:0] mshr_valid;
    mshr_addr_t mshr_next;
+
+   assign debug_mshr_valid = mshr_valid;
 
    lowbit #(.OUT_WIDTH(LOG_N_MSHR)) MSHR_NEXT (
       .in(~mshr_valid),
