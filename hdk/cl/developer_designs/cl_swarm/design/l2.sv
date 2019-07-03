@@ -425,7 +425,7 @@ endgenerate
       .clk(clk),
       .rstn(rstn),
 
-      .check_addr(p12_addr),
+      .check_addr({p12_addr[33:6], 6'd0}),
 
       .bid(mem_bus.bid),
       .bvalid(mem_bus.bvalid),
