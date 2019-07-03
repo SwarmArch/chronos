@@ -65,7 +65,7 @@ initial begin
    initialize_spilling_structures();
    
    for (int i=0;i<N_TILES;i++) begin
-      for (int j=0;j<6;j++) begin
+      for (int j=0;j<16;j++) begin
          ocl_poke(i, ID_ALL_APP_CORES, j*4, file[j]);
       end
       ocl_poke(i, ID_ALL_APP_CORES, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 10);
@@ -94,12 +94,12 @@ initial begin
       task_enq(1, file[7], 0, 2 /*n_args*/, 0, 32'hffffffff);
    end
    if (APP_NAME == "maxflow") begin
-      task_enq(0, file[7], 0, 1 /*n_args*/, 0, 0);
       for (int i=0;i<N_TILES;i++) begin
          ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_IS_TRANSACTIONAL, 1);
          ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_GLOBAL_RELABEL_START_MASK, (1<< file[10]) - 1);
          ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_GLOBAL_RELABEL_START_INC, 32'h10);
       end
+      task_enq(0, file[7], 0, 1 /*n_args*/, 0, 0);
    end
 
    
@@ -181,11 +181,14 @@ initial begin
       end
    end
    if (APP_NAME == "maxflow") begin
+      BASE_END = file[8];
       // Read flow into destination node
-      ocl_poke(0, 0, OCL_ACCESS_MEM_SET_MSB, 0);
-      ocl_poke(0, 0, OCL_ACCESS_MEM_SET_LSB, (file[5]+ file[9]*16)*4 );
-      ocl_peek(0, 0, OCL_ACCESS_MEM, ocl_data);
-      $display("vid:%3d flow:%d", file[9], ocl_data);
+      read_cl_memory( .host_addr(BASE_END*4), .cl_addr(file[5]*4), .len(file[1]*64));
+         dist_actual[ 7: 0] = tb.hm_get_byte( BASE_END*4 + file[9]*64);
+         dist_actual[15: 8] = tb.hm_get_byte( BASE_END*4 + file[9]*64+ 1);
+         dist_actual[23:16] = tb.hm_get_byte( BASE_END*4 + file[9]*64+ 2);
+         dist_actual[31:24] = tb.hm_get_byte( BASE_END*4 + file[9]*64+ 3);
+      $display("vid:%3d flow:%d", file[9], dist_actual);
    end
 
    // Uncomment to Test DEBUG interfaces

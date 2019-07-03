@@ -650,6 +650,14 @@ assign abort_ts_check_task = (state == DEQ_CHECK_TS)
    & (cur_task.locale == cq_locale[ts_check_id]) // not a false hit in BF 
    & (reg_conflict != 0);
 
+`ifdef XILINX_SIMULATOR
+always_ff @(posedge clk) begin
+   if (abort_ts_check_task) begin
+      $display("Abort cq slot %3d", ts_check_id);
+   end
+end
+`endif
+
 always_comb begin
    abort_children_valid = 1'b0;
    abort_children_cq_slot = 'x;

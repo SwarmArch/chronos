@@ -510,6 +510,7 @@ for (i=0;i<N_SUB_TYPES;i++) begin
    .in_task (in_task[i]), 
    .in_data (in_data[i]),
    .in_word_id (in_word_id[i]),
+   .in_cq_slot(in_cq_slot[i]),
    
    .arvalid      (s_arvalid[i]),
    .araddr       (s_araddr[i]),
@@ -537,17 +538,17 @@ for (i=0;i<N_SUB_TYPES;i++) begin
 always_comb begin
    s_sched_task_aborted[i] = s_sched_task_valid[i] & task_aborted[in_cq_slot[i]];
 end
-
+/*
 `ifdef XILINX_SIMULATOR
    always_ff @(posedge clk) begin
       if (task_in_valid[i] & task_in_ready[i]) begin
-         $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8d locale:%4d data:(%5d %5d)",
+         $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8x locale:%4x data:(%5x %5x %5x)",
             cycle, TILE_ID, i, in_cq_slot[i],
-            in_task[i].ts, in_task[i].locale, in_data[i][31:0], in_data[i][63:32]) ;
+            in_task[i].ts, in_task[i].locale, in_data[i][95:64], in_data[i][63:32], in_data[i][31:0] ) ;
       end
    end 
 `endif
-
+*/
 end 
 endgenerate
 
@@ -858,7 +859,7 @@ always_comb begin
    is_non_mem_task_finished = 1'b0;
    if (task_valid[non_mem_subtype]) begin
       if (mem_task_enq_child) begin
-         // TODO
+         is_non_mem_task_finished = 1'b0;
       end else begin
          if (non_mem_subtype==0) begin
             is_non_mem_task_finished = 1'b1;

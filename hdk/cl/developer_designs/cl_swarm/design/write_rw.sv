@@ -96,12 +96,30 @@ always_comb begin
    end
 end
 
+object_t write_data;
+always_comb begin
+   wdata = 'x;
+   case (LOG_RW_WIDTH) 
+      2: wdata [ task_in.task_desc.locale[3:0]* 32 +: 32 ] = write_data;
+      3: wdata [ task_in.task_desc.locale[2:0]* 64 +: 64 ] = write_data;
+      4: wdata [ task_in.task_desc.locale[1:0]* 128 +: 128 ] = write_data;
+      5: wdata [ task_in.task_desc.locale[0]* 256 +: 256 ] = write_data;
+      6: wdata  = write_data;
+   endcase
+end
+
 always_comb begin 
    wvalid = 0;
-   wdata = 'x;
+   write_data = 'x;
    wstrb = 0;
-   waddr = base_rw_addr + ( task_in.task_desc.locale << (LOG_RW_WIDTH-3) ) ;
-   wstrb[ task_in.task_desc.locale[3:0] * (RW_WIDTH/8) +: (RW_WIDTH/8)]  = '1;
+   waddr = base_rw_addr + ( task_in.task_desc.locale << (LOG_RW_WIDTH) ) ;
+   case (LOG_RW_WIDTH) 
+      2: wstrb[ task_in.task_desc.locale[3:0] * 4 +: 4]  = '1;
+      3: wstrb[ task_in.task_desc.locale[2:0] * 8 +: 8]  = '1;
+      4: wstrb[ task_in.task_desc.locale[1:0] * 16 +: 16]  = '1;
+      5: wstrb[ task_in.task_desc.locale[0] * 32 +: 32]  = '1;
+      6: wstrb  = '1;
+   endcase
    task_in_ready = 1'b0;
    s_finish_task_valid = 1'b0; 
    s_finish_task_is_undo_log_restore = 1'b0;
@@ -111,7 +129,7 @@ always_comb begin
       if (task_in.task_desc.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
          if (s_finish_task_ready) begin
             wvalid = 1'b1;
-            wdata [ task_in.task_desc.locale[3:0]* RW_WIDTH +: RW_WIDTH ] = task_in.object;
+            write_data = task_in.object;
             s_finish_task_is_undo_log_restore = 1'b1;
             if (wvalid & wready) begin
                task_in_ready = 1'b1;
@@ -121,7 +139,7 @@ always_comb begin
       end else if (s_sched_valid) begin 
          task_in_ready = s_ready;
          wvalid = s_wvalid;
-         wdata [ task_in.task_desc.locale[3:0]* RW_WIDTH +: RW_WIDTH ] = s_wdata;
+         write_data = s_wdata;
          s_task_out_valid = s_sched_ready & s_out_valid;
          s_finish_task_valid = s_sched_ready & !s_out_valid;
              
@@ -139,6 +157,7 @@ end
 
    .in_task(task_in.task_desc), 
    .in_data(task_in.object),
+   .in_cq_slot(task_in.cq_slot),
    
    .wvalid (s_wvalid),
    .waddr  (),

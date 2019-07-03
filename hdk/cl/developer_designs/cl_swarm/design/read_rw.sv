@@ -48,7 +48,7 @@ fifo_size_t fifo_out_almost_full_thresh;
 logic [31:0] dequeues_remaining;
 
 assign arid = thread_id_in;
-assign araddr = base_rw_addr + (task_in.locale << (LOG_RW_WIDTH - 3) );
+assign araddr = base_rw_addr + (task_in.locale << (LOG_RW_WIDTH) );
 
 logic can_dequeue; 
 assign can_dequeue = (dequeues_remaining > 0) & 
@@ -114,7 +114,13 @@ always_comb begin
    task_out.task_desc = task_desc[rid];
    task_out.cq_slot = task_cq_slot[rid];
    task_out.thread = rid;
-   task_out.object = rdata[ task_out.task_desc.locale[ 3:0] * RW_WIDTH  +: RW_WIDTH ]; 
+   case (LOG_RW_WIDTH)
+      2: task_out.object = rdata[ task_out.task_desc.locale[ 3:0] * 32  +: 32 ]; 
+      3: task_out.object = rdata[ task_out.task_desc.locale[ 2:0] * 64  +: 64 ]; 
+      4: task_out.object = rdata[ task_out.task_desc.locale[ 1:0] * 128  +: 128 ]; 
+      5: task_out.object = rdata[ task_out.task_desc.locale[ 0] * 256  +: 256 ]; 
+      default: task_out.object = rdata; 
+   endcase
    task_out.cache_addr = rindex;
    task_out_valid = 1'b0;
    rready = 1'b0;
@@ -168,7 +174,7 @@ always_ff @(posedge clk) begin
       reg_bus.rvalid <= 1'b0;
    end
 end
-         
+/*         
 `ifdef XILINX_SIMULATOR
    logic [63:0] cycle;
    always_ff @(posedge clk) begin
@@ -181,6 +187,7 @@ end
       end
    end 
 `endif
+*/
 
 if (READ_RW_LOGGING[TILE_ID]) begin
    logic log_valid;
