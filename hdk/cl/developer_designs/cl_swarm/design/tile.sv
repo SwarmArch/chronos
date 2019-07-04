@@ -990,7 +990,7 @@ assign fifo_cc_valid = !out_task_fifo_empty;
 logic out_task_fifo_wr_en;
 assign out_task_fifo_wr_en = cq_out_task_valid & cq_out_task_ready;
 
-recirculating_fifo #(
+fifo #(
       .WIDTH( $bits(cq_out_task) + $bits(cq_out_task_slot)),
       .LOG_DEPTH(1)
    ) OUT_TASK_FIFO (
