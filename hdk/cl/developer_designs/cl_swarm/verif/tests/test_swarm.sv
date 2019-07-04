@@ -69,7 +69,7 @@ initial begin
          ocl_poke(i, ID_ALL_APP_CORES, j*4, file[j]);
       end
       ocl_poke(i, ID_ALL_APP_CORES, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 10);
-      ocl_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS, 4);
+      ocl_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS, 16);
    end
 
 

@@ -1,6 +1,7 @@
 
 module sssp_rw
 #(
+   parameter TILE_ID=0
 ) (
 
    input clk,
@@ -11,6 +12,7 @@ module sssp_rw
 
    input task_t            in_task, 
    input object_t          in_data,
+   input cq_slice_slot_t   in_cq_slot,
    
    output logic            wvalid,
    output logic [31:0]     waddr,
@@ -58,11 +60,27 @@ always_ff @(posedge clk) begin
    end
 end
 
+         
+`ifdef XILINX_SIMULATOR
+   logic [63:0] cycle;
+   always_ff @(posedge clk) begin
+      if (!rstn) cycle <=0;
+      else cycle <= cycle + 1;
+      if (task_in_valid & task_in_ready) begin
+         $display("[%5d] [rob-%2d] [write_rw] [%2d] ts:%8d locale:%4d type:%1x",
+            cycle, TILE_ID, in_cq_slot,
+            in_task.ts, in_task.locale, in_task.ttype) ;
+      end
+   end 
+`endif
+
+
 endmodule
 
 module sssp_worker
 #(
-   parameter SUBTYPE=0
+   parameter SUBTYPE=0,
+   parameter TILE_ID=0
 ) (
 
    input clk,
@@ -74,6 +92,7 @@ module sssp_worker
    input task_t            in_task, 
    input data_t            in_data,
    input byte_t            in_word_id,
+   input cq_slice_slot_t   in_cq_slot,
    
    output logic            arvalid,
    output logic [31:0]     araddr,
@@ -156,5 +175,19 @@ always_ff @(posedge clk) begin
       end
    end
 end
+
+`ifdef XILINX_SIMULATOR
+   logic [63:0] cycle;
+   always_ff @(posedge clk) begin
+      if (!rstn) cycle <=0;
+      else cycle <= cycle + 1;
+      if (task_in_valid & task_in_ready) begin
+         $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8d locale:%4d data:(%5d %5d)",
+            cycle, TILE_ID, SUBTYPE, in_cq_slot,
+            in_task.ts, in_task.locale, in_data[63:32], in_data[31:0] ) ;
+      end
+   end 
+`endif
+
 
 endmodule

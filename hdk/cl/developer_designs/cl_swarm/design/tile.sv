@@ -1154,6 +1154,7 @@ logic rw_finish_task_is_undo_log_restore;
 
 write_rw 
 #(
+   .TILE_ID(TILE_ID)
 ) WRITE_RW (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),

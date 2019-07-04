@@ -497,7 +497,8 @@ generate
 for (i=0;i<N_SUB_TYPES;i++) begin
 `RO_WORKER
 #(
-   .SUBTYPE(i)
+   .SUBTYPE(i),
+   .TILE_ID(TILE_ID)
 ) 
    WORKER 
 (

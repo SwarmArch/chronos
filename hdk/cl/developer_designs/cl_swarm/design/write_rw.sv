@@ -2,6 +2,7 @@ import swarm::*;
 
 module write_rw
 #(
+   parameter TILE_ID=0
 ) (
    input clk,
    input rstn,
@@ -147,7 +148,9 @@ always_comb begin
    end
 end
 
-`RW_WORKER WORKER (
+`RW_WORKER #(
+  .TILE_ID(TILE_ID) 
+) WORKER (
 
    .clk(clk),
    .rstn(rstn),
