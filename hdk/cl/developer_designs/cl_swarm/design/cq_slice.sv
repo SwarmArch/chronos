@@ -215,6 +215,13 @@ assign lvt_cycle = cur_cycle[LOG_GVT_PERIOD-1:0];
 logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending; 
 cq_slice_slot_t undo_log_abort_max_ts_index;
 vt_t            undo_log_abort_max_ts;
+   
+logic                           s_abort_children_valid;
+logic                           s_abort_children_ready;
+cq_slice_slot_t                 s_abort_children_cq_slot;
+child_id_t                      s_abort_children_count;
+logic             abort_children_fifo_full; // sized such that never becomes full
+logic             abort_children_fifo_empty;
 
 // A task of type TASK_TYPE_TERMINATE has committed; 
 // All subsequently dequeud tasks should immediately finish
@@ -562,7 +569,7 @@ always_ff @(posedge clk) begin
             end else begin
                if (abort_ts_check_task) begin
                   if (cq_state[ts_check_id] == FINISHED) begin
-                     if (!abort_children_valid | abort_children_ready) begin
+                     if (!s_abort_children_valid | s_abort_children_ready) begin
                         state <= ABORT_REQUEUE;
                      end
                   end else if (cq_state[ts_check_id] == RUNNING) begin
@@ -659,21 +666,21 @@ end
 `endif
 
 always_comb begin
-   abort_children_valid = 1'b0;
-   abort_children_cq_slot = 'x;
-   abort_children_count = 0;
+   s_abort_children_valid = 1'b0;
+   s_abort_children_cq_slot = 'x;
+   s_abort_children_count = 0;
    if (state == DEQ_CHECK_TS) begin
       if (abort_ts_check_task & (cq_state[ts_check_id] == FINISHED)
             & (cq_num_children[ts_check_id] > 0) ) begin
-         abort_children_valid = 1'b1;
-         abort_children_cq_slot = ts_check_id;
-         abort_children_count = cq_num_children[ts_check_id];
+         s_abort_children_valid = 1'b1;
+         s_abort_children_cq_slot = ts_check_id;
+         s_abort_children_count = cq_num_children[ts_check_id];
       end
    end else if (finish_task_valid & finish_task_ready &
          task_aborted[finish_task_slot] & finish_task_num_children >0) begin
-      abort_children_valid = 1'b1;
-      abort_children_cq_slot = finish_task_slot;
-      abort_children_count = finish_task_num_children;
+      s_abort_children_valid = 1'b1;
+      s_abort_children_cq_slot = finish_task_slot;
+      s_abort_children_count = finish_task_num_children;
    end
 end
 
@@ -798,13 +805,13 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                if (commit_task_valid & commit_task_ready & (commit_task_slot == i)  )  begin
                   cq_state[i] <= (commit_children_count == 0) ? UNUSED : COMMITTED;
                end else if (abort_task_at[i]) begin
-                  if (abort_children_count == 0) begin
+                  if (s_abort_children_count == 0) begin
                      if (check_vt < undo_log_abort_max_ts) begin // potential undo_log_write
                         cq_state[i] <= UNDO_LOG_WAITING;
                      end else begin
                         cq_state[i] <= UNUSED;
                      end
-                  end else if (abort_children_valid & abort_children_ready) begin
+                  end else if (s_abort_children_valid & s_abort_children_ready) begin
                      cq_state[i] <= WAITING_CHILDREN;
                   end
                end
@@ -818,7 +825,7 @@ for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
                if (finish_task_valid & finish_task_ready &
                      (finish_task_slot == i) &
                      !finish_task_is_undo_log_restore) begin
-                  if (abort_children_valid & abort_children_ready) begin
+                  if (s_abort_children_valid & s_abort_children_ready) begin
                      cq_state[i] <= WAITING_CHILDREN;
                   end else if (cq_undo_log_ack_pending[i]) begin
                      cq_state[i] <= UNDO_LOG_WAITING;
@@ -878,7 +885,30 @@ always_ff @(posedge clk) begin
       cq_num_children[finish_task_slot] <= finish_task_num_children;
    end
 end
-  
+ 
+
+// Need to buffer abort_children requests since the main FSM cannot handle
+// when s_abort_children_valid & !s_abort_children_ready; A FIFO the the size of 
+// CQ size ensures this does not happen
+fifo #(
+      .WIDTH( $bits(s_abort_children_cq_slot) + $bits(s_abort_children_count)),
+      .LOG_DEPTH(LOG_CQ_SLICE_SIZE)
+   ) ABORT_CHILDREN_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(s_abort_children_valid & s_abort_children_ready),
+      .wr_data({s_abort_children_cq_slot, s_abort_children_count}),
+
+      .full(abort_children_fifo_full),
+      .empty(abort_children_fifo_empty),
+
+      .rd_en(abort_children_valid & abort_children_ready),
+      .rd_data({abort_children_cq_slot, abort_children_count})
+
+   );
+
+assign abort_children_valid = !abort_children_fifo_empty;
+assign s_abort_children_ready = !abort_children_fifo_full;
 
 
 logic [31:0] cycles_in_resource_abort;
@@ -1232,13 +1262,13 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.to_tq_abort_valid = to_tq_abort_valid;
       log_word.to_tq_resource_abort = in_resource_abort; 
 
-      if (abort_children_valid & abort_children_ready) begin
+      if (s_abort_children_valid & s_abort_children_ready) begin
          log_valid = 1'b1;
       end
-      log_word.abort_children_valid = abort_children_valid;
-      log_word.abort_children_ready = abort_children_ready;
-      log_word.abort_children_cq_slot = abort_children_cq_slot;
-      log_word.abort_children_count = abort_children_count;
+      log_word.abort_children_valid = s_abort_children_valid;
+      log_word.abort_children_ready = s_abort_children_ready;
+      log_word.abort_children_cq_slot = s_abort_children_cq_slot;
+      log_word.abort_children_count = s_abort_children_count;
 
       if (cut_ties_valid & cut_ties_ready) begin
          log_valid = 1'b1;
