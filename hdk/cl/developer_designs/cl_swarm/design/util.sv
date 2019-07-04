@@ -458,7 +458,7 @@ module register_slice_single #
 endmodule
 
 module free_list #(
-      parameter LOG_DEPTH 
+      parameter LOG_DEPTH=13 
 ) (
    input  clk,
    input  rstn,
@@ -476,6 +476,7 @@ module free_list #(
 );
 
    logic [LOG_DEPTH:0] wr_ptr, rd_ptr, next_rd_ptr;
+   
    logic [LOG_DEPTH-1:0] mem [0:(1<<LOG_DEPTH)-1];
 
    initial begin
@@ -509,6 +510,90 @@ module free_list #(
          end else begin
             rd_data <= mem[next_rd_ptr[LOG_DEPTH-1:0]];
          end
+      end
+   end
+
+
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         size <= 2**LOG_DEPTH;
+      end else begin
+         if (wr_en & !rd_en) begin
+            size <= size + 1;
+         end else if (rd_en & !wr_en) begin
+            size <= size - 1;
+         end
+      end
+   end
+
+endmodule
+
+module free_list_bram #(
+      parameter LOG_DEPTH=13 
+) (
+   input  clk,
+   input  rstn,
+
+   input wr_en,
+   input rd_en,
+   input [LOG_DEPTH-1:0] wr_data,
+
+   output logic full, 
+   output logic empty,  // aka out_valid
+   output logic [LOG_DEPTH-1:0] rd_data,
+
+   // optional port. Hopefully should not be synthesized if not connected
+   output logic [LOG_DEPTH:0] size
+);
+
+   logic [LOG_DEPTH:0] wr_ptr, rd_ptr, next_rd_ptr;
+   
+   (* ram_style = "block" *)
+   logic [LOG_DEPTH-1:0] mem [0:(1<<LOG_DEPTH)-1];
+
+   initial begin
+      for (integer i=0;i<2**LOG_DEPTH;i++) begin
+         mem[i] = i;
+      end
+   end
+
+   logic addr_collision;
+   logic [LOG_DEPTH-1:0] wdata_reg, mem_out;
+
+   // distinction between empty and full is from the MSB
+   assign empty = (wr_ptr[LOG_DEPTH-1:0] == rd_ptr[LOG_DEPTH-1:0]) & 
+      (wr_ptr[LOG_DEPTH] == rd_ptr[LOG_DEPTH]);
+   assign full = (wr_ptr[LOG_DEPTH-1:0] == rd_ptr[LOG_DEPTH-1:0]) & 
+      (wr_ptr[LOG_DEPTH] != rd_ptr[LOG_DEPTH]);
+   assign next_rd_ptr = rd_ptr + (rd_en ? 1'b1 : 1'b0);
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         wr_ptr <= 2**LOG_DEPTH;
+         rd_ptr <= 0;
+      end else begin
+         if (wr_en) begin
+            assert(!full | rd_en)  else $error("wr when full");
+            mem[wr_ptr[LOG_DEPTH-1:0]] <= wr_data;
+            wr_ptr <= wr_ptr + 1;
+         end
+         if (rd_en) begin
+            assert(!empty)  else $error("rd when empty");
+            rd_ptr <= rd_ptr + 1;
+         end
+         mem_out <= mem[next_rd_ptr[LOG_DEPTH-1:0]];
+         
+      end
+   end
+
+   assign rd_data = addr_collision ? wdata_reg : mem_out;
+
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         addr_collision <= 1'b0;
+         wdata_reg <= 'x;
+      end else begin
+         addr_collision <= (wr_en & (wr_ptr == next_rd_ptr));
+         wdata_reg <= wr_data;
       end
    end
 

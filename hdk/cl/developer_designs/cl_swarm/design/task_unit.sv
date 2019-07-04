@@ -334,7 +334,7 @@ endgenerate
    logic free_list_empty;
    assign next_free_tq_slot_valid = !free_list_empty;
 
-   free_list #(
+   free_list_bram #(
       .LOG_DEPTH(LOG_TQ_SIZE)
    ) FREE_LIST (
       .clk(clk),
