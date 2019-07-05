@@ -17,6 +17,11 @@ module write_rw
    output logic [31:0] waddr, // directly index into the data_array bypassing tags
    output logic [511:0] wdata,
    output logic [63:0] wstrb,
+   output id_t         wid,
+
+   input               bvalid,
+   output logic        bready,
+   input id_t          bid,
 
    output logic            task_out_valid,
    input                   task_out_ready,
@@ -40,7 +45,6 @@ module write_rw
 );
 
 fifo_size_t fifo_out_almost_full_thresh;
-assign unlock_thread = task_in.thread;
 
 logic s_finish_task_valid, s_finish_task_ready, s_finish_task_is_undo_log_restore;
 logic s_task_out_valid;
@@ -87,7 +91,7 @@ always_comb begin
    if (task_in_valid & (task_in.task_desc.ttype != TASK_TYPE_UNDO_LOG_RESTORE)) begin
       if ( (s_out_valid & !s_out_ready) | 
            (!s_out_valid & !s_finish_task_ready) |
-           (wvalid & !wready) ) begin
+           (s_write_wvalid & !s_write_wready) ) begin
          s_sched_ready = 1'b0;
       end else begin
          s_sched_ready = 1'b1;
@@ -97,30 +101,65 @@ always_comb begin
    end
 end
 
+logic s_write_wvalid;
+object_t s_write_data;
+logic s_write_wready;
+locale_t s_write_locale;
+thread_id_t s_thread_id, write_thread_id;
+
+logic wdata_fifo_full, wdata_fifo_empty;
+
+locale_t write_locale;
 object_t write_data;
+
+fifo #(
+      .WIDTH($bits(s_write_locale) + $bits(s_thread_id) + $bits(s_write_data)),
+      .LOG_DEPTH(1)
+   ) WDATA_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(s_write_wvalid & s_write_wready),
+      .wr_data({s_thread_id, s_write_locale,  s_write_data}),
+
+      .full(wdata_fifo_full),
+      .empty(wdata_fifo_empty),
+
+      .rd_en(wvalid & wready),
+      .rd_data({write_thread_id, write_locale, write_data})
+
+   );
+
+assign s_thread_id = task_in.thread;
+assign wvalid = !wdata_fifo_empty;
+assign wid = write_thread_id;
+assign s_write_wready = !wdata_fifo_full;
+assign s_write_locale = task_in.task_desc.locale;
+
+assign  waddr = base_rw_addr + ( write_locale << (LOG_RW_WIDTH) ) ;
 always_comb begin
    wdata = 'x;
    case (LOG_RW_WIDTH) 
-      2: wdata [ task_in.task_desc.locale[3:0]* 32 +: 32 ] = write_data;
-      3: wdata [ task_in.task_desc.locale[2:0]* 64 +: 64 ] = write_data;
-      4: wdata [ task_in.task_desc.locale[1:0]* 128 +: 128 ] = write_data;
-      5: wdata [ task_in.task_desc.locale[0]* 256 +: 256 ] = write_data;
+      2: wdata [ write_locale[3:0]* 32 +: 32 ] = write_data;
+      3: wdata [ write_locale[2:0]* 64 +: 64 ] = write_data;
+      4: wdata [ write_locale[1:0]* 128 +: 128 ] = write_data;
+      5: wdata [ write_locale[0]* 256 +: 256 ] = write_data;
       6: wdata  = write_data;
+   endcase
+end
+always_comb begin
+   wstrb = 0;
+   case (LOG_RW_WIDTH) 
+      2: wstrb[ write_locale[3:0] * 4 +: 4]  = '1;
+      3: wstrb[ write_locale[2:0] * 8 +: 8]  = '1;
+      4: wstrb[ write_locale[1:0] * 16 +: 16]  = '1;
+      5: wstrb[ write_locale[0] * 32 +: 32]  = '1;
+      6: wstrb  = '1;
    endcase
 end
 
 always_comb begin 
-   wvalid = 0;
-   write_data = 'x;
-   wstrb = 0;
-   waddr = base_rw_addr + ( task_in.task_desc.locale << (LOG_RW_WIDTH) ) ;
-   case (LOG_RW_WIDTH) 
-      2: wstrb[ task_in.task_desc.locale[3:0] * 4 +: 4]  = '1;
-      3: wstrb[ task_in.task_desc.locale[2:0] * 8 +: 8]  = '1;
-      4: wstrb[ task_in.task_desc.locale[1:0] * 16 +: 16]  = '1;
-      5: wstrb[ task_in.task_desc.locale[0] * 32 +: 32]  = '1;
-      6: wstrb  = '1;
-   endcase
+   s_write_wvalid = 0;
+   s_write_data = 'x;
    task_in_ready = 1'b0;
    s_finish_task_valid = 1'b0; 
    s_finish_task_is_undo_log_restore = 1'b0;
@@ -129,18 +168,18 @@ always_comb begin
    if (task_in_valid) begin
       if (task_in.task_desc.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
          if (s_finish_task_ready) begin
-            wvalid = 1'b1;
-            write_data = task_in.object;
+            s_write_wvalid = 1'b1;
+            s_write_data = task_in.object;
             s_finish_task_is_undo_log_restore = 1'b1;
-            if (wvalid & wready) begin
+            if (s_write_wvalid & s_write_wready) begin
                task_in_ready = 1'b1;
                s_finish_task_valid = 1'b1;
             end
          end
       end else if (s_sched_valid) begin 
          task_in_ready = s_ready;
-         wvalid = s_wvalid;
-         write_data = s_wdata;
+         s_write_wvalid = s_wvalid;
+         s_write_data = s_wdata;
          s_task_out_valid = s_sched_ready & s_out_valid;
          s_finish_task_valid = s_sched_ready & !s_out_valid;
              
@@ -176,8 +215,19 @@ end
 
 );
 
-
-assign unlock_locale = task_in_ready;
+always_comb begin
+   unlock_locale = 1'b0;
+   unlock_thread = 'x;
+   bready = 1'b0;
+   if (task_in_ready & !s_write_wvalid) begin
+      unlock_locale = 1'b1;
+      unlock_thread = task_in.thread;
+   end else if (bvalid) begin
+      bready = 1'b1;
+      unlock_locale = 1'b1;
+      unlock_thread = bid;
+   end
+end
 
 always_ff @(posedge clk) begin
    if (!rstn) begin

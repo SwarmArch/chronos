@@ -1171,6 +1171,11 @@ write_rw
    .waddr  (rw_l2.awaddr[31:0] ), 
    .wdata  (rw_l2.wdata  ),
    .wstrb  (rw_l2.wstrb  ),
+   .wid    (rw_l2.awid  ),
+
+   .bvalid (rw_l2.bvalid),
+   .bready (rw_l2.bready),
+   .bid    (rw_l2.bid),
 
    .task_out_valid(rw_write_out_valid),
    .task_out_ready(rw_write_out_ready),
@@ -1192,7 +1197,7 @@ write_rw
 
 assign rw_l2.wvalid = rw_l2.awvalid;
 assign rw_l2.awaddr[63:32] = '0;
-assign rw_l2.bready = 1'b1;
+assign rw_l2.wid = rw_l2.awid;
 
 
 
