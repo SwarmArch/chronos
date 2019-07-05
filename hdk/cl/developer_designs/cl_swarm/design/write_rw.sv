@@ -176,7 +176,7 @@ always_comb begin
                s_finish_task_valid = 1'b1;
             end
          end
-      end else if (s_sched_valid) begin 
+      end else if (s_sched_valid & s_sched_ready) begin 
          task_in_ready = s_ready;
          s_write_wvalid = s_wvalid;
          s_write_data = s_wdata;

@@ -1046,7 +1046,7 @@ endgenerate
                cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, next_free_tq_slot, 
                modified_task_enq_ts, task_enq_data.locale, 
                task_enq_data.ttype,
-               task_enq_data.args[63:32], task_enq_data[31:0],
+               task_enq_data.args[63:32], task_enq_data.args[23:0],
                task_enq_tied, task_enq_ack,
                task_enq_resp_tile, task_enq_resp_tsb_id
             ) ;
