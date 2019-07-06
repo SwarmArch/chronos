@@ -145,6 +145,8 @@ if (NON_SPEC) begin : gen
       end
    end
 
+   assign task_aborted = 0;
+
    assign from_tq_abort_ready = 1'b1;
    assign abort_children_valid = 1'b0;
    assign abort_ack_ready = 1'b0;

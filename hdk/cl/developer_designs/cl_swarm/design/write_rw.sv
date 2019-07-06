@@ -91,7 +91,7 @@ always_comb begin
    if (task_in_valid & (task_in.task_desc.ttype != TASK_TYPE_UNDO_LOG_RESTORE)) begin
       if ( (s_out_valid & !s_out_ready) | 
            (!s_out_valid & !s_finish_task_ready) |
-           (s_write_wvalid & !s_write_wready) ) begin
+           (s_wvalid & !s_write_wready) ) begin
          s_sched_ready = 1'b0;
       end else begin
          s_sched_ready = 1'b1;
