@@ -488,17 +488,14 @@ void WriteOutput(FILE* fp) {
 }
 void WriteOutputColor(FILE* fp) {
    // all offsets are in units of uint32_t. i.e 16 per cache line
-   int SIZE_COLOR =((numV+15)/16)*16;
-   int SIZE_EDGE_OFFSET =( (numV+1 +15)/ 16) * 16;
-   int SIZE_NEIGHBORS =(( (numE)+ 15)/ 16 ) * 16;
-   int SIZE_SCRATCH = size_of_field(numV, 8); // scratch-32, counter-32
+   //int SIZE_COLOR =((numV+15)/16)*16;
+   int SIZE_DATA = size_of_field(numV, 16);
+   int SIZE_NEIGHBORS = size_of_field(numE, 4) ;
    int SIZE_GROUND_TRUTH = size_of_field(numV, 4);
 
-   int BASE_COLOR = 16;
-   int BASE_EDGE_OFFSET = BASE_COLOR + SIZE_COLOR;
-   int BASE_NEIGHBORS = BASE_EDGE_OFFSET + SIZE_EDGE_OFFSET;
-   int BASE_SCRATCH = BASE_NEIGHBORS + SIZE_NEIGHBORS;
-   int BASE_GROUND_TRUTH = BASE_SCRATCH + SIZE_SCRATCH;
+   int BASE_DATA = 16;
+   int BASE_NEIGHBORS = BASE_DATA + SIZE_DATA;
+   int BASE_GROUND_TRUTH = BASE_NEIGHBORS + SIZE_NEIGHBORS;
    int BASE_END = BASE_GROUND_TRUTH + SIZE_GROUND_TRUTH;
 
    uint32_t* data = (uint32_t*) calloc(BASE_END, sizeof(uint32_t));
@@ -507,11 +504,11 @@ void WriteOutputColor(FILE* fp) {
    data[0] = MAGIC_OP;
    data[1] = numV;
    data[2] = numE;
-   data[3] = BASE_EDGE_OFFSET;
+   data[3] = 0;
    data[4] = BASE_NEIGHBORS;
-   data[5] = BASE_COLOR;
+   data[5] = BASE_DATA;
    data[6] = BASE_GROUND_TRUTH;
-   data[7] = BASE_SCRATCH;
+   data[7] = 0;
    data[8] = BASE_END;
    data[9] = enqueuer_size;
 
@@ -520,16 +517,14 @@ void WriteOutputColor(FILE* fp) {
       printf("header %d: %d\n", i, data[i]);
    }
 
-   uint32_t max_int = 0xFFFFFFFF;
    for (uint32_t i=0;i<numV;i++) {
-      data[BASE_EDGE_OFFSET +i] = csr_offset[i];
-      data[BASE_COLOR+i] = max_int;
-      for (int j=0;j<2;j++) {
-         data[BASE_SCRATCH +i * 2 + j] = 0;
-      }
+      data[BASE_DATA+i*4] = (csr_offset[i+1]-csr_offset[i]) << 16 | 0xffff; // degree, color
+      data[BASE_DATA+i*4+1] = 0; // scratch
+      data[BASE_DATA+i*4+2] = 0;
+      data[BASE_DATA+i*4+3] = csr_offset[i];
+
       //printf("gt %d %d\n", i, csr_dist[i]);
    }
-   data[BASE_EDGE_OFFSET +numV] = csr_offset[numV];
 
    for (uint32_t i=0;i<numE;i++) {
       data[ BASE_NEIGHBORS +i ] = csr_neighbors[i].n;
@@ -626,6 +621,9 @@ void WriteOutputMaxflow(FILE* fp) {
       for (int j=0;j<16;j++) {
          data[BASE_DIST +i * 16 + j] = 0;
       }
+      data[BASE_DIST+i*16+14] = csr_offset[i];
+      data[BASE_DIST+i*16+15] = csr_offset[i+1];
+
    }
    data[BASE_EDGE_OFFSET +numV] = csr_offset[numV];
 
