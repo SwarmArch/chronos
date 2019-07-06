@@ -1096,7 +1096,6 @@ read_rw
 );
 
 assign rw_l2.araddr[63:32] = '0;
-assign rw_l2.bready = 1'b1;
 
 recirculating_fifo #(
       .WIDTH( $bits(rw_read_out_data)),
