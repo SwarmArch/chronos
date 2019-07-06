@@ -84,7 +84,7 @@ typedef struct packed {
 
 ro_stage_mshr_t ro_mshr [0:2**FREE_LIST_SIZE-1];
 
-task_t mem_task [0:N_THREADS-1];
+logic[$bits(in_task)-1:0] mem_task [0:N_THREADS-1];
 subtype_t mem_subtype [0:N_THREADS-1];
 cq_slice_slot_t       mem_cq_slot [0:N_THREADS-1];
 logic mem_resp_mark_last [0:N_THREADS-1];
