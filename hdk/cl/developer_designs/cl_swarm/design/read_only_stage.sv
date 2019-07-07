@@ -84,7 +84,7 @@ typedef struct packed {
 
 ro_stage_mshr_t ro_mshr [0:2**FREE_LIST_SIZE-1];
 
-logic[$bits(in_task)-1:0] mem_task [0:N_THREADS-1];
+logic[$bits(in_task[0])-1:0] mem_task [0:N_THREADS-1];
 subtype_t mem_subtype [0:N_THREADS-1];
 cq_slice_slot_t       mem_cq_slot [0:N_THREADS-1];
 logic mem_resp_mark_last [0:N_THREADS-1];
@@ -94,7 +94,7 @@ logic [31:0] mem_last_word[0:N_THREADS-1];
 typedef logic [7:0] remaining_words_t;
 remaining_words_t remaining_words [0:N_THREADS-1];
 
-logic reg_rvalid, reg_rready;
+logic reg_rvalid;
 logic [511:0] reg_rdata;
 id_t  reg_rid;
 ro_stage_mshr_t rid_mshr;
@@ -163,12 +163,14 @@ end
 
 genvar i;
 generate
-   for (i=0;i<N_SUB_TYPES-1;i++) begin
-      assign s_out_child_untied[i] = gvt_task_slot_valid & (gvt_task_slot == in_cq_slot[i]);
-      assign task_in_can_schedule[i] = task_in_valid[i] 
-            & (   (in_fifo_occ[i+1] < fifo_out_almost_full_thresh) 
-                | (gvt_task_slot_valid & gvt_task_slot == in_cq_slot[i])
-              );
+   for (i=0;i<N_SUB_TYPES;i++) begin
+      assign s_out_child_untied[i] = NON_SPEC | ( gvt_task_slot_valid & (gvt_task_slot == in_cq_slot[i]));
+      if (i != N_SUB_TYPES-1) begin
+         assign task_in_can_schedule[i] = task_in_valid[i] 
+               & (   (in_fifo_occ[i+1] < fifo_out_almost_full_thresh) 
+                   | (gvt_task_slot_valid & gvt_task_slot == in_cq_slot[i])
+                 );
+      end
    end
 endgenerate
 assign task_in_can_schedule[N_SUB_TYPES-1] = task_in_valid[N_SUB_TYPES-1];
@@ -194,7 +196,7 @@ free_list #(
    .size()
 );
 
-logic [3:0] ar_read_words; // number of set bits in valid_words[]
+logic [4:0] ar_read_words; // number of set bits in valid_words[]
 always_ff @(posedge clk) begin
    if (!rstn) begin
       reg_arvalid <= 1'b0;
@@ -317,13 +319,22 @@ generate
                  default: remaining_words[i] <= remaining_words[i];
                endcase
             end else if (reg_rvalid & ( i == rid_thread)) begin
-               if (out_valid) begin
-                  if (out_ready & out_data_word_0_valid & out_data_word_1_valid) begin
-                     remaining_words[i] <= remaining_words[i] -2;
+               case (rid_mshr.arsize) 
+                  2: begin
+                     if (out_valid & out_ready) begin
+                        remaining_words[i] <= remaining_words[i]-1;
+                     end
                   end
-               end else if (out_data_word_0_valid | out_data_word_1_valid) begin
-                  remaining_words[i] <= remaining_words[i] -1;
-               end
+                  3: begin
+                     if (out_valid) begin
+                        if (out_ready & out_data_word_0_valid & out_data_word_1_valid) begin
+                           remaining_words[i] <= remaining_words[i] -2;
+                        end
+                     end else if (out_data_word_0_valid | out_data_word_1_valid) begin
+                        remaining_words[i] <= remaining_words[i] -1;
+                     end
+                  end
+               endcase
             end
          end
 
@@ -367,8 +378,6 @@ child_id_t num_children [0:2**LOG_CQ_SLICE_SIZE-1];
 always_comb begin 
    out_data_word_0 = reg_rdata[ out_data_word_id * 32 +: 32]; 
    out_data_word_1 = reg_rdata[ (out_data_word_id + 1) * 32 +: 32]; 
-   out_data_word_0_valid = rid_mshr.valid_words[out_data_word_id];
-   out_data_word_1_valid = (out_data_word_id < 15) & rid_mshr.valid_words[out_data_word_id + 1];
    out_data_word_from_mem = mem_last_word[rid_thread];
 end
 
@@ -379,23 +388,40 @@ always_comb begin
    out_data = 'x;
    out_valid = 1'b0;
    is_last_resp = 1'b0;
+   out_data_word_0_valid = 1'b0;
+   out_data_word_1_valid = 1'b0;
+
    if (reg_rvalid) begin
-      if (out_data_word_0_valid && out_data_word_1_valid) begin
-         out_data[31: 0] = out_data_word_0;
-         out_data[63:32] = out_data_word_1;
-         out_valid = 1'b1;
-         is_last_resp = (remaining_words_cur_rid == 2);
-      end else if (out_data_word_id == 0) begin
-         out_data[31: 0] = out_data_word_from_mem ;
-         out_data[63:32] = out_data_word_0; 
-         out_valid = (remaining_words_cur_rid == 1);
-         is_last_resp = (remaining_words_cur_rid == 1);
-      end else if (out_data_word_id == 15) begin
-         out_data[31: 0] = out_data_word_0; 
-         out_data[63:32] = out_data_word_from_mem ;
-         out_valid = (remaining_words_cur_rid == 1);
-         is_last_resp = (remaining_words_cur_rid == 1);
-      end 
+      case (rid_mshr.arsize) 
+         2: begin
+            out_data_word_0_valid = rid_mshr.valid_words[out_data_word_id];
+            if (out_data_word_0_valid) begin
+               out_data[31: 0] = out_data_word_0;
+               out_valid = 1'b1;
+               is_last_resp = (remaining_words_cur_rid == 1);
+            end
+         end
+         3: begin
+            out_data_word_0_valid = rid_mshr.valid_words[out_data_word_id];
+            out_data_word_1_valid = (out_data_word_id < 15) & rid_mshr.valid_words[out_data_word_id + 1];
+            if (out_data_word_0_valid && out_data_word_1_valid) begin
+               out_data[31: 0] = out_data_word_0;
+               out_data[63:32] = out_data_word_1;
+               out_valid = 1'b1;
+               is_last_resp = (remaining_words_cur_rid == 2);
+            end else if (out_data_word_id == 0) begin
+               out_data[31: 0] = out_data_word_from_mem ;
+               out_data[63:32] = out_data_word_0; 
+               out_valid = (remaining_words_cur_rid == 1);
+               is_last_resp = (remaining_words_cur_rid == 1);
+            end else if (out_data_word_id == 15) begin
+               out_data[31: 0] = out_data_word_0; 
+               out_data[63:32] = out_data_word_from_mem ;
+               out_valid = (remaining_words_cur_rid == 1);
+               is_last_resp = (remaining_words_cur_rid == 1);
+            end 
+         end
+      endcase
    end
 end
 

@@ -151,7 +151,7 @@ initial begin
       end
    end
 
-   if (APP_NAME == "sssp" | APP_NAME == "sssp_hls" | APP_NAME == "color" ) begin
+   if (APP_NAME == "sssp" | APP_NAME == "sssp_hls") begin
       BASE_END = file[8];
       read_cl_memory( .host_addr(BASE_END*4), .cl_addr(file[5]*4), .len(file[1]*4));
       for (int i=0;i<file[1];i++) begin
@@ -189,6 +189,19 @@ initial begin
          dist_actual[23:16] = tb.hm_get_byte( BASE_END*4 + file[9]*64+ 2);
          dist_actual[31:24] = tb.hm_get_byte( BASE_END*4 + file[9]*64+ 3);
       $display("vid:%3d flow:%d", file[9], dist_actual);
+   end
+   if (APP_NAME == "color" ) begin
+      BASE_END = file[8];
+      read_cl_memory( .host_addr(BASE_END*4), .cl_addr(file[5]*4), .len(file[1]*16));
+      for (int i=0;i<file[1];i++) begin
+         dist_actual[ 7: 0] = tb.hm_get_byte( BASE_END*4 + i* 16);
+         dist_actual[15: 8] = tb.hm_get_byte( BASE_END*4 + i* 16+ 1);
+         dist_actual[31:16] = 0;
+         dist_ref = file [file[6]+i];
+         if (dist_actual != dist_ref) num_errors++;
+         $display("vid:%3d dist:%3d, ref:%3d, %s, num_errors%2d", i, dist_actual, dist_ref,
+               dist_actual == dist_ref ? "MATCH" : "FAIL", num_errors); 
+      end
    end
 
    // Uncomment to Test DEBUG interfaces

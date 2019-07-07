@@ -504,7 +504,7 @@ void WriteOutputColor(FILE* fp) {
    data[0] = MAGIC_OP;
    data[1] = numV;
    data[2] = numE;
-   data[3] = 0;
+   data[3] = BASE_NEIGHBORS;
    data[4] = BASE_NEIGHBORS;
    data[5] = BASE_DATA;
    data[6] = BASE_GROUND_TRUTH;

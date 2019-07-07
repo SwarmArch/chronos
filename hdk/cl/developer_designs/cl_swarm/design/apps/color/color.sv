@@ -70,13 +70,13 @@ assign sched_task_valid = task_in_valid;
 logic [31:0] neighbor_id; 
 logic [15:0] neighbor_degree;
 logic [15:0] enq_start;
-assign neighbor_id = task_in.args[31:0];
-assign enq_start = (task_in.ttype == COLOR_ENQ_TASK) ? task_in.args[31:0] : task_in.args[15:0];
-assign neighbor_degree = task_in.args[47:32];
+assign neighbor_id = in_task.args[63:32];
+assign enq_start = (in_task.ttype == COLOR_ENQ_TASK) ? in_task.args[31:0] : in_task.args[15:0];
+assign neighbor_degree = in_task.args[31:16];
 
 logic [4:0] assign_color, bitmap_color;
 logic [31:0] bitmap;
-assign bitmap = write_data.scratch;
+assign bitmap = write_word.scratch;
 lowbit #(
    .OUT_WIDTH(5),
    .IN_WIDTH(32)
@@ -109,45 +109,47 @@ always_comb begin
          end
          COLOR_SEND_DEGREE_TASK: begin
             if (enq_start == 0) begin
-               write_data.neighbor_degrees_pending += read_data.degree;
+               write_word.neighbor_degrees_pending += read_word.degree;
                wvalid = 1'b1;
             end
             out_valid = 1'b1;
             out_task.args[15:0] = enq_start;
-            out_task.args[31:16] = read_data.degree;
-            out_task.args[63:32] = read_data.eo_begin;
+            out_task.args[31:16] = read_word.degree;
+            out_task.args[63:32] = read_word.eo_begin;
          end
          COLOR_RECEIVE_DEGREE_TASK: begin
             if (enq_start == 0) begin
                wvalid = 1'b1;
-               write_data.neighbor_degrees_pending -= 1;
-               if ( (neighbor_degree > read_data.degree) || ( 
-                  (neighbor_degree == read_data.degree) & (neighbor_id < in_task.locale) )) begin
-                  write_data.neighbor_colors_pending -= 1;
+               write_word.neighbor_degrees_pending -= 1;
+               if ( (neighbor_degree > read_word.degree) || ( 
+                  (neighbor_degree == read_word.degree) & (neighbor_id < in_task.locale) )) begin
+                  write_word.neighbor_colors_pending += 1;
                end
             end
-            if ( (write_data.neighbor_degrees_pending == 0) && (write_data.neighbor_colors_pending==0)) begin
+            if ( (write_word.neighbor_degrees_pending == 0) && (write_word.neighbor_colors_pending==0)) begin
                out_valid = 1'b1;
-               out_task.args[63:32] = read_data.eo_begin;
-               out_task.args[31:16] = read_data.degree;
+               out_task.args[63:32] = read_word.eo_begin;
+               out_task.args[31:16] = read_word.degree;
                out_task.args[79:64]  = assign_color;
-               write_data.color = assign_color;
+               write_word.color = assign_color;
             end
          end
          COLOR_RECEIVE_COLOR_TASK: begin
             if (enq_start == 0) begin
-               wvalid = 1'b1;
-               write_data.scratch |= (1<<in_task.args[68:64]);
-               if ( (neighbor_degree > read_data.degree) || ( 
-                  (neighbor_degree == read_data.degree) & (neighbor_id < in_task.locale) )) begin
-                  write_data.neighbor_colors_pending -= 1;
+               if ( (neighbor_degree > read_word.degree) || ( 
+                  (neighbor_degree == read_word.degree) & (neighbor_id < in_task.locale) )) begin
+                  wvalid = 1'b1;
+                  write_word.neighbor_colors_pending -= 1;
+                  write_word.scratch |= (1<<in_task.args[68:64]);
+                  write_word.color = assign_color;
+                  if ( (write_word.neighbor_degrees_pending == 0) && 
+                       (write_word.neighbor_colors_pending==0)) begin
+                     out_valid = 1'b1;
+                     out_task.args[63:32] = read_word.eo_begin; 
+                     out_task.args[31:16] = read_word.degree;
+                     out_task.args[79:64]  = assign_color;
+                  end
                end
-            end
-            if ( (write_data.neighbor_degrees_pending == 0) && (write_data.neighbor_colors_pending==0)) begin
-               out_valid = 1'b1;
-               out_task.args[63:32] = read_data.eo_begin; 
-               out_task.args[31:16] = read_data.degree;
-               out_task.args[79:64]  = assign_color;
             end
          end
       endcase
@@ -177,13 +179,12 @@ end
    end
    always_ff @(posedge clk) begin
       if (task_in_valid & task_in_ready) begin
-         $display("[%5d] [rob-%2d] [rw] [%3d] type:%1d locale:%4d | args: (%4d %4d %4d %4d) | ndp:%4d ncp:%d sc:%4f | eo:%4d d:%4d ",
+         $display("[%5d] [rob-%2d] [rw] [%3d] type:%1d locale:%4d | args: (%4d %4d %4d %4d) | ndp:%4d ncp:%d sc:%4x | eo:%4d d:%4d | out:%1d ",
          cycle, TILE_ID, in_cq_slot,
          in_task.ttype, in_task.locale, 
          in_task.args[15:0], in_task.args[31:16], in_task.args[63:32], in_task.args[79:64],
          read_word.neighbor_degrees_pending, read_word.neighbor_colors_pending, read_word.scratch,
-         read_word.eo_begin, read_word.degree,
-         read_word.excess, read_word.height) ;
+         read_word.eo_begin, read_word.degree, out_valid) ;
       end
    end
 `endif
@@ -228,6 +229,9 @@ module color_worker
 
 );
 
+assign sched_task_valid = task_in_valid;
+assign task_in_ready = sched_task_ready;
+
 // headers
 logic [31:0] numV, numE;
 logic [31:0] base_neighbors;
@@ -253,7 +257,8 @@ always_comb begin
    resp_mark_last = 1'b0;
    out_task = in_task;
    out_task_is_child = 1'b1;
-   resp_subtype = 'x;
+   resp_subtype = 1;
+   resp_task = in_task;
    
    if (task_in_valid) begin
       case (in_task.ttype) 
@@ -262,8 +267,8 @@ always_comb begin
                0: begin
                   araddr = base_neighbors;
                   arvalid = 1'b1;
-                  if (enq_start + enq_limit < numV) begin
-                     arlen = (numV - (enq_start + enq_limit))-1;
+                  if (enq_start + enq_limit >= numV) begin
+                     arlen = (numV - enq_start)-1;
                   end else begin
                      arlen = enq_limit;
                   end
@@ -291,8 +296,8 @@ always_comb begin
                0: begin
                   araddr = base_neighbors + ( (eo_begin + enq_start) << 2);
                   arvalid = 1'b1;
-                  if (enq_start + enq_limit < degree) begin
-                     arlen =  (degree - (enq_start + enq_limit))-1;
+                  if (enq_start + enq_limit >= degree) begin
+                     arlen =  (degree - enq_start)-1;
                   end else begin
                      arlen = enq_limit;
                   end
