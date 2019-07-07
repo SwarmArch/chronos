@@ -123,6 +123,15 @@ module task_unit_nonspec
    logic [LOG_TQ_SPILL_SIZE-1:0] task_unit_spill_size;
    logic [LOG_TQ_SPILL_SIZE-1:0] spills_remaining;
 
+   ts_t task_unit_throttle_margin;
+   ts_t task_unit_throttle_ts;
+   always_ff @(posedge clk) begin
+      if (task_unit_throttle_margin == 0) begin
+         task_unit_throttle_ts <= '1;
+      end else begin
+         task_unit_throttle_ts <= gvt.ts + task_unit_throttle_margin;
+      end
+   end
 
    logic tq_stall;
    logic tq_started;
@@ -292,8 +301,10 @@ module task_unit_nonspec
    assign spill_fifo_rd_en = overflow_valid & overflow_ready;
 
 
-   assign task_deq_valid = heap_ready & heap_out_valid & (next_deque_elem.ttype != TASK_TYPE_SPLITTER) & tq_started & 
-                           (spills_remaining == 0);
+   assign task_deq_valid = heap_ready & heap_out_valid &
+                           (next_deque_elem.ttype != TASK_TYPE_SPLITTER) & tq_started & 
+                           (spills_remaining == 0) &
+                           (next_deque_elem.ts < task_unit_throttle_ts) ;
          
    assign task_deq_data = next_deque_elem;
 
@@ -429,6 +440,7 @@ endgenerate
          tq_stall <= 0;
          tq_started <= 0;
          alt_log_word <= 0;
+         task_unit_throttle_margin <= NON_SPEC ? 1000 : 0;
 
       end else begin
          if (reg_bus.wvalid) begin
@@ -438,6 +450,7 @@ endgenerate
                TASK_UNIT_STALL : tq_stall <= reg_bus.wdata;
                TASK_UNIT_START : tq_started <= reg_bus.wdata;
                TASK_UNIT_ALT_LOG : alt_log_word <= reg_bus.wdata;
+               TASK_UNIT_THROTTLE_MARGIN : task_unit_throttle_margin <= reg_bus.wdata;
 
             endcase
          end
