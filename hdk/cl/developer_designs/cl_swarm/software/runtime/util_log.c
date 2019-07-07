@@ -161,13 +161,13 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
          if (enq_task.valid & enq_task.ready) {
              if (NON_SPEC) {
 
-                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%8x locale:%4x ttype:%1d arg0:%4d\n",
+                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%4d locale:%4d ttype:%1d arg0:%4d\n",
                    seq, cycle,
                    gvt_ts, gvt_tb,
                    n_tasks, n_tied_tasks, heap_capacity,
                    enq_task.slot, enq_ts, enq_locale, enq_ttype, deq_locale);
              } else {
-                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%8x locale:%4x ttype:%1d arg0:%4d arg1:%4d tied:%d epoch:%3d\n",
+                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%4d locale:%4d ttype:%1d arg0:%4d arg1:%4d tied:%d epoch:%3d\n",
      //resp:(ack:%d tile:%2d tsb:%2d)
                    seq, cycle,
                    gvt_ts, gvt_tb,
@@ -180,7 +180,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
          }
 
          if (coal_child.valid & coal_child.ready) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) coal_child   slot:%4d ts:%4x locale:%4x \n",
+            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) coal_child   slot:%4d ts:%8d locale:%6d \n",
                seq, cycle,
                gvt_ts, gvt_tb,
                n_tasks, n_tied_tasks, heap_capacity,
@@ -194,14 +194,14 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
                overflow_task.slot) ;
          }
          if (deq_task.valid & deq_task.ready  ) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_deq     slot:%4d ts:%4x locale:%4d cq_slot %2d, epoch:%3d \n",
+            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_deq     slot:%4d ts:%4d locale:%4d cq_slot %2d, epoch:%3d \n",
                seq, cycle,
                gvt_ts, gvt_tb,
                n_tasks, n_tied_tasks, heap_capacity,
                deq_task.slot, deq_ts, deq_locale, deq_task.epoch_1, deq_task.epoch_2) ;
          }
          if (splitter_deq_valid & splitter_deq_ready) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) splitter_deq slot:%4d locale:%4x cq_slot %2d, epoch:%3d \n",
+            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) splitter_deq slot:%4d locale:%4d cq_slot %2d, epoch:%3d \n",
                seq, cycle,
                gvt_ts, gvt_tb,
                n_tasks, n_tied_tasks, heap_capacity,
@@ -246,15 +246,12 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
 
 }
 
-int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t ID_L2) {
+int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID_L2) {
 
    uint32_t log_size;
    fpga_pci_peek(pci_bar_handle, (ID_L2 << 8) + (DEBUG_CAPACITY), &log_size );
    printf("Cache log size %d\n", log_size);
    if (log_size > 17000) return 1;
-
-   unsigned char* log_buffer;
-   log_buffer = (unsigned char *)malloc(log_size*64);
 
    unsigned int read_offset = 0;
    unsigned int read_len = log_size * 64;
@@ -263,7 +260,7 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t ID_L2)
    while (read_offset < read_len) {
       rc = pread(fd,
             log_buffer,// + read_offset,
-            (read_len - read_offset) > 3200 ? 3200 :(read_len - read_offset),
+            (read_len - read_offset) > 512 ? 512 :(read_len - read_offset),
             cl_addr);
       read_offset += rc;
        const char *ops[8];
@@ -291,23 +288,48 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t ID_L2)
             unsigned long long addr = (addr_h << 23) + addr_l;
             unsigned int id = (buf[i*16+4] >> 11);
 
-            unsigned int index = (addr >> 6) & 0x3ff;
-            unsigned int tag = (addr >> 16);
+            unsigned int index = (addr >> 6) & 0x7ff;
+            unsigned int tag = (addr >> 17);
 
             unsigned int wstrb_l = buf[i*16+5];
             unsigned int wstrb_h = buf[i*16+6];
 
-            fprintf(fw, "[%6d][%12u][%2d:%2d] %s %s %1d %2d %8llx (tag:%5x index:%3x)  %6x wstrb:%8x_%8x \n",
+            unsigned int lru_prio[4];
+            unsigned int tag_rdata[4];
+            unsigned int tag_dirty[4];
+            unsigned int tag_state[4];
+            for (int j=0;j<4;j++) {
+                unsigned int word = buf[i*16+7+j];
+                lru_prio[j] = word & 0x3;
+                tag_dirty[j] = (word >> 2) & 1;
+                tag_rdata[j] = (word >> 3) & 0x1ffff;
+                tag_state[j] = (word >> 20) & 3;
+            }
+
+            unsigned int m_awaddr = buf[i*16+11];
+            unsigned int write_buf_mshr_valid = buf[i*16+12] & 0xffff;
+            unsigned int m_awid = (buf[i*16+12] >> 16) & 0x1fff;
+            unsigned int write_buf_match = (buf[i*16+12] >> 29) & 0x1;
+            unsigned int m_awvalid = (buf[i*16+12] >> 30) & 0x1;
+            unsigned int m_awready = (buf[i*16+12] >> 31) & 0x1;
+
+
+
+            fprintf(fw, "[%6d][%12u][%2d:%2d] %s %s %1d %2d %8llx (tag:%4d index:%3x) %2d wstrb:%8x_%8x | (%d %2d %d %d) (%d %2d %d %d) (%d %2d %d %d) (%d %2d %d %d) | %1d%1d %8llx %4x\n",
                     seq, cycle, id >> 4, id & 0xf,  ops[op],
                     hit ? "H": "M",
                     retry, repl_way,
                     addr, tag, index,
                     repl_tag,
-                    wstrb_h, wstrb_l
+                    wstrb_h, wstrb_l,
+                    tag_state[0], tag_rdata[0], tag_dirty[0], lru_prio[0],
+                    tag_state[1], tag_rdata[1], tag_dirty[1], lru_prio[1],
+                    tag_state[2], tag_rdata[2], tag_dirty[2], lru_prio[2],
+                    tag_state[3], tag_rdata[3], tag_dirty[3], lru_prio[3],
+                    m_awvalid, m_awready, m_awaddr, write_buf_mshr_valid
                 );
        }
    }
-   free(log_buffer);
    return 0;
 }
 
@@ -601,13 +623,258 @@ int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
    return 0;
 }
 
+int log_rw_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
+
+   uint32_t log_size;
+   uint32_t gvt;
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
+   //fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
+   printf("RW Stage log size %d \n", log_size);
+   if (log_size > 17000) return 1;
+   // if (log_size > 100) log_size -= 100;
+   //unsigned char* log_buffer;
+   //log_buffer = (unsigned char *)malloc(log_size*64);
+
+   unsigned int read_offset = 0;
+   unsigned int read_len = log_size * 64;
+   unsigned int rc;
+   uint64_t cl_addr = (1L<<36) + (ID << 20);
+   while (read_offset < read_len) {
+       rc = pread(fd,
+               log_buffer,// + read_offset,
+               // keep Tx size under 64*64 to prevent shell timeouts
+               (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
+               cl_addr);
+       read_offset += rc;
+
+       unsigned int* buf = (unsigned int*) log_buffer;
+       for (int i=0;i<rc/64;i++) {
+           unsigned int seq = buf[i*16 + 0];
+           unsigned int cycle = buf[i*16 + 1];
+
+           unsigned int out_locale = buf[i*16+2] ;
+           unsigned int out_ts = buf[i*16+3] ;
+           unsigned int out_object = buf[i*16+4] ;
+           unsigned int araddr = buf[i*16+5] ;
+
+           unsigned int in_locale = buf[i*16+6] ;
+           unsigned int in_ts = buf[i*16+7] ;
+
+           unsigned int in_ttype = (buf[i*16+8] >> 0) & 0xf;
+           unsigned int rid = (buf[i*16+8] >> 4) & 0xfff;
+           unsigned int in_thread = (buf[i*16+8] >> 16) & 0xff;
+           unsigned int in_cq_slot = (buf[i*16+8] >> 24) & 0xff;
+
+           unsigned int out_thread = (buf[i*16+9] >> 0) & 0xffff;
+           unsigned int out_fifo_occ = (buf[i*16+9] >> 16) & 0xff;
+           unsigned int rready = (buf[i*16+9] >> 24) & 0x1;
+           unsigned int rvalid = (buf[i*16+9] >> 25) & 0x1;
+           unsigned int arready = (buf[i*16+9] >> 26) & 0x1;
+           unsigned int arvalid = (buf[i*16+9] >> 27) & 0x1;
+           unsigned int task_out_ready = (buf[i*16+9] >> 28) & 0x1;
+           unsigned int task_out_valid = (buf[i*16+9] >> 29) & 0x1;
+           unsigned int task_in_ready = (buf[i*16+9] >> 30) & 0x1;
+           unsigned int task_in_valid = (buf[i*16+9] >> 31) & 0x1;
+
+           bool f = false;
+           if (task_in_valid & task_in_ready) {
+               fprintf(fw,"[%6d][%10u] [%2x] task_in ts:%5d locale:%5d slot %d\n",
+                   seq, cycle,
+                   in_thread,
+                   in_ts, in_locale, in_cq_slot
+                      );
+               f = true;
+           }
+
+           if (task_out_valid & task_out_valid) {
+               fprintf(fw,"[%6d][%10u] [%2x] task_in ts:%5d locale:%5d data:%10d \n",
+                   seq, cycle,
+                   out_thread,
+                   out_ts, out_locale, out_object
+                      );
+               f = true;
+           }
+
+/*
+           if (arvalid == 3) {
+               fprintf(fw,"[%6d][%10u] [%8x %8x] arvalid %8x rem_word %8x \n",
+                       seq, cycle,
+                       thread_fifo_occ, thread_id,
+                       arid, remaining_words
+                      );
+               f = true;
+           }
+           if (rvalid == 3) {
+               fprintf(fw,"[%6d][%10u] [%8x %8x]  rvalid %8x \n",
+                       seq, cycle,
+                       thread_fifo_occ, thread_id,
+                       rid
+                      );
+               f = true;
+           }
+           */
+           /*
+               fprintf(fw,"[%6d][%10u] (%d%d%d%d) (%d) (%2x %2x %2x %2x) | (%8x %8x) (%8x %8x - %8x %8x)\n",
+                       seq, cycle,
+                       task_in_valid, task_out_valid, arvalid, rvalid,
+                       out_last,
+                       thread_fifo_occ, thread_id, rid, arid,
+                       in_task_0 >> 4, in_task_1 >> 4,
+                       out_task_0 >> 4, out_task_1 >> 4, out_data_0, out_data_1
+                      );
+            */
+       }
+
+   }
+   fflush(fw);
+   return 0;
+}
+
+
+int log_ro_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
+
+   uint32_t log_size;
+   uint32_t gvt;
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
+   //fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
+   printf("RO Stage log size %d \n", log_size);
+   if (log_size > 17000) return 1;
+   // if (log_size > 100) log_size -= 100;
+   //unsigned char* log_buffer;
+   //log_buffer = (unsigned char *)malloc(log_size*64);
+
+   unsigned int read_offset = 0;
+   unsigned int read_len = log_size * 64;
+   unsigned int rc;
+   uint64_t cl_addr = (1L<<36) + (ID << 20);
+   while (read_offset < read_len) {
+       rc = pread(fd,
+               log_buffer,// + read_offset,
+               // keep Tx size under 64*64 to prevent shell timeouts
+               (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
+               cl_addr);
+       read_offset += rc;
+
+       unsigned int* buf = (unsigned int*) log_buffer;
+       for (int i=0;i<rc/64;i++) {
+           unsigned int seq = buf[i*16 + 0];
+           unsigned int cycle = buf[i*16 + 1];
+
+           unsigned int mem_locale = buf[i*16+2] ;
+           unsigned int mem_ts = buf[i*16+3] ;
+           unsigned int non_mem_locale = buf[i*16+4] ;
+           unsigned int non_mem_ts = buf[i*16+5] ;
+           unsigned int non_mem_cq_slot = (buf[i*16+6] >> 0) & 0xff ;
+           unsigned int mem_cq_slot = (buf[i*16+6] >> 8) & 0xff ;
+           unsigned int non_mem_ttype = (buf[i*16+6] >> 16) & 0xf ;
+           unsigned int mem_ttype = (buf[i*16+6] >> 20) & 0xf ;
+           unsigned int non_mem_subtype = (buf[i*16+6] >> 24) & 0xf ;
+           unsigned int mem_subtype = (buf[i*16+6] >> 28) & 0xf ;
+           unsigned int out_locale = buf[i*16+7] ;
+           unsigned int out_ts = buf[i*16+8] ;
+
+           unsigned int s_finish_task_ready = (buf[i*16+9] >>0) & 1;
+           unsigned int s_out_ready_untied = (buf[i*16+9] >>1) & 1;
+           unsigned int s_out_ready_tied = (buf[i*16+9] >>2) & 1;
+           unsigned int s_arready = (buf[i*16+9] >>3) & 1;
+           unsigned int s_arvalid = (buf[i*16+9] >>4) & 0xf;
+           unsigned int s_out_child_untied = (buf[i*16+9] >>8) & 0xf;
+           unsigned int s_out_task_is_child = (buf[i*16+9] >>12) & 0xf;
+           unsigned int s_out_valid = (buf[i*16+9] >>16) & 0xf;
+           unsigned int sched_task_aborted = (buf[i*16+9] >>20) & 0xf;
+           unsigned int task_in_ready = (buf[i*16+9] >>24) & 0xf;
+           unsigned int task_in_valid = (buf[i*16+9] >>28) & 0xf;
+
+           unsigned int out_ttype = (buf[i*16+10] >>0) & 0xf;
+           unsigned int out_child_id = (buf[i*16+10] >>4) & 0xf;
+           unsigned int gvt_task_slot = (buf[i*16+10] >>16) & 0xff;
+           unsigned int gvt_task_slot_valid = (buf[i*16+10] >>24) & 0x1;
+           unsigned int non_mem_task_finish = (buf[i*16+10] >>25) & 0x1;
+           unsigned int non_mem_subtype_valid = (buf[i*16+10] >>26) & 0x1;
+           unsigned int mem_subtype_valid = (buf[i*16+10] >>27) & 0x1;
+           unsigned int rready = (buf[i*16+10] >> 28) & 0x1;
+           unsigned int rvalid = (buf[i*16+10] >> 29) & 0x1;
+           unsigned int arready = (buf[i*16+10] >> 30) & 0x1;
+           unsigned int arvalid = (buf[i*16+10] >> 31) & 0x1;
+
+           unsigned int out_fifo_occ = buf[i*16+11] ;
+
+           unsigned int thread_fifo_occ =  (buf[i*16+12] >> 0) & 0xff ;
+           unsigned int thread_id =        (buf[i*16+12] >> 8) & 0xff;
+           unsigned int rid =        (buf[i*16+12] >> 16) & 0xff;
+           unsigned int arid =        (buf[i*16+12] >> 24) & 0xff;
+
+           unsigned int rid_mshr_valid_words = (buf[i*16+13] );
+
+           unsigned int remaining_words = (buf[i*16+15])& 0xf00fffff;
+           unsigned int rid_thread = (buf[i*16+15] >> 23) & 0x1f;
+           unsigned int out_data_word_valid = (buf[i*16+15] >> 20) & 0x3;
+
+           bool f = false;
+           if (mem_subtype_valid) {
+               fprintf(fw,"[%6d][%10u] [%2x][%1d%1d%1d%1d] mem task_in subtype:%d ts:%5d locale:%5d slot %d\n",
+                   seq, cycle,
+                   thread_id,
+                   s_arready, s_out_ready_untied, s_out_ready_tied, s_finish_task_ready,
+                   mem_subtype, mem_ts, mem_locale, mem_cq_slot
+                      );
+               f = true;
+           }
+
+           if (non_mem_subtype_valid) {
+               fprintf(fw,"[%6d][%10u] [%2x][%1d%1d%1d%1d] non-mem task_in subtype:%d ts:%5d locale:%5d slot %d finish:%d ab:%x - child: valid:%x untied:%x id:%d %d %d\n",
+                   seq, cycle,
+                   thread_id,
+                   s_arready, s_out_ready_untied, s_out_ready_tied, s_finish_task_ready,
+                   non_mem_subtype, non_mem_ts, non_mem_locale, non_mem_cq_slot, non_mem_task_finish, sched_task_aborted,
+                   s_out_task_is_child, s_out_child_untied, out_child_id,
+                   out_ts, out_locale
+                  );
+               f = true;
+           }
+
+/*
+           if (arvalid == 3) {
+               fprintf(fw,"[%6d][%10u] [%8x %8x] arvalid %8x rem_word %8x \n",
+                       seq, cycle,
+                       thread_fifo_occ, thread_id,
+                       arid, remaining_words
+                      );
+               f = true;
+           }
+           if (rvalid == 3) {
+               fprintf(fw,"[%6d][%10u] [%8x %8x]  rvalid %8x \n",
+                       seq, cycle,
+                       thread_fifo_occ, thread_id,
+                       rid
+                      );
+               f = true;
+           }
+           */
+           /*
+               fprintf(fw,"[%6d][%10u] (%d%d%d%d) (%d) (%2x %2x %2x %2x) | (%8x %8x) (%8x %8x - %8x %8x)\n",
+                       seq, cycle,
+                       task_in_valid, task_out_valid, arvalid, rvalid,
+                       out_last,
+                       thread_fifo_occ, thread_id, rid, arid,
+                       in_task_0 >> 4, in_task_1 >> 4,
+                       out_task_0 >> 4, out_task_1 >> 4, out_data_0, out_data_1
+                      );
+            */
+       }
+
+   }
+   fflush(fw);
+   return 0;
+}
+
 int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
 
    uint32_t log_size;
    uint32_t gvt;
    fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
-   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
-   printf("Serializer log size %d gvt %d\n", log_size, gvt);
+   //fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
+   printf("Serializer log size %d \n", log_size);
    if (log_size > 17000) return 1;
    // if (log_size > 100) log_size -= 100;
    //unsigned char* log_buffer;
@@ -679,7 +946,7 @@ int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned c
                       );
                f = true;
            }
-           if (!f) {
+           if (f | !f) {
                fprintf(fw,"[%6d][%10u] %8x %8x %8x %8x %8x %8x %8x %8x %8x %8x\n",
                        seq, cycle,
                        buf[i*16+2], buf[i*16+3],
@@ -1000,14 +1267,14 @@ void cq_stats (uint32_t tile, uint32_t tot_cycles) {
 
     return;
     pci_poke(tile, ID_CQ, CQ_LOOKUP_MODE , 1);
-    for (int i=0;i<64;i++) {
+    for (int i=0;i<128;i++) {
         uint32_t ts,tb, state, locale;
         pci_poke(tile, ID_CQ, CQ_LOOKUP_ENTRY, i);
         pci_peek(tile, ID_CQ, CQ_LOOKUP_STATE, &state);
         pci_peek(tile, ID_CQ, CQ_LOOKUP_TS, &ts);
         pci_peek(tile, ID_CQ, CQ_LOOKUP_TB, &tb);
         pci_peek(tile, ID_CQ, CQ_LOOKUP_LOCALE, &locale);
-        printf(" (%2d: %2d %5d:%10u %8x)", i, state,ts,tb, locale);
+        printf(" (%3d: %2d %5d:%10u %8x)", i, state,ts,tb, locale);
         if ( (i%2 == 1)) printf("\n");
     }
 
@@ -1023,6 +1290,7 @@ void cq_stats (uint32_t tile, uint32_t tot_cycles) {
 uint32_t maxflow_wait_states[] = {2, 9, 11, 13, 19, 22, 25, 29, 31, 33, 48, 51, 59, 65, 67, 69, 71, 73};
 uint32_t maxflow_enq_states[] = {5, 6, 7, 20, 23, 35, 46, 57, 74};
 void core_stats(uint32_t tile, uint32_t tot_cycles) {
+    /*
     const int NON_IDLE_TIME_INDEX = 79;
     const int SUM_INDEX = 80;
     const int MEM_STALL_INDEX = 81;
@@ -1078,7 +1346,7 @@ void core_stats(uint32_t tile, uint32_t tot_cycles) {
         }
         printf("\n");
     }
-
+    */
 }
 
 int log_pci(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {

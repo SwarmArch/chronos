@@ -41,7 +41,7 @@
 
 
 #define ID_ALL_CORES              32
-#define ID_ALL_SSSP_CORES         33
+#define ID_ALL_APP_CORES         33
 #define ID_COAL_AND_SPLITTER      34
 
 #define ID_GLOBAL                 48
@@ -63,7 +63,6 @@
 #define OCL_PARAM_LOG_TQ_HEAP_STAGES  0x54
 #define OCL_PARAM_LOG_TQ_SIZE         0x58
 #define OCL_PARAM_LOG_CQ_SIZE         0x5c
-#define OCL_PARAM_N_SSSP_CORES        0x60
 #define OCL_PARAM_LOG_SPILL_Q_SIZE    0x64
 #define OCL_PARAM_NON_SPEC            0x68
 #define OCL_PARAM_LOG_READY_LIST_SIZE 0x6c
@@ -86,6 +85,7 @@
 #define SSSP_LOCALE                 0x30
 #define SSSP_TS                   0x34
 #define SSSP_STATE_STATS_BEGIN    0x40
+#define CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD 0x40
 
 #define SPILL_BASE_TASKS         0x60
 #define SPILL_BASE_STACK         0x64
@@ -183,6 +183,7 @@
 #define CQ_N_CUM_ABORT_CYCLES_H  0xd8
 #define CQ_N_CUM_ABORT_CYCLES_L  0xdc
 
+#define SERIALIZER_N_THREADS 0x10
 #define SERIALIZER_ARVALID 0x20
 #define SERIALIZER_READY_LIST 0x24
 #define SERIALIZER_REG_VALID 0x28
@@ -213,11 +214,12 @@
 int log_sssp_core(pci_bar_handle_t pci_bar_handle, int fd, int cid, FILE* fw);
 int log_task_unit(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
-int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t);
+int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t);
 int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
+int log_ro_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size, uint32_t tile_id);
 
 void init_params();
@@ -254,6 +256,7 @@ extern uint32_t NON_SPEC;
  */
 extern uint16_t pci_vendor_id; /* Amazon PCI Vendor ID */
 extern uint16_t pci_device_id; /* PCI Device ID preassigned by Amazon for F1 applications */
+#define APP_DMA_TEST 0
 #define APP_SSSP 1
 #define APP_DES 2
 #define APP_ASTAR 3
