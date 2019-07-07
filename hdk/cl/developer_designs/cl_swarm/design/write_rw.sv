@@ -59,7 +59,6 @@ task_t s_out_task;
 
 logic s_sched_valid, s_sched_ready;
 
-
 always_ff @(posedge clk) begin
    if (s_task_out_valid) begin
       task_out <= s_out_task;
@@ -216,16 +215,27 @@ end
 );
 
 always_comb begin
-   unlock_locale = 1'b0;
-   unlock_thread = 'x;
    bready = 1'b0;
    if (task_in_ready & !s_write_wvalid) begin
-      unlock_locale = 1'b1;
-      unlock_thread = task_in.thread;
    end else if (bvalid) begin
       bready = 1'b1;
-      unlock_locale = 1'b1;
-      unlock_thread = bid;
+   end
+end
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      unlock_locale <= 1'b0;
+      unlock_thread <= 'x;
+   end else begin
+      if (task_in_ready & !s_write_wvalid) begin
+         unlock_locale <= 1'b1;
+         unlock_thread <= task_in.thread;
+      end else if (bvalid) begin
+         unlock_locale <= 1'b1;
+         unlock_thread <= bid;
+      end else begin
+         unlock_locale <= 1'b0;
+         unlock_thread <= 'x;
+      end
    end
 end
 
