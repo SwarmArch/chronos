@@ -122,7 +122,7 @@ always_comb begin
                out_valid = 1'b1;
             end else begin
                write_word.counter = read_word.eo_end - read_word.eo_begin;
-               write_word.min_height = numV;
+               write_word.min_height = 2*numV;
                wvalid = 1'b1;
                out_valid = 1'b1;
                out_task.args[31:0] = read_word.eo_begin;
