@@ -402,6 +402,7 @@ always_comb begin
             end
          end
          3: begin
+            if (DATA_WIDTH >= 64) begin 
             out_data_word_0_valid = rid_mshr.valid_words[out_data_word_id];
             out_data_word_1_valid = (out_data_word_id < 15) & rid_mshr.valid_words[out_data_word_id + 1];
             if (out_data_word_0_valid && out_data_word_1_valid) begin
@@ -420,6 +421,7 @@ always_comb begin
                out_valid = (remaining_words_cur_rid == 1);
                is_last_resp = (remaining_words_cur_rid == 1);
             end 
+            end
          end
       endcase
    end
