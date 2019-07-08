@@ -1339,7 +1339,7 @@ endgenerate
             TASK_UNIT_STATS_0_BEGIN : reg_bus.rdata <= state_stats[{1'b0, reg_bus.araddr[3:2]}];
             TASK_UNIT_STATS_1_BEGIN : reg_bus.rdata <= state_stats[{1'b1, reg_bus.araddr[3:2]}];
 
-            TASK_UNIT_MISC_DEBUG : reg_bus.rdata <= { abort_child_valid, task_enq_valid, cut_ties_valid, cq_child_abort_valid, abort_task_valid, abort_resp_valid, task_deq_valid_reg, commit_task_valid, task_deq_ready};
+            TASK_UNIT_MISC_DEBUG : reg_bus.rdata <= {overflow_valid, overflow_ready, abort_child_valid, task_enq_valid, cut_ties_valid, cq_child_abort_valid, abort_task_valid, abort_resp_valid, task_deq_valid_reg, commit_task_valid, task_deq_ready};
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;

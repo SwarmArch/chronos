@@ -271,6 +271,8 @@ assign overflow_ready = !(spill_fifo_full);
 assign spill_fifo_wr_en = overflow_valid & overflow_ready;
 assign spill_fifo_wr_data = overflow_task;
 
+logic [8:0] spill_fifo_size; 
+
 fifo #(
    .WIDTH( $bits(spill_fifo_wr_data)),
    .LOG_DEPTH(LOG_TQ_SPILL_SIZE)
@@ -284,7 +286,8 @@ fifo #(
    .empty(spill_fifo_empty),
 
    .rd_en(spill_fifo_rd_en),
-   .rd_data(spill_fifo_rd_data)
+   .rd_data(spill_fifo_rd_data),
+   .size(spill_fifo_size)
 
 );
 
@@ -331,7 +334,10 @@ always_ff @(posedge clk) begin
       case (reg_bus.araddr) 
          CORE_NUM_ENQ  : reg_bus.rdata <= num_enqueues;
          CORE_NUM_DEQ  : reg_bus.rdata <= num_dequeues;
-         CORE_STATE    : reg_bus.rdata <= state;
+         CORE_STATE    : reg_bus.rdata <= {
+            l1.wvalid, l1.wready, l1.awvalid, l1.awready,
+            tasks_remaining, coal_ts, spill_fifo_size, overflow_valid ,state};
+         
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;
