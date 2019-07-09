@@ -336,7 +336,7 @@ always_ff @(posedge clk) begin
          CORE_NUM_DEQ  : reg_bus.rdata <= num_dequeues;
          CORE_STATE    : reg_bus.rdata <= {
             l1.wvalid, l1.wready, l1.awvalid, l1.awready,
-            tasks_remaining, coal_ts, spill_fifo_size, overflow_valid ,state};
+            tasks_remaining, 3'b0, spill_fifo_size, state};
          
       endcase
    end else begin

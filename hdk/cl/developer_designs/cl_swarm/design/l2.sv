@@ -102,6 +102,14 @@ module l2
 
    typedef struct packed {
 
+     logic [3:0] mshr_next; 
+     logic m_arvalid;
+     logic m_arready;
+     logic m_rvalid;
+     logic m_rready;
+     logic [7:0] m_arid;
+     logic [7:0] m_rid;
+     
      logic m_bvalid;
      logic m_bready;
      logic [13:0] m_bid;
@@ -139,9 +147,16 @@ module l2
    assign log_word.m_awvalid = mem_bus.awvalid;
    assign log_word.m_awready = mem_bus.awready;
    assign log_word.m_awid = mem_bus.awid;
+   assign log_word.m_arid = mem_bus.arid;
+   assign log_word.m_rid = mem_bus.rid;
    assign log_word.m_awaddr = mem_bus.awaddr;
    assign log_word.m_bvalid = mem_bus.bvalid;
    assign log_word.m_bready = mem_bus.bready;
+   assign log_word.m_rvalid = mem_bus.rvalid;
+   assign log_word.m_rready = mem_bus.rready;
+   assign log_word.m_arvalid = mem_bus.arvalid;
+   assign log_word.m_arready = mem_bus.arready;
+   assign log_word.mshr_next = mshr_next;
    assign log_word.m_bid = mem_bus.bid;
    assign log_word.write_buf_match = write_buf_match; 
    always_comb begin
@@ -160,7 +175,7 @@ module l2
          log_bvalid <= reg_bus.wdata[0];
       end
    end
-   assign log_valid = ((p12_op != NONE) & !stall_in[2] & !stall_out[2]) | (log_bvalid & mem_bus.bvalid & mem_bus.bready);
+   assign log_valid = ((p12_op != NONE) & !stall_in[2] & !stall_out[2]) | (log_bvalid & ((mem_bus.bvalid & mem_bus.bready) | (mem_bus.rvalid) ));
 
 `ifdef XILINX_SIMULATOR
    if (1) begin
