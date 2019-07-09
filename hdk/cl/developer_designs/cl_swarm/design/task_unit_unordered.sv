@@ -427,8 +427,13 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.enq_task_coal_child.tied  = task_enq_tied;
         log_word.enq_task_coal_child.valid = task_enq_valid;
         log_word.enq_task_coal_child.ready = task_enq_ready;
-        if (alt_log_word & ARG_WIDTH == 32) begin
+        if (alt_log_word & ARG_WIDTH >= 32) begin
+		
            log_word.deq_locale = task_enq_data.args[31:0] ;
+           log_word.deq_ts   = task_enq_data.args[63:32];
+           if (alt_log_word & ARG_WIDTH >= 64) begin
+              log_word.gvt_tb = task_enq_data.args[95:64];
+           end
         end
         log_valid = 1;
      end else if (coal_child_valid & coal_child_ready) begin

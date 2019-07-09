@@ -238,8 +238,8 @@ logic [31:0] base_neighbors;
 logic [31:0] base_data;
 logic [6:0]  enq_limit;
 
-logic [15:0] enq_start;
-assign enq_start = (in_task.ttype == COLOR_ENQ_TASK) ? in_task.args[31:0] : in_task.args[15:0] ;
+logic [31:0] enq_start;
+assign enq_start = (in_task.ttype == COLOR_ENQ_TASK) ? in_task.args[31:0] : {16'b0, in_task.args[15:0]};
 logic [15:0] degree, n_rem_neighbors;
 logic [31:0] eo_begin;
 logic [15:0] color;
