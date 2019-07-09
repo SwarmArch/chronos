@@ -327,7 +327,7 @@ module task_unit_nonspec
    assign almost_full = (n_tasks > task_spill_threshold);
    assign full = (heap_capacity == 10);
    
-   assign lvt = empty ? '1 : 0;
+   assign lvt = empty ? '1 : next_deque_elem.ts;
    assign task_deq_tq_slot = 0;
    assign task_deq_epoch = 0;
    
