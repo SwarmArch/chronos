@@ -644,7 +644,7 @@ always_ff @(posedge clk) begin
    end
 end
 
-if (READ_ONLY_STAGE_LOGGING) begin
+if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
    logic log_valid;
    typedef struct packed {
      
@@ -777,7 +777,7 @@ if (READ_ONLY_STAGE_LOGGING) begin
    log #(
       .WIDTH($bits(log_word)),
       .LOG_DEPTH(LOG_LOG_DEPTH)
-   ) RW_READ_LOG (
+   ) RO_LOG (
       .clk(clk),
       .rstn(rstn),
 
