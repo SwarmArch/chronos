@@ -221,6 +221,7 @@
    parameter SERIALIZER_SIZE_CONTROL = 8'h40; // {0, stall, full, almost_full}
    parameter SERIALIZER_CQ_STALL_COUNT = 8'h44; // bits [39:8]
    parameter SERIALIZER_STAT_READ = 8'h48; // write to set addr, followed by read
+   parameter SERIALIZER_DEBUG_WORD = 8'h50;
 
    parameter CQ_LOCALE_DATA_BASE_ADDR = 8'h10;
    

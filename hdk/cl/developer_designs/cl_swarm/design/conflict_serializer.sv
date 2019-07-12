@@ -330,6 +330,7 @@ module conflict_serializer #(
          casex (reg_bus.araddr) 
             DEBUG_CAPACITY : reg_bus.rdata <= log_size;
             SERIALIZER_READY_LIST : reg_bus.rdata <= {ready_list_valid, ready_list_conflict};
+            SERIALIZER_DEBUG_WORD  : reg_bus.rdata <= s_valid;
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;
@@ -341,6 +342,9 @@ module conflict_serializer #(
 if (SERIALIZER_LOGGING[TILE_ID]) begin
    logic log_valid;
    typedef struct packed {
+
+      logic [5:0] free_list_size;
+      logic [5:0] s_thread;
 
       logic [15:0] s_arvalid;
       logic [15:0] s_rvalid;
@@ -375,6 +379,9 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       log_valid = (m_valid & m_ready) | (s_valid) | unlock_valid;
 
       log_word = '0;
+
+      log_word.free_list_size = free_list_size;
+      log_word.s_thread = s_thread;
 
       log_word.s_arvalid = s_valid;
       log_word.s_rvalid = s_ready;
