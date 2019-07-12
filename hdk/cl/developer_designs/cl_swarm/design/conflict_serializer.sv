@@ -298,6 +298,8 @@ module conflict_serializer #(
          end
       end
    end
+
+   logic log_s_valid;
    
    logic [4:0] ready_list_stall_threshold;
    always_ff @(posedge clk) begin
@@ -315,6 +317,7 @@ module conflict_serializer #(
                   ready_list_stall_threshold <= reg_bus.wdata[23:16];
                end
                SERIALIZER_N_THREADS: active_threads <= reg_bus.wdata;
+               SERIALIZER_LOG_S_VALID: log_s_valid <= reg_bus.wdata[0];
             endcase
          end
       end
@@ -330,7 +333,8 @@ module conflict_serializer #(
          casex (reg_bus.araddr) 
             DEBUG_CAPACITY : reg_bus.rdata <= log_size;
             SERIALIZER_READY_LIST : reg_bus.rdata <= {ready_list_valid, ready_list_conflict};
-            SERIALIZER_DEBUG_WORD  : reg_bus.rdata <= s_valid;
+            SERIALIZER_DEBUG_WORD  : reg_bus.rdata <= {free_list_size, s_thread, s_valid};
+            SERIALIZER_S_LOCALE : reg_bus.rdata <= s_rdata.locale;
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;
@@ -376,7 +380,7 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
    } cq_log_t;
    cq_log_t log_word;
    always_comb begin
-      log_valid = (m_valid & m_ready) | (s_valid) | unlock_valid;
+      log_valid = (m_valid & m_ready) | (s_valid & (s_ready | log_s_valid) ) | unlock_valid;
 
       log_word = '0;
 

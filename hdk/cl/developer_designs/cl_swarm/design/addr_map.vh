@@ -211,6 +211,7 @@
    parameter CM_MISC          = 8'h2c;
 
    parameter SERIALIZER_N_THREADS = 8'h10;
+   parameter SERIALIZER_LOG_S_VALID = 8'h14;
    parameter SERIALIZER_ARVALID = 8'h20;
    parameter SERIALIZER_READY_LIST = 8'h24;
    parameter SERIALIZER_REG_VALID = 8'h28;
@@ -222,6 +223,8 @@
    parameter SERIALIZER_CQ_STALL_COUNT = 8'h44; // bits [39:8]
    parameter SERIALIZER_STAT_READ = 8'h48; // write to set addr, followed by read
    parameter SERIALIZER_DEBUG_WORD = 8'h50;
+   parameter SERIALIZER_S_LOCALE = 8'h54;
+   
 
    parameter CQ_LOCALE_DATA_BASE_ADDR = 8'h10;
    
