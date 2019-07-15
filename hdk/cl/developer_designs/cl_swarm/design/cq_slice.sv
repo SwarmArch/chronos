@@ -255,6 +255,7 @@ logic [LOG_CQ_SLICE_SIZE:0] cq_size;
 vt_t gvt_q;
 logic [15:0] n_gvt_going_back;
 logic use_ts_cache;
+logic ignore_tb_gvt; // task can commit if the gvt matches
 
 logic [LOG_LOG_DEPTH:0] log_size; 
 if (CQ_CONFIG) begin
@@ -264,6 +265,7 @@ if (CQ_CONFIG) begin
          lookup_entry <= 'x;
          lookup_mode <= 1'b0;
          use_ts_cache <= 1'b1;
+         ignore_tb_gvt <= 1'b0;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
@@ -271,6 +273,7 @@ if (CQ_CONFIG) begin
                CQ_LOOKUP_MODE : lookup_mode <= reg_bus.wdata;
                CQ_LOOKUP_ENTRY : lookup_entry <= reg_bus.wdata;
                CQ_USE_TS_CACHE : use_ts_cache <= reg_bus.wdata[0];
+               CQ_IGNORE_TB_GVT : ignore_tb_gvt <= reg_bus.wdata[0];
             endcase
          end
       end 
@@ -1155,8 +1158,19 @@ cq_slice_slot_t max_tree_index [LOG_CQ_TS_BANKS+1][2**LOG_CQ_TS_BANKS];
           (cur_ts_read_state[i] == ABORTED)) 
             ? '0 : rdata_lvt[i];
       assign max_tree_index[LOG_CQ_TS_BANKS][i] = (i<<LOG_GVT_PERIOD | lvt_cycle);
-      assign cur_ts_read_task_can_commit[i] = (cur_ts_read_state[i] == FINISHED)
-               & (gvt > rdata_lvt[i]);
+      always_comb begin
+         cur_ts_read_task_can_commit[i] = 1'b0;
+         if (cur_ts_read_state[i] == FINISHED) begin
+            if (gvt > rdata_lvt[i]) begin
+               cur_ts_read_task_can_commit[i] = 1'b1;
+            end else if ((gvt.ts == rdata_lvt[i].ts) & ignore_tb_gvt) begin
+               if ((cq_ttype[cur_ts_read_indices[i]] == 4) | (cq_ttype[cur_ts_read_indices[i]] == 5)) begin
+                  // MAXFLOW BFS hack
+                  cur_ts_read_task_can_commit[i] = 1'b1;
+               end
+            end
+         end
+      end
       assign cur_ts_is_gvt[i] =  (gvt == rdata_lvt[i]) & (cur_ts_read_state[i] != UNUSED);
    end
 genvar j;

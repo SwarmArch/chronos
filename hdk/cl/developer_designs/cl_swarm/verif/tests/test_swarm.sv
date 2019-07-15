@@ -98,6 +98,7 @@ initial begin
          ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_IS_TRANSACTIONAL, 1);
          ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_GLOBAL_RELABEL_START_MASK, (1<< file[10]) - 1);
          ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_GLOBAL_RELABEL_START_INC, 32'h10);
+         ocl_poke(i, ID_CQ, CQ_IGNORE_TB_GVT, 1);
       end
       task_enq(0, file[7], 0, 1 /*n_args*/, 0, 0);
    end

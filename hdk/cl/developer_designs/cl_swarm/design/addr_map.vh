@@ -159,6 +159,7 @@
    parameter CQ_STATE_STATS            = 8'b010x_xxxx; // 4x, 5x
    parameter CQ_STAT_N_RESOURCE_ABORTS = 8'h60;
    parameter CQ_STAT_N_GVT_ABORTS      = 8'h64;
+   parameter CQ_IGNORE_TB_GVT          = 8'h68;
    parameter CQ_STAT_N_IDLE_CQ_FULL    = 8'h70;
    parameter CQ_STAT_N_IDLE_CC_FULL    = 8'h74;
    parameter CQ_STAT_N_IDLE_NO_TASK    = 8'h78;
