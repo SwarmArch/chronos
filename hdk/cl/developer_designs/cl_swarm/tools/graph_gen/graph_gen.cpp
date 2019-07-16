@@ -520,7 +520,7 @@ void WriteOutputColor(FILE* fp) {
    for (uint32_t i=0;i<numV;i++) {
       data[BASE_DATA+i*4] = (csr_offset[i+1]-csr_offset[i]) << 16 | 0xffff; // degree, color
       data[BASE_DATA+i*4+1] = 0; // scratch
-      data[BASE_DATA+i*4+2] = 0;
+      data[BASE_DATA+i*4+2] = (csr_offset[i+1]-csr_offset[i]) << 16 | 0; // ndp, ncp
       data[BASE_DATA+i*4+3] = csr_offset[i];
 
       //printf("gt %d %d\n", i, csr_dist[i]);

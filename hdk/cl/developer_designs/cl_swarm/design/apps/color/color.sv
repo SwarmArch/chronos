@@ -109,8 +109,8 @@ always_comb begin
          end
          COLOR_SEND_DEGREE_TASK: begin
             if (enq_start == 0) begin
-               write_word.neighbor_degrees_pending += read_word.degree;
-               wvalid = 1'b1;
+               //write_word.neighbor_degrees_pending += read_word.degree;
+               //wvalid = 1'b1;
             end
             out_valid = 1'b1;
             out_task.args[15:0] = enq_start;
