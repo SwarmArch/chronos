@@ -118,15 +118,13 @@ always_comb begin
             out_task.args[63:32] = read_word.eo_begin;
          end
          COLOR_RECEIVE_DEGREE_TASK: begin
-            if (enq_start == 0) begin
-               wvalid = 1'b1;
-               write_word.neighbor_degrees_pending -= 1;
-               if ( (neighbor_degree > read_word.degree) || ( 
-                  (neighbor_degree == read_word.degree) & (neighbor_id < in_task.locale) )) begin
-                  write_word.neighbor_colors_pending += 1;
-               end
+            wvalid = 1'b1;
+            write_word.neighbor_degrees_pending -= 1;
+            if ( (neighbor_degree > read_word.degree) || ( 
+               (neighbor_degree == read_word.degree) & (neighbor_id < in_task.locale) )) begin
+               write_word.neighbor_colors_pending += 1;
             end
-            if ( (write_word.neighbor_degrees_pending == 0) && (write_word.neighbor_colors_pending==0)) begin
+            if ((write_word.neighbor_degrees_pending == 0) && (write_word.neighbor_colors_pending==0)) begin
                out_valid = 1'b1;
                out_task.args[63:32] = read_word.eo_begin;
                out_task.args[31:16] = read_word.degree;
@@ -142,14 +140,19 @@ always_comb begin
                   write_word.neighbor_colors_pending -= 1;
                   write_word.scratch |= (1<<in_task.args[68:64]);
                   write_word.color = assign_color;
-                  if ( (write_word.neighbor_degrees_pending == 0) && 
-                       (write_word.neighbor_colors_pending==0)) begin
+                  if ( (write_word.neighbor_degrees_pending == 0) && (write_word.neighbor_colors_pending==0)) begin
+                     write_word.color = assign_color;
                      out_valid = 1'b1;
                      out_task.args[63:32] = read_word.eo_begin; 
                      out_task.args[31:16] = read_word.degree;
                      out_task.args[79:64]  = assign_color;
                   end
                end
+            end else begin
+               out_valid = 1'b1;
+               out_task.args[63:32] = read_word.eo_begin; 
+               out_task.args[31:16] = read_word.degree;
+               out_task.args[79:64] = read_word.color;
             end
          end
       endcase
@@ -305,7 +308,8 @@ always_comb begin
                1: begin
                   out_valid = 1'b1;
                   if (in_word_id == enq_limit) begin
-                     out_task.ttype = in_task.ttype;
+                     out_task.ttype = (in_task.ttype == COLOR_SEND_DEGREE_TASK) ?
+                                    COLOR_SEND_DEGREE_TASK : COLOR_RECEIVE_COLOR_TASK ;
                      out_task.producer = 1'b1;
                      out_task.args[15:0] = enq_start + enq_limit;
                   end else begin
@@ -313,10 +317,12 @@ always_comb begin
                         out_task.ttype = COLOR_RECEIVE_DEGREE_TASK;
                         out_task.args[63:32] = in_task.locale;
                         out_task.args[31:16] = degree;
+                        out_task.args[15:0] = 0;
                      end else begin
                         out_task.ttype = COLOR_RECEIVE_COLOR_TASK;
                         out_task.args[63:32] = in_task.locale;
                         out_task.args[79:64] = color;
+                        out_task.args[15:0] = 0;
 
                      end
                      out_task.producer = 1'b0;
