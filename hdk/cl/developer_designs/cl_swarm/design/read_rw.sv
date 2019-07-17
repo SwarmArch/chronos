@@ -124,11 +124,19 @@ always_comb begin
    task_out.cache_addr = rindex;
    task_out_valid = 1'b0;
    rready = 1'b0;
+   
+     
    if (reg_task_valid & (reg_task.ttype == TASK_TYPE_UNDO_LOG_RESTORE)) begin
       task_out.task_desc = reg_task;
       task_out.cq_slot = reg_slot;
       task_out.thread = reg_thread;
       task_out.object = undo_log_read_word;
+      task_out_valid = 1'b1;
+   end else if (reg_task_valid & reg_task.no_read) begin
+      task_out.task_desc = reg_task;
+      task_out.cq_slot = reg_slot;
+      task_out.thread = reg_thread;
+      task_out.object = 'x;
       task_out_valid = 1'b1;
    end else if (rvalid) begin
       task_out_valid = 1'b1;

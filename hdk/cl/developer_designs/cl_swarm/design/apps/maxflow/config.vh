@@ -2,7 +2,7 @@
 parameter APP_NAME = "maxflow";
 parameter RISCV = 0;
 
-parameter ARG_WIDTH = 128;
+parameter ARG_WIDTH = 96;
 
 parameter RW_WIDTH = 512;
 parameter DATA_WIDTH = 64;

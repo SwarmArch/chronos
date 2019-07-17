@@ -7,7 +7,7 @@ typedef struct packed {
    logic [31:0] eo_end;
    logic [31:0] eo_begin;
    logic [9:0] [31:0] flow;
-   logic [31:0] visited;
+   logic [31:0] last_visited_iter;
    logic [31:0] height;
    logic [ 7:0] counter;
    logic [23:0] min_height;
@@ -39,11 +39,12 @@ parameter MAXFLOW_RECEIVE_TASK = 3;
       //  [31: 0] flow_amount
       //  [35:32] v's reverse edge id, i.e location of v in n's edge list, 
       
-parameter MAXFLOW_BFS_VISIT_TASK = 4;
+parameter MAXFLOW_BFS_CHECK_RESIDUAL_TASK = 4;
       //  [23: 0] v_vid (parent of visit),
       //  [27:24] v's reverse edge id, i.e location of v in n's edge list, 
       //  [31:28] fwd_edge_id, i.e location of n in v's edge list
-parameter MAXFLOW_BFS_ENQ_NBR_TASK = 5;
+parameter MAXFLOW_BFS_UPDATE_HEIGHT_TASK = 5;
+parameter MAXFLOW_BFS_ENQ_NBR_TASK = 6;
 
 module maxflow_rw
 #(
@@ -168,20 +169,32 @@ always_comb begin
             write_word.flow[ in_task.args[35:32] ] = read_word.flow[in_task.args[35:32]] - in_task.args[31:0];
             out_valid = (read_word.excess == 0) & (in_task.locale != sourceNode) & (in_task.locale != sinkNode);
          end
-         MAXFLOW_BFS_VISIT_TASK: begin
+         MAXFLOW_BFS_CHECK_RESIDUAL_TASK: begin
             wvalid = 1'b0;
-            out_valid = read_word.visited < (in_task.ts & iteration_no_mask);
-            out_task.args[63:32] = read_word.eo_begin;
-            out_task.args[95:64] = read_word.flow[ in_task.args[27:24]];
+            if (read_word.last_visited_iter < (in_task.ts & iteration_no_mask)) begin
+               out_valid = 1'b1;
+               out_task.args[63:32] = read_word.eo_begin;
+               out_task.args[95:64] = read_word.flow[ in_task.args[27:24]];
+            end
             
          end 
+         MAXFLOW_BFS_UPDATE_HEIGHT_TASK: begin
+            if (read_word.last_visited_iter < (in_task.ts & iteration_no_mask)) begin
+               write_word.last_visited_iter = (in_task.ts & iteration_no_mask);
+               write_word.height = in_task.ts[10:0] + (in_task.ts[11] ? numV : 0); 
+               wvalid = 1'b1;
+               out_task.args[31: 0] = read_word.eo_begin;
+               out_task.args[63:32] = read_word.eo_end;
+               out_valid = 1'b1;
+            end
+         end
          MAXFLOW_BFS_ENQ_NBR_TASK: begin
-            write_word.visited = (in_task.ts & iteration_no_mask);
-            write_word.height = in_task.ts[10:0] + (in_task.ts[11] ? numV : 0); 
-            wvalid = 1'b1;
-            out_task.args[31: 0] = read_word.eo_begin;
-            out_task.args[63:32] = read_word.eo_end;
             out_valid = 1'b1;
+            if (!out_task.no_read) begin
+               out_task.args[31: 0] = read_word.eo_begin;
+               out_task.args[63:32] = read_word.eo_end;
+            end
+            wvalid = 1'b0;
          end
       endcase
    end
@@ -240,16 +253,21 @@ end
             cycle, TILE_ID, in_cq_slot,
             in_task.ts, in_task.locale, in_task.args[31:0], in_task.args[35:32]) ;
          end
-         MAXFLOW_BFS_VISIT_TASK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_VISIT ts:%8x locale:%4x | visited:%4x rev_edge:%1x rev_flow:%d ",
+         MAXFLOW_BFS_CHECK_RESIDUAL_TASK: begin
+            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_RESIDUAL ts:%8x locale:%4x | visited:%4x rev_edge:%1x rev_flow:%d ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, read_word.visited, in_task.args[27:24], out_task.args[95:64]) ;
+            in_task.ts, in_task.locale, read_word.last_visited_iter, in_task.args[27:24], out_task.args[95:64]) ;
          end
          
+         MAXFLOW_BFS_UPDATE_HEIGHT_TASK: begin
+            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_UPDATE ts:%8x locale:%4x | visited:%4x ",
+            cycle, TILE_ID, in_cq_slot,
+            in_task.ts, in_task.locale, read_word.last_visited_iter) ;
+         end
          MAXFLOW_BFS_ENQ_NBR_TASK: begin
             $display("[%5d] [rob-%2d] [rw] [%3d] BFS_ENQ_NBR ts:%8x locale:%4x | visited:%4x ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, read_word.visited) ;
+            in_task.ts, in_task.locale, read_word.last_visited_iter) ;
          end
 
          endcase
@@ -310,6 +328,8 @@ logic [31:0] sourceNode, sinkNode;
 logic [31:0] global_relabel_mask;
 logic [31:0] iteration_no_mask;
 logic ordered_edges;
+logic use_bfs_producer_tasks;
+logic bfs_is_non_spec;
 
 assign resp_task = in_task;
 maxflow_edge_t in_data_edge;
@@ -322,6 +342,11 @@ always_comb begin
    out_valid = 1'b0;
    resp_mark_last = 1'b0;
    out_task = in_task;
+   out_task.producer = 1'b0;
+   out_task.no_read  = 1'b0;
+   out_task.no_write = 1'b0;
+   out_task.non_spec = 1'b0;
+
    out_task_is_child = 1'b1;
    resp_subtype = 'x;
    
@@ -350,10 +375,11 @@ always_comb begin
                end
                1: begin
                   out_valid = 1'b1;
-                  out_task.ttype = MAXFLOW_BFS_ENQ_NBR_TASK;
-                  out_task.ts = (in_word_id == 0)? in_task.ts : in_task.ts + (1<<11);
+                  out_task.ttype = MAXFLOW_BFS_UPDATE_HEIGHT_TASK;
+                  out_task.ts = (in_word_id == 0)? in_task.ts : in_task.ts + (1<<11) ;
                   out_task.locale = (in_word_id == 0) ? sinkNode : sourceNode;
                   out_task.producer = 1'b1;
+                  out_task.non_spec = bfs_is_non_spec;
                end
                2: begin
                   out_valid = 1'b1;
@@ -404,7 +430,7 @@ always_comb begin
                out_task.args = 'x;
             end
          end
-         MAXFLOW_BFS_VISIT_TASK: begin
+         MAXFLOW_BFS_CHECK_RESIDUAL_TASK: begin
             if (SUBTYPE==0) begin
                // read capacity of reverse edge
                araddr = base_neighbors + ( (in_task.args[63:32] + in_task.args[27:24]) << 3);
@@ -414,23 +440,35 @@ always_comb begin
             end else if (SUBTYPE == 1) begin
                out_valid = (in_data_edge.capacity > in_task.args[95:64]);
                out_task.producer = 1'b1;
-               out_task.ttype = MAXFLOW_BFS_ENQ_NBR_TASK;
+               out_task.non_spec = bfs_is_non_spec;
+               out_task.ttype = MAXFLOW_BFS_UPDATE_HEIGHT_TASK;
+               out_task.ts = out_task.ts;
             end
 
          end
-
+         MAXFLOW_BFS_UPDATE_HEIGHT_TASK,
          MAXFLOW_BFS_ENQ_NBR_TASK: begin
             if (SUBTYPE == 0) begin
-               araddr = base_neighbors + (in_task.args[31:0] << 3);
-               arlen = (in_task.args[63:32]- in_task.args[31:0])-1;
-               resp_subtype = 1;
-               arvalid = (in_task.args[63:32] != in_task.args[31:0]); 
+               if ((in_task.ttype == MAXFLOW_BFS_UPDATE_HEIGHT_TASK) & use_bfs_producer_tasks) begin
+                  out_valid = 1'b1;
+                  out_task.ttype = MAXFLOW_BFS_ENQ_NBR_TASK;
+                  out_task.producer = 1'b1;
+                  out_task.non_spec = bfs_is_non_spec;
+                  out_task.no_read = 1'b1;
+                  out_task.ts = in_task.ts + 1;
+               end else begin
+                  araddr = base_neighbors + (in_task.args[31:0] << 3);
+                  arlen = (in_task.args[63:32]- in_task.args[31:0])-1;
+                  resp_subtype = 1;
+                  arvalid = (in_task.args[63:32] != in_task.args[31:0]); 
+               end
             end else if (SUBTYPE==1) begin
                out_valid = 1'b1;
-               out_task.ttype = MAXFLOW_BFS_VISIT_TASK; 
+               out_task.ttype = MAXFLOW_BFS_CHECK_RESIDUAL_TASK; 
                out_task.producer = 1'b0;
+               out_task.non_spec = bfs_is_non_spec;
                out_task.locale = in_data_edge.dest;
-               out_task.ts = in_task.ts + 1; 
+               out_task.ts = in_task.ts + (use_bfs_producer_tasks ? 1'b0 : 1'b1) ; 
                out_task.args[23: 0] = in_task.locale[23:0];
                out_task.args[27:24] = in_data_edge.reverse_edge_id;
                out_task.args[31:28] = in_word_id;
@@ -459,6 +497,8 @@ always_ff @(posedge clk) begin
             44 : global_relabel_mask <= reg_bus.wdata;
             48 : iteration_no_mask <= reg_bus.wdata;
             52 : ordered_edges <= reg_bus.wdata;
+            56 : use_bfs_producer_tasks <= reg_bus.wdata;
+            60 : bfs_is_non_spec <= reg_bus.wdata;
          endcase
       end
    end
@@ -505,9 +545,9 @@ end
             cycle, TILE_ID, in_cq_slot,
             in_task.ts, in_task.locale) ;
          end
-         MAXFLOW_BFS_VISIT_TASK: begin
+         MAXFLOW_BFS_CHECK_RESIDUAL_TASK: begin
             if (SUBTYPE==1) begin
-               $display("[%5d] [rob-%2d] [ro] [%3d] \t BFS_VISIT 0 ts:%8x locale:%4x | cap:%d flow:%d",
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t BFS_RESIDUAL 0 ts:%8x locale:%4x | cap:%d flow:%d",
                cycle, TILE_ID, in_cq_slot,
                in_task.ts, in_task.locale, in_data_edge.capacity, in_task.args[95:64]) ;
             end

@@ -48,6 +48,7 @@ module ocl_slave
    logic [ARG_WIDTH-1:0] task_args;
    logic [31:0] task_ts;
    logic [1:0] task_ttype;
+   logic [3:0] task_param; // {producer, no_write, no_read, non_spec}
    logic [63:0] mem_addr;
 
    logic [31:0] task_args_word;
@@ -66,6 +67,7 @@ module ocl_slave
          wr_comp_bit_vector <= 0;
          task_args_word <= 0;
          task_args <= 0;
+         task_param <= 0;
       end else begin 
          case (state) 
             OCL_IDLE: begin
@@ -121,6 +123,7 @@ module ocl_slave
                      OCL_TASK_ENQ_ARGS: task_args[task_args_word*32 +: 32] <= data;
                      OCL_TASK_ENQ_LOCALE: task_locale <= data;
                      OCL_TASK_ENQ_TTYPE: task_ttype <= data;
+                     OCL_TASK_ENQ_NON_SPEC : task_param[0] <= data[0];
                      OCL_ACCESS_MEM_SET_MSB : mem_addr[63:0] <= data;
                      OCL_ACCESS_MEM_SET_LSB : mem_addr[31:0] <= data;
                      OCL_TASK_ENQ_ARG_WORD : task_args_word <= data;
@@ -303,6 +306,7 @@ end
    assign task_wdata.producer = 1'b0;
    assign task_wdata.no_write = 1'b0;
    assign task_wdata.no_read = 1'b0;
+   assign task_wdata.non_spec = task_param[0];
 
    assign task_araddr = task_ttype;
 

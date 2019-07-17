@@ -588,7 +588,7 @@ void WriteOutputMaxflow(FILE* fp) {
    uint32_t* data = (uint32_t*) calloc(BASE_END, sizeof(uint32_t));
 
    uint32_t log_global_relabel_interval = (int) (round(log2(numV))); // closest_power_of_2(numV)
-   if (log_global_relabel_interval < 5) log_global_relabel_interval = 5;
+   if (log_global_relabel_interval < 5) log_global_relabel_interval = 6;
 
    uint32_t global_relabel_mask = ((1<<log_global_relabel_interval) -1 ) << 8;
    uint32_t iteration_no_mask = ~((1<< (log_global_relabel_interval + 8))-1);
@@ -606,7 +606,9 @@ void WriteOutputMaxflow(FILE* fp) {
    data[10] = log_global_relabel_interval;
    data[11] = global_relabel_mask;
    data[12] = iteration_no_mask;
-   data[13] = 0;
+   data[13] = 1; // ordered edges
+   data[14] = 0; // bfs producer task
+   data[15] = 0; // bfs is non-spec
 
 
    for (int i=0;i<14;i++) {

@@ -39,6 +39,7 @@
    parameter OCL_TASK_ENQ_LOCALE      = 8'h14; // set the locale of the task to be enqueued next
    parameter OCL_TASK_ENQ_TTYPE       = 8'h18; // set the ttype of the task to be enqueued next
    parameter OCL_TASK_ENQ             = 8'h10; // Enq task with ts (wdata)
+   parameter OCL_TASK_ENQ_NON_SPEC    = 8'h44;  
    parameter OCL_ACCESS_MEM_SET_MSB   = 8'h24; // set bits [63:32] of mem addr
    parameter OCL_ACCESS_MEM_SET_LSB   = 8'h28; // set bits [31: 0] of mem addr
    parameter OCL_ACCESS_MEM           = 8'h20;  

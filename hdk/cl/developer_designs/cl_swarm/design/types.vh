@@ -36,6 +36,7 @@
       logic producer; // task is likely to generate additional tasks
       logic no_write; // task will not do any write
       logic no_read;  // task will not read any read-write data
+      logic non_spec; // task will not be dequeued unless the GVT==ts
    } task_t;
 
 

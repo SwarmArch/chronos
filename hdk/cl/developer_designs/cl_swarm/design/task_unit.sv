@@ -6,6 +6,7 @@ typedef struct packed {
    tq_slot_t slot;
    logic splitter;
    logic producer;
+   logic non_spec;
    epoch_t epoch; 
 } tq_heap_elem_t;
 
@@ -253,18 +254,18 @@ module task_unit
    min_heap #(
       .N_STAGES(TQ_STAGES),
       .PRIORITY_WIDTH(TS_WIDTH+1),
-      .DATA_WIDTH(LOG_TQ_SIZE+ EPOCH_WIDTH +1)
+      .DATA_WIDTH(LOG_TQ_SIZE+ EPOCH_WIDTH + 2)
    ) HEAP (
       .clk(clk),
       .rstn(rstn),
 
       .in_ts({reg_next_insert_elem.ts, reg_next_insert_elem.producer}),
-      .in_data( {reg_next_insert_elem.slot, reg_next_insert_elem.splitter, reg_next_insert_elem.epoch} ),
+      .in_data( {reg_next_insert_elem.slot, reg_next_insert_elem.splitter, reg_next_insert_elem.epoch, reg_next_insert_elem.non_spec} ),
       .in_op(heap_in_op),
       .ready(heap_ready),
 
       .out_ts({next_deque_elem.ts, unused_bit}),  
-      .out_data( {next_deque_elem.slot, next_deque_elem.splitter, next_deque_elem.epoch} ),
+      .out_data( {next_deque_elem.slot, next_deque_elem.splitter, next_deque_elem.epoch, next_deque_elem.non_spec} ),
       .out_valid(heap_out_valid),
    
       .capacity(heap_capacity),
@@ -555,6 +556,7 @@ endgenerate
                   abort_task_ready = 1'b1;
                end else if (heap_ready & heap_out_valid & tq_started & !abort_child_ready
                    &  (next_deque_elem.ts < task_unit_throttle_ts)
+                   &  (!next_deque_elem.non_spec | (next_deque_elem.ts == gvt.ts))
                   ) begin 
                   tq_read_addr = next_deque_elem.slot;
                   if (next_deque_elem.splitter) begin
@@ -807,6 +809,7 @@ endgenerate
       tq_write_valid = 1'b0;
       tq_write_addr = 'x;
       tq_write_data = 'x;
+      next_insert_elem.non_spec = 1'b0;
       if (coal_child_ready) begin
          next_insert_elem_set = 1'b1;
          next_insert_elem.ts = coal_child_data.ts; 
@@ -826,6 +829,7 @@ endgenerate
             next_insert_elem.slot = next_free_tq_slot;
             next_insert_elem.splitter = (task_enq_data.ttype == TASK_TYPE_SPLITTER);
             next_insert_elem.producer = task_enq_data.producer;
+            next_insert_elem.non_spec = task_enq_data.non_spec;
             next_free_tq_slot_deque = 1'b1;
             tq_write_valid = 1'b1;
             tq_write_data = task_enq_data;
