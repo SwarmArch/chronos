@@ -122,7 +122,7 @@ module task_unit_unordered
 );
 
    //misc
-   tq_slot_t task_spill_threshold;
+   tq_slot_t task_spill_threshold, producer_priority_threshold;
    logic [LOG_TQ_SPILL_SIZE-1:0] task_unit_spill_size;
    logic [LOG_TQ_SPILL_SIZE-1:0] spills_remaining;
 
@@ -174,7 +174,7 @@ module task_unit_unordered
    );
 
    logic deq_producer;
-   assign deq_producer = (n_tasks < 100) & !producer_fifo_empty;
+   assign deq_producer = (n_tasks < producer_priority_threshold) & !producer_fifo_empty;
 
    assign full = fifo_full;
    assign empty = fifo_empty;
@@ -364,6 +364,7 @@ endgenerate
       if (!rstn) begin
          task_spill_threshold <= SPILL_THRESHOLD;
          task_unit_spill_size <= 32; // has to be muliple of 8
+         producer_priority_threshold <= 100;
          tq_stall <= 0;
          tq_started <= 0;
          alt_log_word <= 0;
@@ -373,6 +374,7 @@ endgenerate
             case (reg_bus.waddr) 
                TASK_UNIT_SPILL_THRESHOLD : task_spill_threshold <= reg_bus.wdata;
                TASK_UNIT_SPILL_SIZE   : task_unit_spill_size <= reg_bus.wdata; 
+               TASK_UNIT_PRODUCER_PRIORITY_THRESHOLD : producer_priority_threshold <= reg_bus.wdata;
                TASK_UNIT_STALL : tq_stall <= reg_bus.wdata;
                TASK_UNIT_START : tq_started <= reg_bus.wdata;
                TASK_UNIT_ALT_LOG : alt_log_word <= reg_bus.wdata;

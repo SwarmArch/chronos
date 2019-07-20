@@ -94,6 +94,7 @@
    parameter TASK_UNIT_START           = 8'h24;
    parameter TASK_UNIT_SPILL_THRESHOLD = 8'h30;
    parameter TASK_UNIT_CLEAN_THRESHOLD = 8'h34;
+   parameter TASK_UNIT_PRODUCER_PRIORITY_THRESHOLD = 8'h34;
    parameter TASK_UNIT_SPILL_SIZE      = 8'h38;
    parameter TASK_UNIT_THROTTLE_MARGIN = 8'h3c;
    parameter TASK_UNIT_TIED_CAPACITY   = 8'h40;
