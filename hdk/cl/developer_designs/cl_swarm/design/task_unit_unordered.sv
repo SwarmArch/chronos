@@ -126,16 +126,16 @@ module task_unit_unordered
    logic [LOG_TQ_SPILL_SIZE-1:0] task_unit_spill_size;
    logic [LOG_TQ_SPILL_SIZE-1:0] spills_remaining;
 
-   tq_slot_t n_tasks;
+   tq_slot_t n_tasks, n_producer_tasks;
 
    logic tq_stall;
    logic tq_started;
 
    logic fifo_wr_en;
    task_t fifo_wr_data;
-   logic fifo_full, fifo_empty;
-   logic fifo_rd_en;
-   task_t fifo_rd_data;
+   logic fifo_full, fifo_empty, producer_fifo_full, producer_fifo_empty;
+   logic fifo_rd_en, producer_fifo_rd_en;
+   task_t fifo_rd_data, producer_fifo_rd_data;
 
    fifo #(
       .WIDTH(TQ_WIDTH),
@@ -143,7 +143,7 @@ module task_unit_unordered
    ) TASK_FIFO (
       .clk(clk),
       .rstn(rstn),
-      .wr_en(fifo_wr_en),
+      .wr_en(fifo_wr_en & !fifo_wr_data.producer ),
       .wr_data(fifo_wr_data),
 
       .full(fifo_full),
@@ -154,9 +154,33 @@ module task_unit_unordered
 
       .size(n_tasks)
    );
+   
+   fifo #(
+      .WIDTH(TQ_WIDTH),
+      .LOG_DEPTH(LOG_TQ_SIZE)
+   ) PRODUCER_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(fifo_wr_en & fifo_wr_data.producer),
+      .wr_data(fifo_wr_data),
+
+      .full(producer_fifo_full),
+      .empty(producer_fifo_empty),
+
+      .rd_en(producer_fifo_rd_en),
+      .rd_data(producer_fifo_rd_data),
+
+      .size(n_producer_tasks)
+   );
+
+   logic deq_producer;
+   assign deq_producer = (n_tasks < 100) & !producer_fifo_empty;
+
    assign full = fifo_full;
    assign empty = fifo_empty;
-   assign almost_full = (n_tasks > task_spill_threshold);
+   assign almost_full = (n_tasks > task_spill_threshold) | (n_producer_tasks > task_spill_threshold);
+
+   logic spilling_producer;
 
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -164,6 +188,7 @@ module task_unit_unordered
       end else begin
          if ((spills_remaining==0)  & almost_full) begin
             spills_remaining <= task_unit_spill_size;
+            spilling_producer <= (n_producer_tasks > task_spill_threshold); 
          end else if (overflow_valid & overflow_ready) begin
             spills_remaining <= spills_remaining - 1;
          end
@@ -176,17 +201,47 @@ module task_unit_unordered
    assign fifo_wr_en = (coal_child_valid & coal_child_ready) | (task_enq_valid & task_enq_ready);
    assign fifo_wr_data = (coal_child_ready ? coal_child_data : task_enq_data);
 
-   assign overflow_valid = !fifo_empty & (spills_remaining > 0);
-   assign overflow_data = fifo_rd_data;
+   assign overflow_valid = (spills_remaining > 0);
+   assign overflow_data = spilling_producer ? producer_fifo_rd_data : fifo_rd_data;
 
-   assign task_deq_valid = !fifo_empty & (spills_remaining == 0) & (fifo_rd_data.ttype != TASK_TYPE_SPLITTER);
-   assign task_deq_data = fifo_rd_data;
+   always_comb begin
+      task_deq_valid = 1'b0;
+      task_deq_data = 'x;
+      fifo_rd_en = 1'b0;
+      producer_fifo_rd_en = 1'b0;
+      splitter_deq_valid = 1'b0;
+      if (spills_remaining == 0) begin
+         if (deq_producer) begin
+            if (producer_fifo_rd_data.ttype == TASK_TYPE_SPLITTER) begin
+               splitter_deq_valid = 1'b1;
+               if (splitter_deq_ready) begin
+                  producer_fifo_rd_en = 1'b1;
+               end
+            end else begin
+               task_deq_valid = 1'b1;
+               task_deq_data = producer_fifo_rd_data;
+               if (task_deq_ready) begin
+                  producer_fifo_rd_en = 1'b1;
+               end
+            end
+         end else if (!fifo_empty) begin
+            task_deq_valid = 1'b1;
+            task_deq_data = fifo_rd_data;
+            if (task_deq_ready) begin
+               fifo_rd_en = 1'b1;
+            end
+         end
+      end else if (overflow_valid & overflow_ready) begin
+         if (spilling_producer) begin
+            producer_fifo_rd_en = 1'b1;
+         end else begin
+            fifo_rd_en = 1'b1;
+         end
+      end
+      
+   end
 
-   assign splitter_deq_valid = !fifo_empty & (spills_remaining == 0) & (fifo_rd_data.ttype == TASK_TYPE_SPLITTER);
-   assign splitter_deq_task = fifo_rd_data;
-
-   assign fifo_rd_en = (overflow_valid & overflow_ready) | (task_deq_valid & task_deq_ready) | 
-                       (splitter_deq_valid & splitter_deq_ready);
+   assign splitter_deq_task = producer_fifo_rd_data;
 
 
    assign task_resp_valid = 1'b0;
@@ -395,7 +450,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       logic splitter_deq_ready;
 
       logic [15:0] heap_capacity;
-      logic [15:0] n_tied_tasks;
+      logic [15:0] n_producer_tasks;
       logic [15:0] n_tasks;
 
    } task_unit_log_t;
@@ -405,6 +460,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
 
       log_word = '0;
       log_word.n_tasks = n_tasks;
+      log_word.n_producer_tasks = n_producer_tasks;
 
 
       log_word.overflow_task.valid = overflow_valid;
