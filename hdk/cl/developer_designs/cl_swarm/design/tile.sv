@@ -983,16 +983,20 @@ cq_slice #(
    .reg_bus(reg_bus[ID_CQ])
 );
 
-logic out_task_fifo_full, out_task_fifo_empty;
-assign cq_out_task_ready = !out_task_fifo_full ;
+logic out_task_fifo_full, out_task_fifo_empty, out_task_fifo_almost_full;
+assign cq_out_task_ready =  (cq_out_task.ttype == TASK_TYPE_UNDO_LOG_RESTORE) ? 
+            !out_task_fifo_full : !out_task_fifo_almost_full ;
 assign fifo_cc_valid = !out_task_fifo_empty;
 
 logic out_task_fifo_wr_en;
 assign out_task_fifo_wr_en = cq_out_task_valid & cq_out_task_ready;
 
+logic [1:0] out_task_fifo_size;
+assign out_task_fifo_almost_full = (out_task_fifo_size >1);
+
 fifo #(
       .WIDTH( $bits(cq_out_task) + $bits(cq_out_task_slot)),
-      .LOG_DEPTH(1)
+      .LOG_DEPTH(2)
    ) OUT_TASK_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1003,7 +1007,9 @@ fifo #(
       .empty(out_task_fifo_empty),
 
       .rd_en(fifo_cc_ready),
-      .rd_data({fifo_cc_data, fifo_cc_slot})
+      .rd_data({fifo_cc_data, fifo_cc_slot}),
+
+      .size(out_task_fifo_size)
 
    );
 

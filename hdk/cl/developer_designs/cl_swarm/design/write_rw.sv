@@ -239,6 +239,7 @@ always_ff @(posedge clk) begin
    end
 end
 
+logic [LOG_LOG_DEPTH:0] log_size; 
 always_ff @(posedge clk) begin
    if (!rstn) begin
       base_rw_addr <= 0;
@@ -254,9 +255,20 @@ always_ff @(posedge clk) begin
 end
 
 always_ff @(posedge clk) begin
-   reg_bus.rvalid <= reg_bus.arvalid;
+   if (!rstn) begin
+      reg_bus.rvalid <= 1'b0;
+      reg_bus.rdata <= 'x;
+   end else
+   if (reg_bus.arvalid) begin
+      reg_bus.rvalid <= 1'b1;
+      casex (reg_bus.araddr) 
+         DEBUG_CAPACITY : reg_bus.rdata <= log_size;
+         CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : reg_bus.rdata <= task_out_fifo_occ;
+      endcase
+   end else begin
+      reg_bus.rvalid <= 1'b0;
+   end
 end
-assign reg_bus.rdata = 0;
 
 logic finish_task_fifo_empty, finish_task_fifo_full;
 

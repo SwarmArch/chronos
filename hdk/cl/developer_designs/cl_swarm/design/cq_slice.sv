@@ -1246,7 +1246,7 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.gvt_ts = gvt.ts;
 
 
-      if (finish_task_valid) begin
+      if (finish_task_valid & finish_task_ready) begin
          log_valid = 1'b1;
       end
       log_word.finish_task_valid = finish_task_valid;
