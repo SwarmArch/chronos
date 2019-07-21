@@ -112,10 +112,15 @@ always_comb begin
                //write_word.neighbor_degrees_pending += read_word.degree;
                //wvalid = 1'b1;
             end
-            out_valid = 1'b1;
-            out_task.args[15:0] = enq_start;
-            out_task.args[31:16] = read_word.degree;
-            out_task.args[63:32] = read_word.eo_begin;
+            if (read_word.degree == 0) begin
+               write_word.color = 0;
+               wvalid = 1'b1;
+            end else begin
+               out_valid = 1'b1;
+               out_task.args[15:0] = enq_start;
+               out_task.args[31:16] = read_word.degree;
+               out_task.args[63:32] = read_word.eo_begin;
+            end
          end
          COLOR_RECEIVE_DEGREE_TASK: begin
             wvalid = 1'b1;
@@ -250,6 +255,7 @@ assign degree = in_task.args[31:16];
 assign n_rem_neighbors = in_task.args[31:16];
 assign color = in_task.args[79:64];
 assign eo_begin = in_task.args[63:32];
+
 
 always_comb begin
    araddr = 'x;
