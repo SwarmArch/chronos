@@ -200,6 +200,8 @@ end
 if (READ_RW_LOGGING[TILE_ID]) begin
    logic log_valid;
    typedef struct packed {
+
+      logic [255:0] out_object_rest;
       
       logic task_in_valid;
       logic task_in_ready;
@@ -255,6 +257,8 @@ if (READ_RW_LOGGING[TILE_ID]) begin
       log_word.out_thread = task_out.thread; 
       log_word.out_ts = task_out.task_desc.ts;
       log_word.out_locale = task_out.task_desc.locale;
+
+      log_word.out_object_rest = task_out.object;
 
    end
 

@@ -57,33 +57,44 @@ module tsb
    output logic   empty // for termination detection
 
 );
+
+   logic [31:0] hash_key;
    logic [3:0] dest_tile;
+
+   logic [31:0] hashed_locale;
+   assign hashed_locale = (s_wdata.locale ^ hash_key);
+   
    always_comb begin
       case (n_tiles) 
          1: dest_tile = 0;
-         2: dest_tile = s_wdata.locale[4];
-         3: dest_tile = (s_wdata.locale[30:4])%3;
-         4: dest_tile = s_wdata.locale[5:4];
-         5: dest_tile = (s_wdata.locale[30:4])%5;
-         6: dest_tile = (s_wdata.locale[30:4])%6;
-         7: dest_tile = (s_wdata.locale[30:4])%7;
-         8: dest_tile = s_wdata.locale[6:4];
-         9: dest_tile = (s_wdata.locale[30:4])%9;
-         10: dest_tile = (s_wdata.locale[30:4])%10;
-         11: dest_tile = (s_wdata.locale[30:4])%11;
-         12: dest_tile = (s_wdata.locale[30:4])%12;
-         default: dest_tile = s_wdata.locale[7:4];
+         2: dest_tile = hashed_locale[4];
+         3: dest_tile = (hashed_locale) % 3;
+         4: dest_tile = hashed_locale[5:4];
+         5: dest_tile = (hashed_locale) % 5;
+         6: dest_tile = (hashed_locale) % 6;
+         7: dest_tile = (hashed_locale) % 7;
+         8: dest_tile = hashed_locale[6:4];
+         9: dest_tile = (hashed_locale) % 9;
+         10: dest_tile = (hashed_locale) % 10;
+         11: dest_tile = (hashed_locale) % 11;
+         12: dest_tile = (hashed_locale) % 12;
+         13: dest_tile = (hashed_locale) % 13;
+         14: dest_tile = (hashed_locale) % 14;
+         15: dest_tile = (hashed_locale) % 15;
+         default: dest_tile = hashed_locale[7:4];
       endcase
-   end
+   end 
    logic [4:0] n_tiles;
    
    always_ff @(posedge clk) begin
       if (!rstn) begin
          n_tiles <= N_TILES;
+         hash_key <= 0;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
                TSB_LOG_N_TILES : n_tiles <= reg_bus.wdata;
+               TSB_HASH_KEY : hash_key <= {reg_bus.wdata[31:28], 4'b0};
             endcase
          end
       end 

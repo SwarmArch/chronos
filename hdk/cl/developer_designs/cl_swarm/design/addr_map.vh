@@ -144,6 +144,7 @@
    parameter TASK_UNIT_ALT_LOG                     = 8'hf8;
    
    parameter TSB_LOG_N_TILES           = 8'h10;
+   parameter TSB_HASH_KEY              = 8'h14;
    parameter TSB_ENTRY_VALID           = 8'h20;
 
    parameter CQ_SIZE                   = 8'h10;
