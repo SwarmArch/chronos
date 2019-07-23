@@ -581,6 +581,8 @@ end
 end 
 endgenerate
 
+reg_bus_t sched_reg_bus();
+
 ro_scheduler SCHEDULER
 (
    .clk   (clk),
@@ -609,10 +611,16 @@ ro_scheduler SCHEDULER
    .non_mem_subtype_valid    (non_mem_subtype_valid),
    .non_mem_subtype          (non_mem_subtype), 
 
-   .non_mem_task_finish      (s_finish_task_valid)
+   .non_mem_task_finish      (s_finish_task_valid),
+
+   .reg_bus                   (sched_reg_bus)
 
 );
 
+
+assign sched_reg_bus.wvalid = reg_bus.wvalid;
+assign sched_reg_bus.waddr = reg_bus.waddr;
+assign sched_reg_bus.wdata = reg_bus.wdata;
 
 logic [LOG_LOG_DEPTH:0] log_size; 
 always_ff @(posedge clk) begin
@@ -638,6 +646,7 @@ always_ff @(posedge clk) begin
          CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : reg_bus.rdata <= 
                {in_fifo_occ[3], in_fifo_occ[2], in_fifo_occ[1], in_fifo_occ[0]};
          CORE_THREAD_ID_FIFO_OCC : reg_bus.rdata <= thread_free_list_occ;
+         8'b1xxx_xxxx: reg_bus.rdata <= sched_reg_bus.rdata;
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;
@@ -822,7 +831,9 @@ module ro_scheduler
    output logic         non_mem_subtype_valid, // set only if non_mem task has a child/successor
    output subtype_t     non_mem_subtype, 
 
-   output logic         non_mem_task_finish
+   output logic         non_mem_task_finish,
+
+   reg_bus_t            reg_bus
 
 );
 
@@ -979,5 +990,86 @@ for (i=0;i<N_SUB_TYPES;i++) begin
 end
 endgenerate
 
+logic started;
+
+logic [31:0] mem_cycles_task_processed;
+logic [31:0] mem_cycles_no_task;
+logic [31:0] mem_cycles_stall_mem;
+logic [31:0] mem_cycles_unassigned;
+logic [31:0] non_mem_cycles_task_processed;
+logic [31:0] non_mem_cycles_no_task;
+logic [31:0] non_mem_cycles_stall_out;
+logic [31:0] non_mem_cycles_stall_finish;
+logic [31:0] non_mem_cycles_unassigned;
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      mem_cycles_task_processed <=0;
+      mem_cycles_no_task <= 0;
+      mem_cycles_stall_mem <=0;
+      mem_cycles_unassigned <=0 ;
+      non_mem_cycles_task_processed <=0;
+      non_mem_cycles_no_task <=0;
+      non_mem_cycles_stall_out <=0;
+      non_mem_cycles_stall_finish <=0;
+      non_mem_cycles_unassigned <=0;
+   end else if (started) begin
+      if (!task_valid[mem_access_subtype]) mem_cycles_no_task <= mem_cycles_no_task + 1;
+      else if (task_ready[mem_access_subtype]) mem_cycles_task_processed <= mem_cycles_task_processed + 1;
+      else begin
+         if (!s_arready) mem_cycles_stall_mem <= mem_cycles_stall_mem + 1;
+         else mem_cycles_unassigned <= mem_cycles_unassigned + 1;
+      end
+     
+      if (!task_valid[non_mem_subtype]) non_mem_cycles_no_task <= non_mem_cycles_no_task + 1;
+      else if (task_ready[non_mem_subtype]) non_mem_cycles_task_processed <= non_mem_cycles_task_processed + 1;
+      else begin
+         if (is_non_mem_task_finished & !finish_task_ready) begin
+            non_mem_cycles_stall_finish <= non_mem_cycles_stall_finish + 1;
+         end else if (out_valid[non_mem_subtype]) begin
+            if (out_task_is_child[non_mem_subtype]) begin
+               if (out_child_untied[non_mem_subtype] & !child_out_ready_untied) begin
+                  non_mem_cycles_stall_out <= non_mem_cycles_stall_out + 1;
+               end 
+               if (!out_child_untied[non_mem_subtype] & !child_out_ready_tied) begin
+                  non_mem_cycles_stall_out <= non_mem_cycles_stall_out + 1;
+               end 
+            end else begin
+               // TODO
+            end
+         end else begin
+            non_mem_cycles_unassigned <= non_mem_cycles_unassigned + 1;
+         end
+      end
+   
+   end
+end
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      started <= 0;
+   end else begin
+      if (reg_bus.wvalid) begin
+         case (reg_bus.waddr) 
+            CORE_START : started <= reg_bus.wdata[0];
+         endcase
+      end
+   end
+end
+always_comb begin
+   casex (reg_bus.araddr) 
+      8'h80: reg_bus.rdata = mem_cycles_no_task;
+      8'h84: reg_bus.rdata = mem_cycles_task_processed;
+      8'h88: reg_bus.rdata = mem_cycles_stall_mem;
+      8'h8c: reg_bus.rdata = non_mem_cycles_no_task;
+      8'h90: reg_bus.rdata = non_mem_cycles_task_processed;
+      8'h94: reg_bus.rdata = non_mem_cycles_stall_out;
+      8'h98: reg_bus.rdata = non_mem_cycles_stall_finish;
+      8'ha0: reg_bus.rdata = mem_cycles_unassigned;
+      8'ha4: reg_bus.rdata = non_mem_cycles_unassigned;
+
+      default: reg_bus.rdata = 'x;
+   endcase
+end
 
 endmodule

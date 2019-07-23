@@ -1463,7 +1463,7 @@ module memory_response_handler (
          m_rready = 1'b1;
          if (m_rvalid) begin
             mshr_clear = 1'b1;
-            mshr_addr = m_rid[3:0]; 
+            mshr_addr = m_rid[LOG_N_MSHR-1:0]; 
          end
       end
    end

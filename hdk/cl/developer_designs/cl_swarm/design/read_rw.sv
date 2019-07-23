@@ -38,6 +38,7 @@ module read_rw
    pci_debug_bus_t   pci_debug
 );
 
+logic started; // cycle counting;
 
 task_t task_desc [0:N_THREADS-1];
 cq_slice_slot_t task_cq_slot [0:N_THREADS-1];
@@ -146,6 +147,37 @@ always_comb begin
    end
 end
 
+logic [31:0] cycles_task_processed;
+logic [31:0] cycles_no_task;
+logic [31:0] cycles_stall_fifo_full;
+logic [31:0] cycles_stall_mem;
+logic [31:0] cycles_unassigned;
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      cycles_task_processed <= 0;
+      cycles_no_task <= 0;
+      cycles_stall_fifo_full <= 0;
+      cycles_stall_mem <= 0;
+      cycles_unassigned <= 0;
+   end else begin
+      if (started) begin
+         if (!task_in_valid) cycles_no_task <= cycles_no_task + 1;
+         else if (task_in_ready) cycles_task_processed <= cycles_task_processed + 1;
+         else begin
+            if (task_out_fifo_occ >= fifo_out_almost_full_thresh) begin
+               cycles_stall_fifo_full <= cycles_stall_fifo_full + 1;
+            end else if (arvalid & !arready) begin
+               cycles_stall_mem <= cycles_stall_mem + 1;
+            end else begin
+               cycles_unassigned <= cycles_unassigned + 1;
+            end
+         end
+      end
+
+   end
+   
+end
 
 logic [LOG_LOG_DEPTH:0] log_size; 
 always_ff @(posedge clk) begin
@@ -153,12 +185,14 @@ always_ff @(posedge clk) begin
       base_rw_addr <= 0;
       fifo_out_almost_full_thresh <= '1;
       dequeues_remaining <= '1;
+      started <= 0;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
             RW_BASE_ADDR : base_rw_addr <= {reg_bus.wdata[29:0], 2'b00};
             CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : fifo_out_almost_full_thresh <= reg_bus.wdata;
             CORE_N_DEQUEUES: dequeues_remaining <= reg_bus.wdata;
+            CORE_START : started <= reg_bus.wdata[0];
          endcase
       end else begin
          if (task_in_valid & task_in_ready) begin
@@ -177,6 +211,11 @@ always_ff @(posedge clk) begin
       casex (reg_bus.araddr) 
          DEBUG_CAPACITY : reg_bus.rdata <= log_size;
          CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : reg_bus.rdata <= task_out_fifo_occ;
+         8'h80: reg_bus.rdata <= cycles_no_task;
+         8'h84: reg_bus.rdata <= cycles_task_processed;
+         8'h88: reg_bus.rdata <= cycles_stall_fifo_full;
+         8'h8c: reg_bus.rdata <= cycles_stall_mem;
+         8'ha0: reg_bus.rdata <= cycles_unassigned;
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;
@@ -196,6 +235,7 @@ end
    end 
 `endif
 */
+
 
 if (READ_RW_LOGGING[TILE_ID]) begin
    logic log_valid;
