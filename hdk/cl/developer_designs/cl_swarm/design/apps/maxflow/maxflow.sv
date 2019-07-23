@@ -454,7 +454,7 @@ always_comb begin
                   out_task.ttype = MAXFLOW_BFS_ENQ_NBR_TASK;
                   out_task.producer = 1'b1;
                   out_task.non_spec = bfs_is_non_spec;
-                  out_task.no_read = 1'b1;
+                  //out_task.no_read = 1'b1;
                   out_task.ts = in_task.ts + 1;
                end else begin
                   araddr = base_neighbors + (in_task.args[31:0] << 3);
