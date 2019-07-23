@@ -254,7 +254,7 @@ if (READ_RW_LOGGING[TILE_ID]) begin
       log_word.task_in_locale = task_in.locale; 
       log_word.araddr = araddr; 
       if (APP_NAME == "maxflow") begin
-         log_word.out_object = task_out.object.eo_begin;
+         log_word.out_object = task_out.object[511-:32] ;
       end else begin
          log_word.out_object = task_out.object;
       end
