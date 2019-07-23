@@ -621,6 +621,7 @@ ro_scheduler SCHEDULER
 assign sched_reg_bus.wvalid = reg_bus.wvalid;
 assign sched_reg_bus.waddr = reg_bus.waddr;
 assign sched_reg_bus.wdata = reg_bus.wdata;
+assign sched_reg_bus.araddr = reg_bus.araddr;
 
 logic [LOG_LOG_DEPTH:0] log_size; 
 always_ff @(posedge clk) begin

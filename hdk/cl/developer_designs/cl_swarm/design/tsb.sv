@@ -94,7 +94,7 @@ module tsb
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
                TSB_LOG_N_TILES : n_tiles <= reg_bus.wdata;
-               TSB_HASH_KEY : hash_key <= {reg_bus.wdata[31:28], 4'b0};
+               TSB_HASH_KEY : hash_key <= {reg_bus.wdata[31:4], 4'b0};
             endcase
          end
       end 
