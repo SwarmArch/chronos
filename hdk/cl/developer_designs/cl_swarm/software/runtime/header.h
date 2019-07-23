@@ -158,6 +158,7 @@
 #define CQ_STATE_STATS            0x40
 #define CQ_STAT_N_RESOURCE_ABORTS 0x60
 #define CQ_STAT_N_GVT_ABORTS      0x64
+#define CQ_IGNORE_GVT_TB          0x68
 #define CQ_STAT_N_IDLE_CQ_FULL    0x70
 #define CQ_STAT_N_IDLE_CC_FULL    0x74
 #define CQ_STAT_N_IDLE_NO_TASK    0x78
@@ -194,6 +195,8 @@
 #define SERIALIZER_SIZE_CONTROL 0x40
 #define SERIALIZER_CQ_STALL_COUNT 0x44
 #define SERIALIZER_STAT_READ 0x48
+#define SERIALIZER_DEBUG_WORD 0x50
+#define SERIALIZER_S_LOCALE 0x54
 
 #define L2_FLUSH          0x10
 #define L2_READ_HITS      0x20
@@ -206,6 +209,8 @@
 #define L2_RETRY_NOT_EMPTY 0x38
 #define L2_RETRY_COUNT     0x3c
 #define L2_STALL_IN        0x40
+
+#define L2_LOG_BVALID        0x14
 
 #define DEBUG_CAPACITY    0xf0 // For any component that does logging
 
@@ -270,7 +275,7 @@ typedef struct {
    uint height;
    uint visited;
    // flows of outgoing neighbors. This is in node_prop because
-   // it is odified by tasks that access src node
+   // it is modified by tasks that access src node
    int flow[12];
 } maxflow_node_prop_t;
 
@@ -278,4 +283,13 @@ typedef struct {
    uint dest;
    uint capacity;
 } maxflow_edge_prop_t;
+
+typedef struct {
+   short color;
+   short degree;
+   short scratch;
+   short ncp;
+   short ndp;
+   uint eo_begin;
+} color_node_prop_t;
 #endif

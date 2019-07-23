@@ -154,6 +154,7 @@ void LoadGraphEdges(const char* file) {
    }
    int n =0;
    numV = 1157828; // hack: com-youtube
+   numV = 500000;
    graph = new Vertex[numV];
    while(!f.eof()) {
       std::getline(f, s);
@@ -162,6 +163,7 @@ void LoadGraphEdges(const char* file) {
          uint32_t src, dest;
          sscanf(s.c_str(), "%d %d\n", &src, &dest);
          //printf("%d %d\n", src, dest);
+         if (src > numV || dest > numV) continue;
          Adj a = {dest-1,0};
          graph[src-1].adj.push_back(a);
       }
@@ -286,36 +288,36 @@ void choose_k(int to, std::vector<int>* vec, int k, int seed) {
     return;
 }
 
-void GenerateGridGraphMaxflow(uint32_t n, uint32_t num_connections) {
+void GenerateGridGraphMaxflow(uint32_t r, uint32_t c, uint32_t num_connections) {
    srand(42);
-   numV = n*n + 2;
+   numV = r*c + 2;
    const int MAX_CAPACITY = 10;
    const int MIN_CAPACITY = 1;
    graph = new Vertex[numV];
    uint32_t i, j;
-   for (i = 0; i < n - 1; ++i) {
-      for (j = 0; j < n; ++j) {
+   for (i = 0; i < r - 1; ++i) {
+      for (j = 0; j < c; ++j) {
          std::vector<int> connections;
          connections.resize(num_connections);
-         choose_k(n, &connections, num_connections, rand());
+         choose_k(c, &connections, num_connections, rand());
          for (auto &x : connections) {
             uint32_t capacity = static_cast<uint32_t>(
                   rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
-            addEdge(i*n+j, (i+1)*n+x, capacity);
-            //printf("a %d %d %d\n", i * n + j, (i + 1) * n + x, capacity);
+            addEdge(i*c+j, (i+1)*c+x, capacity);
+            printf("a %d %d %d\n", i * c + j, (i + 1) * c + x, capacity);
          }
       }
    }
-   for (i = 0; i < n; ++i) {
+   for (i = 0; i < c; ++i) {
       uint32_t capacity = static_cast<uint32_t>
          (rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
-      addEdge(n*n, i, capacity);
+      addEdge(r*c, i, capacity);
    }
 
-   for (i = 0; i < n; ++i) {
+   for (i = 0; i < c; ++i) {
       uint32_t capacity = static_cast<uint32_t>
          (rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
-      addEdge((n - 1) * n + i, n*n + 1, capacity);
+      addEdge((r - 1) * c + i, c*r + 1, capacity);
    }
    startNode = numV-2;
    endNode = numV-1;
@@ -588,7 +590,9 @@ void WriteOutputMaxflow(FILE* fp) {
    uint32_t* data = (uint32_t*) calloc(BASE_END, sizeof(uint32_t));
 
    uint32_t log_global_relabel_interval = (int) (round(log2(numV))); // closest_power_of_2(numV)
-   if (log_global_relabel_interval < 5) log_global_relabel_interval = 6;
+   if (log_global_relabel_interval <= 5) log_global_relabel_interval = 6;
+
+   log_global_relabel_interval = 8;
 
    uint32_t global_relabel_mask = ((1<<log_global_relabel_interval) -1 ) << 8;
    uint32_t iteration_no_mask = ~((1<< (log_global_relabel_interval + 8))-1);
@@ -615,6 +619,7 @@ void WriteOutputMaxflow(FILE* fp) {
       printf("header %d: %x\n", i, data[i]);
    }
    //todo ground truth
+   uint32_t max_degree = 0;
 
    for (uint32_t i=0;i<numV;i++) {
       data[BASE_EDGE_OFFSET +i] = csr_offset[i];
@@ -625,9 +630,13 @@ void WriteOutputMaxflow(FILE* fp) {
       }
       data[BASE_DIST+i*16+14] = csr_offset[i];
       data[BASE_DIST+i*16+15] = csr_offset[i+1];
+      if (csr_offset[i+1] - csr_offset[i] > max_degree)
+          max_degree = csr_offset[i+1]-csr_offset[i];
 
    }
    data[BASE_EDGE_OFFSET +numV] = csr_offset[numV];
+
+   printf("max deg %d \n", max_degree);
 
    // startNode excess
    uint32_t startNodeExcess= 0;
@@ -714,15 +723,19 @@ int main(int argc, char *argv[]) {
       }
       sprintf(out_file, "%s.%s", argv[3] +strStart, ext);
    } else if (type == 1) {
-      int n = atoi(argv[3]);
+      int r, c;
       if (app==APP_MAXFLOW) {
-         int n_connections = atoi(argv[4]);
-         GenerateGridGraphMaxflow(n, n_connections);
+         r = atoi(argv[3]);
+         c = atoi(argv[4]);
+         int n_connections = atoi(argv[5]);
+         GenerateGridGraphMaxflow(c, r, n_connections);
       } else {
-         GenerateGridGraph(n);
+         r = atoi(argv[3]);
+         c = r;
+         GenerateGridGraph(r);
       }
-      sprintf(out_file, "grid_%dx%d.%s", n,n, ext);
-      sprintf(dimacs_file, "grid_%dx%d.dimacs", n,n);
+      sprintf(out_file, "grid_%dx%d.%s", r,c, ext);
+      sprintf(dimacs_file, "grid_%dx%d.dimacs", r,c);
    }  else if (type == 2) {
       LoadGraphGR(argv[3]);
       int strStart = 0;
