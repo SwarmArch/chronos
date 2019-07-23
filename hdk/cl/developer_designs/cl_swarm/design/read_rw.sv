@@ -201,7 +201,7 @@ if (READ_RW_LOGGING[TILE_ID]) begin
    logic log_valid;
    typedef struct packed {
 
-      logic [255:0] out_object_rest;
+      logic [191:0] out_object_rest;
       
       logic task_in_valid;
       logic task_in_ready;
@@ -253,7 +253,11 @@ if (READ_RW_LOGGING[TILE_ID]) begin
       log_word.task_in_ts = task_in.ts; 
       log_word.task_in_locale = task_in.locale; 
       log_word.araddr = araddr; 
-      log_word.out_object = task_out.object;
+      if (APP_NAME == "maxflow") begin
+         log_word.out_object = task_out.object.eo_begin;
+      end else begin
+         log_word.out_object = task_out.object;
+      end
       log_word.out_thread = task_out.thread; 
       log_word.out_ts = task_out.task_desc.ts;
       log_word.out_locale = task_out.task_desc.locale;
