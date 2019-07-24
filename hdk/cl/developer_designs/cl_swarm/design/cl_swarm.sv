@@ -916,6 +916,7 @@ pci_arbiter PCI_ARBITER (
    .pci_debug_comp(pci_debug_comp),
 
    .mem(pci_arb_mem_arb_bus),
+   .ddr_snoop      (xbar_ddr_bus[2]),
 
    .pci_log_size(pci_log_size)
 );

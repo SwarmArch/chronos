@@ -62,6 +62,11 @@ import swarm::*;
                      input bid, bresp, bvalid, output bready,
                      output arid, araddr, arlen, arsize, arvalid, input arready,
                      input rid, rdata, rresp, rlast, rvalid, output rready);
+      modport snoop (input awid, awaddr, awlen, awsize, awvalid, awready,
+                     wid, wdata, wstrb, wlast, wvalid, wready,
+                     bid, bresp, bvalid, bready,
+                     arid, araddr, arlen, arsize, arvalid, arready,
+                     rid, rdata, rresp, rlast, rvalid, rready);
    endinterface
   
    interface task_enq_req_t; 
