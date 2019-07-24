@@ -68,19 +68,19 @@ module tsb
       case (n_tiles) 
          1: dest_tile = 0;
          2: dest_tile = hashed_locale[4];
-         3: dest_tile = (hashed_locale) % 3;
+         3: dest_tile = (hashed_locale[31:4]) % 3;
          4: dest_tile = hashed_locale[5:4];
-         5: dest_tile = (hashed_locale) % 5;
-         6: dest_tile = (hashed_locale) % 6;
-         7: dest_tile = (hashed_locale) % 7;
+         5: dest_tile = (hashed_locale[31:4]) % 5;
+         6: dest_tile = (hashed_locale[31:4]) % 6;
+         7: dest_tile = (hashed_locale[31:4]) % 7;
          8: dest_tile = hashed_locale[6:4];
-         9: dest_tile = (hashed_locale) % 9;
-         10: dest_tile = (hashed_locale) % 10;
-         11: dest_tile = (hashed_locale) % 11;
-         12: dest_tile = (hashed_locale) % 12;
-         13: dest_tile = (hashed_locale) % 13;
-         14: dest_tile = (hashed_locale) % 14;
-         15: dest_tile = (hashed_locale) % 15;
+         9: dest_tile = (hashed_locale[31:4]) % 9;
+         10: dest_tile = (hashed_locale[31:4]) % 10;
+         11: dest_tile = (hashed_locale[31:4]) % 11;
+         12: dest_tile = (hashed_locale[31:4]) % 12;
+         13: dest_tile = (hashed_locale[31:4]) % 13;
+         14: dest_tile = (hashed_locale[31:4]) % 14;
+         15: dest_tile = (hashed_locale[31:4]) % 15;
          default: dest_tile = hashed_locale[7:4];
       endcase
    end 
