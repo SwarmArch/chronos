@@ -216,7 +216,7 @@ always_comb begin
       log_word.rready = ddr_snoop.rready;
       log_word.bvalid = ddr_snoop.bvalid;
       log_word.bready = ddr_snoop.bready;
-      assign log_valid = ddr_snoop.awvalid | ddr_snoop.wvalid | ddr_snoop.arvalid | ddr_snoop.rvalid | ddr_snoop.bvalid;
+      log_valid = ddr_snoop.awvalid | ddr_snoop.wvalid | ddr_snoop.arvalid | ddr_snoop.rvalid | ddr_snoop.bvalid;
    end else begin
       log_word.arid = pci.arid;
       log_word.awid = pci.awid;
@@ -246,7 +246,7 @@ always_comb begin
       log_word.rready = pci.rready;
       log_word.bvalid = pci.bvalid;
       log_word.bready = pci.bready;
-      assign log_valid = pci.awvalid | pci.wvalid | pci.arvalid | pci.rvalid | pci.bvalid;
+      log_valid = pci.awvalid | pci.wvalid | pci.arvalid | pci.rvalid | pci.bvalid;
    end
 end
 
