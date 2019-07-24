@@ -1186,9 +1186,9 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       //32
       logic out_task_valid;
       logic out_task_ready;
-      logic [5:0] out_task_cq_slot;
+      logic [6:0] out_task_cq_slot;
       logic [3:0] out_task_ttype;
-      logic [19:0] out_task_locale;
+      logic [18:0] out_task_locale;
 
 
       // 32 
@@ -1253,6 +1253,7 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.finish_task_ready = finish_task_ready;
       log_word.finish_task_slot = finish_task_slot;
       log_word.finish_task_num_children = finish_task_num_children;
+      log_word.finish_task_undo_log_write = finish_task_is_undo_log_restore;
 
       log_word.gvt_task_slot_valid = gvt_task_slot_valid;
       log_word.gvt_task_slot = gvt_task_slot;

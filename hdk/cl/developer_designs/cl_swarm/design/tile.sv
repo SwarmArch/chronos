@@ -991,7 +991,7 @@ assign fifo_cc_valid = !out_task_fifo_empty;
 logic out_task_fifo_wr_en;
 assign out_task_fifo_wr_en = cq_out_task_valid & cq_out_task_ready;
 
-logic [1:0] out_task_fifo_size;
+logic [2:0] out_task_fifo_size;
 assign out_task_fifo_almost_full = (out_task_fifo_size >1);
 
 fifo #(
@@ -1006,7 +1006,7 @@ fifo #(
       .full(out_task_fifo_full),
       .empty(out_task_fifo_empty),
 
-      .rd_en(fifo_cc_ready),
+      .rd_en(fifo_cc_valid & fifo_cc_ready),
       .rd_data({fifo_cc_data, fifo_cc_slot}),
 
       .size(out_task_fifo_size)
