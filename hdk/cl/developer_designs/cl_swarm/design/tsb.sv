@@ -58,30 +58,57 @@ module tsb
 
 );
 
-   logic [31:0] hash_key;
    logic [3:0] dest_tile;
+   logic use_hash;
+   
+   // random 32-bit numbers generated from 
+   // https://www.browserling.com/tools/random-hex
+   localparam logic [0:15] [31:0] hash_keys = {
+    32'h2cccc93a,
+    32'h05c4357e,
+    32'h95bd7e36,
+    32'h62e721fa,
+    32'h3bbc49a6,
+    32'h2da9f278,
+    32'he39243ce,
+    32'h8329b91a,
+    32'h1cd8549a,
+    32'hfe73b4f1,
+    32'h64d611a0,
+    32'h04a16e92,
+    32'hc8c3c457,
+    32'hecd2efd0,
+    32'h3a2c194f,
+    32'h3aa2ce85
+   };  
 
-   logic [31:0] hashed_locale;
-   assign hashed_locale = (s_wdata.locale ^ hash_key);
+   logic [15:0] hashed_locale;
+   
+   genvar i;
+   generate;
+   for (i=0;i<16;i++) begin
+      assign hashed_locale[i] = use_hash ? ^(s_wdata[31:28] & hash_keys[i][31:28]) : s_wdata.locale[i+4];
+   end
+   endgenerate
    
    always_comb begin
       case (n_tiles) 
          1: dest_tile = 0;
-         2: dest_tile = hashed_locale[4];
-         3: dest_tile = (hashed_locale[31:4]) % 3;
-         4: dest_tile = hashed_locale[5:4];
-         5: dest_tile = (hashed_locale[31:4]) % 5;
-         6: dest_tile = (hashed_locale[31:4]) % 6;
-         7: dest_tile = (hashed_locale[31:4]) % 7;
-         8: dest_tile = hashed_locale[6:4];
-         9: dest_tile = (hashed_locale[31:4]) % 9;
-         10: dest_tile = (hashed_locale[31:4]) % 10;
-         11: dest_tile = (hashed_locale[31:4]) % 11;
-         12: dest_tile = (hashed_locale[31:4]) % 12;
-         13: dest_tile = (hashed_locale[31:4]) % 13;
-         14: dest_tile = (hashed_locale[31:4]) % 14;
-         15: dest_tile = (hashed_locale[31:4]) % 15;
-         default: dest_tile = hashed_locale[7:4];
+         2: dest_tile = hashed_locale[0];
+         3: dest_tile = (hashed_locale) % 3;
+         4: dest_tile = hashed_locale[1:0];
+         5: dest_tile = (hashed_locale) % 5;
+         6: dest_tile = (hashed_locale) % 6;
+         7: dest_tile = (hashed_locale) % 7;
+         8: dest_tile = hashed_locale[2:0];
+         9: dest_tile = (hashed_locale) % 9;
+         10: dest_tile = (hashed_locale) % 10;
+         11: dest_tile = (hashed_locale) % 11;
+         12: dest_tile = (hashed_locale) % 12;
+         13: dest_tile = (hashed_locale) % 13;
+         14: dest_tile = (hashed_locale) % 14;
+         15: dest_tile = (hashed_locale) % 15;
+         default: dest_tile = hashed_locale[3:0];
       endcase
    end 
    logic [4:0] n_tiles;
@@ -89,12 +116,12 @@ module tsb
    always_ff @(posedge clk) begin
       if (!rstn) begin
          n_tiles <= N_TILES;
-         hash_key <= 0;
+         use_hash <= 0;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
                TSB_LOG_N_TILES : n_tiles <= reg_bus.wdata;
-               TSB_HASH_KEY : hash_key <= {reg_bus.wdata[31:4], 4'b0};
+               TSB_HASH_KEY : use_hash <= {reg_bus.wdata[31:4], 4'b0};
             endcase
          end
       end 

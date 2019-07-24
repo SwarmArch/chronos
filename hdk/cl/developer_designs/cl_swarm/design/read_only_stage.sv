@@ -1069,7 +1069,7 @@ always_comb begin
       8'ha0: reg_bus.rdata = mem_cycles_unassigned;
       8'ha4: reg_bus.rdata = non_mem_cycles_unassigned;
 
-      default: reg_bus.rdata = 'x;
+      default: reg_bus.rdata = 0;
    endcase
 end
 
