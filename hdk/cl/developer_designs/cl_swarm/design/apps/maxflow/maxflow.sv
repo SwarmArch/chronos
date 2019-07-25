@@ -15,7 +15,7 @@ typedef struct packed {
 } maxflow_data_t;
 
 typedef struct packed {
-   logic [31:0] capacity;
+   logic signed [31:0] capacity;
    logic [ 7:0] reverse_edge_id;
    logic [23:0] dest;
 } maxflow_edge_t;
@@ -174,7 +174,7 @@ always_comb begin
             if (read_word.last_visited_iter < (in_task.ts & iteration_no_mask)) begin
                out_valid = 1'b1;
                out_task.args[63:32] = read_word.eo_begin;
-               out_task.args[95:64] = read_word.flow[ in_task.args[27:24]];
+               out_task.args[95:64] = -$signed(read_word.flow[ in_task.args[27:24]]);
             end
             
          end 
@@ -438,7 +438,7 @@ always_comb begin
                resp_subtype = 1;
                arvalid = 1'b1;
             end else if (SUBTYPE == 1) begin
-               out_valid = (in_data_edge.capacity > in_task.args[95:64]);
+               out_valid = (in_data_edge.capacity > $signed(in_task.args[95:64]));
                out_task.producer = 1'b1;
                out_task.non_spec = bfs_is_non_spec;
                out_task.ttype = MAXFLOW_BFS_UPDATE_HEIGHT_TASK;
@@ -549,7 +549,7 @@ end
             if (SUBTYPE==1) begin
                $display("[%5d] [rob-%2d] [ro] [%3d] \t BFS_RESIDUAL 0 ts:%8x locale:%4x | cap:%d flow:%d",
                cycle, TILE_ID, in_cq_slot,
-               in_task.ts, in_task.locale, in_data_edge.capacity, in_task.args[95:64]) ;
+               in_task.ts, in_task.locale, in_data_edge.capacity, $signed(in_task.args[95:64])) ;
             end
          end
 
