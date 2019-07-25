@@ -100,6 +100,16 @@ module l2
    assign l1.rlast = 1'b1;
    assign l1.rresp = 0;
 
+   logic circulate_on_mem_stall;
+   
+   always_ff@(posedge clk) begin
+      if (!rstn) begin
+         circulate_on_mem_stall <= 1'b0;
+      end else if (reg_bus.wvalid & (reg_bus.waddr == L2_CIRCULATE_ON_STALL)) begin
+         circulate_on_mem_stall <= reg_bus.wdata[0];
+      end
+   end
+
    typedef struct packed {
 
      logic [3:0] mshr_next; 
@@ -520,6 +530,7 @@ endgenerate
       .write_buf_id(write_buf_id),
 
       .write_buf_match(write_buf_match),
+      .circulate_on_mem_stall(circulate_on_mem_stall),
 
       .log_hit(log_word.hit),
       .log_way(log_word.way)
@@ -991,6 +1002,8 @@ module l2_stage_2
 
    input write_buf_match,
 
+   input circulate_on_mem_stall,
+
 
    // debug
    output logic [CACHE_LOG_WAYS-1:0] log_way,
@@ -1193,7 +1206,16 @@ module l2_stage_2
                            end 
                         end
                      end else begin
-                        stall_out = 1'b1;
+                        if (circulate_on_mem_stall) begin
+                           retry_wr_en = 1'b1;
+                           retry_wdata.incoming_id = i_cid;
+                           retry_wdata.is_read = (i_op == READ);
+                           retry_wdata.addr = i_addr;
+                           retry_wdata.wdata = i_wdata;
+                           retry_wdata.wstrb = i_wstrb;
+                        end else begin
+                           stall_out = 1'b1;
+                        end
                      end
                   end
                end
