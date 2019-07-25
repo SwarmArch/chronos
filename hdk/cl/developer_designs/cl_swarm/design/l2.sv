@@ -288,6 +288,12 @@ module l2
             L2_RETRY_NOT_EMPTY    : reg_bus.rdata <= stat_retry_not_empty;
             L2_RETRY_COUNT    : reg_bus.rdata <= stat_retry_count;
             L2_STALL_IN       : reg_bus.rdata <= stat_stall_in;
+            L2_MISC_DEBUG   : reg_bus.rdata <= {
+                                 mshr_next[3:0],
+                                 mem_bus.rid[3:0],
+                                 2'b0, stall_in[1], stall_in[2],
+                                 l1.rvalid, l1.rready, l1.bvalid, l1.bready,
+                                 mem_bus.arready, mem_bus.awvalid, mem_bus.awready, mem_bus.rvalid};
             
          endcase
       end else begin

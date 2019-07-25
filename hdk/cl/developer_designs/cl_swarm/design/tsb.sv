@@ -87,7 +87,7 @@ module tsb
    genvar i;
    generate;
    for (i=0;i<16;i++) begin
-      assign hashed_locale[i] = use_hash ? ^(s_wdata[31:28] & hash_keys[i][31:28]) : s_wdata.locale[i+4];
+      assign hashed_locale[i] = use_hash ? ^(s_wdata.locale[31:4] & hash_keys[i][31:4]) : s_wdata.locale[i+4];
    end
    endgenerate
    
