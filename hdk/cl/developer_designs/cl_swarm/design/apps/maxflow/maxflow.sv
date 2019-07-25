@@ -174,7 +174,7 @@ always_comb begin
             if (read_word.last_visited_iter < (in_task.ts & iteration_no_mask)) begin
                out_valid = 1'b1;
                out_task.args[63:32] = read_word.eo_begin;
-               out_task.args[95:64] = -$signed(read_word.flow[ in_task.args[27:24]]);
+               out_task.args[95:64] = $signed(read_word.flow[ in_task.args[27:24]]);
             end
             
          end 
