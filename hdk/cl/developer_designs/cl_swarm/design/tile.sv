@@ -991,12 +991,12 @@ assign fifo_cc_valid = !out_task_fifo_empty;
 logic out_task_fifo_wr_en;
 assign out_task_fifo_wr_en = cq_out_task_valid & cq_out_task_ready;
 
-logic [2:0] out_task_fifo_size;
+logic [4:0] out_task_fifo_size;
 assign out_task_fifo_almost_full = (out_task_fifo_size >1);
 
 fifo #(
       .WIDTH( $bits(cq_out_task) + $bits(cq_out_task_slot)),
-      .LOG_DEPTH(2)
+      .LOG_DEPTH(4)
    ) OUT_TASK_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
