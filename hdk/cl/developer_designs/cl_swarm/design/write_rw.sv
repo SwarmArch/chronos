@@ -310,6 +310,14 @@ always_ff @(posedge clk) begin
          8'h8c: reg_bus.rdata <= cycles_stall_mem;
          8'h90: reg_bus.rdata <= cycles_stall_finish;
          8'ha0: reg_bus.rdata <= cycles_unassigned;
+         CORE_DEBUG_WORD: reg_bus.rdata = {
+            18'b0,
+            s_write_wvalid, s_write_wready,
+            finish_task_valid, finish_task_ready, s_sched_valid, s_sched_ready,
+            wvalid, wready, bvalid, bready,
+            task_in_valid, task_in_ready, task_out_valid, task_out_ready
+         };
+
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;

@@ -79,6 +79,7 @@
    parameter CORE_STATE_STATS_BEGIN   = 8'b01xx_xxxx; // deprecated
    parameter CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD = 8'h40;
    parameter CORE_THREAD_ID_FIFO_OCC = 8'h44;
+   parameter CORE_DEBUG_WORD         = 8'h48;
 
    parameter DES_SPARSE_OUTPUT       = 8'h80;
 
