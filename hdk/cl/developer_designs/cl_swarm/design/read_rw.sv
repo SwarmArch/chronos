@@ -90,9 +90,7 @@ always_ff @(posedge clk) begin
    if (task_out_valid & task_out_ready) begin
       undo_log[task_out.cq_slot] <= task_out.object;
    end
-   if (task_in_valid & task_in_ready & task_in.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
-      undo_log_read_word <= undo_log[cq_slot_in];
-   end
+   undo_log_read_word <= undo_log[cq_slot_in];
 end
 
 always_ff @(posedge clk) begin

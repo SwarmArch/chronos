@@ -130,6 +130,29 @@ fifo #(
 
    );
 
+logic c_bvalid, c_bready, bvalid_fifo_full, bvalid_fifo_empty;
+id_t c_bid; 
+
+fifo #(
+      .WIDTH($bits(bid)),
+      .LOG_DEPTH(1)
+   ) BVALID_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(bvalid & bready),
+      .wr_data(bid),
+
+      .full(bvalid_fifo_full),
+      .empty(bvalid_fifo_empty),
+
+      .rd_en(c_bvalid & c_bready),
+      .rd_data(c_bid)
+
+   );
+
+assign c_bvalid = !bvalid_fifo_empty;
+assign bready = !bvalid_fifo_full;
+
 assign s_thread_id = task_in.thread;
 assign wvalid = !wdata_fifo_empty;
 assign wid = write_thread_id;
@@ -217,10 +240,10 @@ end
 );
 
 always_comb begin
-   bready = 1'b0;
+   c_bready = 1'b0;
    if (task_in_ready & !s_write_wvalid) begin
-   end else if (bvalid) begin
-      bready = 1'b1;
+   end else if (c_bvalid) begin
+      c_bready = 1'b1;
    end
 end
 always_ff @(posedge clk) begin
@@ -231,9 +254,9 @@ always_ff @(posedge clk) begin
       if (task_in_ready & !s_write_wvalid) begin
          unlock_locale <= 1'b1;
          unlock_thread <= task_in.thread;
-      end else if (bvalid) begin
+      end else if (c_bvalid) begin
          unlock_locale <= 1'b1;
-         unlock_thread <= bid;
+         unlock_thread <= c_bid;
       end else begin
          unlock_locale <= 1'b0;
          unlock_thread <= 'x;
