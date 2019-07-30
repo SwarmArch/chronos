@@ -1442,8 +1442,8 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
 		
            log_word.deq_locale = task_enq_data.args[31:0] ;
            log_word.deq_ts   = task_enq_data.args[63:32];
-           if (alt_log_word & ARG_WIDTH >= 64) begin
-              log_word.gvt_tb = task_enq_data.args[95:64];
+           if (alt_log_word & ARG_WIDTH >= 65) begin
+              //log_word.gvt_tb = task_enq_data.args[95:64];
            end
         end
         log_valid = 1;

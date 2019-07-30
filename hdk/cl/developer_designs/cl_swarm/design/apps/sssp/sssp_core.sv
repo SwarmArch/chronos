@@ -94,6 +94,8 @@ module sssp_worker
    input byte_t            in_word_id,
    input cq_slice_slot_t   in_cq_slot,
    
+   output cq_slice_slot_t   out_cq_slot,
+   
    output logic            arvalid,
    output logic [31:0]     araddr,
    output logic [2:0]      arsize,
@@ -121,6 +123,8 @@ logic [31:0] neighbors_base_addr;
 
 assign sched_task_valid = task_in_valid;
 assign task_in_ready = sched_task_ready;
+
+assing out_cq_slot = in_cq_slot;
 
 assign resp_task = in_task;
 always_comb begin

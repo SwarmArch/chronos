@@ -37,7 +37,7 @@ module read_only_stage
    input                         out_ready,
    output task_t                 out_task,
    output subtype_t              out_subtype,
-   output cq_slice_slot_t        out_cq_slot,
+   output cq_slice_slot_t        out_task_cq_slot,
    output data_t                 out_data,
    output byte_t                 out_word_id,
    
@@ -156,15 +156,17 @@ child_id_t      s_finish_task_num_children;
 cq_slice_slot_t mem_access_cq_slot;
 cq_slice_slot_t non_mem_cq_slot;
 
+cq_slice_slot_t [N_SUB_TYPES-1:0]  out_cq_slot;
+
 always_comb begin
-   mem_access_cq_slot = in_cq_slot[mem_access_subtype];
-   non_mem_cq_slot = in_cq_slot[non_mem_subtype];
+   mem_access_cq_slot = out_cq_slot[mem_access_subtype];
+   non_mem_cq_slot = out_cq_slot[non_mem_subtype];
 end
 
 genvar i;
 generate
    for (i=0;i<N_SUB_TYPES;i++) begin
-      assign s_out_child_untied[i] = NON_SPEC | ( gvt_task_slot_valid & (gvt_task_slot == in_cq_slot[i]));
+      assign s_out_child_untied[i] = NON_SPEC | ( gvt_task_slot_valid & (gvt_task_slot == out_cq_slot[i]));
       if (i != N_SUB_TYPES-1) begin
          assign task_in_can_schedule[i] = task_in_valid[i] 
                & (   (in_fifo_occ[i+1] < fifo_out_almost_full_thresh) 
@@ -383,7 +385,7 @@ end
 
 always_comb begin
    out_task = mem_task[rid_thread]; 
-   out_cq_slot = mem_cq_slot[rid_thread]; 
+   out_task_cq_slot = mem_cq_slot[rid_thread]; 
    out_subtype = mem_subtype[rid_thread];
    out_data = 'x;
    out_valid = 1'b0;
@@ -541,6 +543,8 @@ for (i=0;i<N_SUB_TYPES;i++) begin
    .in_word_id (in_word_id[i]),
    .in_cq_slot(in_cq_slot[i]),
    
+   .out_cq_slot(out_cq_slot[i]),
+   
    .arvalid      (s_arvalid[i]),
    .araddr       (s_araddr[i]),
    .arsize       (s_arsize[i]),
@@ -565,7 +569,7 @@ for (i=0;i<N_SUB_TYPES;i++) begin
 );
 
 always_comb begin
-   s_sched_task_aborted[i] = s_sched_task_valid[i] & task_aborted[in_cq_slot[i]];
+   s_sched_task_aborted[i] = s_sched_task_valid[i] & task_aborted[out_cq_slot[i]];
 end
 /*
 `ifdef XILINX_SIMULATOR
@@ -591,7 +595,7 @@ ro_scheduler SCHEDULER
    .task_valid    (s_sched_task_valid),
    .arvalid       (s_arvalid & ~s_sched_task_aborted),
    .arlen         (s_arlen),
-   .task_cq_slot  (in_cq_slot),
+   .task_cq_slot  (out_cq_slot),
    
    .out_valid     (s_out_valid & ~s_sched_task_aborted),
    .out_task_is_child (s_out_task_is_child),
@@ -780,8 +784,8 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
    
       log_word.non_mem_ttype = in_task[non_mem_subtype].ttype;
       log_word.mem_ttype = in_task[mem_access_subtype].ttype;
-      log_word.non_mem_cq_slot = in_cq_slot[non_mem_subtype];
-      log_word.mem_cq_slot = in_cq_slot[mem_access_subtype];
+      log_word.non_mem_cq_slot = out_cq_slot[non_mem_subtype];
+      log_word.mem_cq_slot = out_cq_slot[mem_access_subtype];
 
       log_word.non_mem_ts = in_task[non_mem_subtype].ts;
       log_word.non_mem_locale = in_task[non_mem_subtype].locale;

@@ -228,16 +228,19 @@ void WriteFile() {
 		//printf("% d  %d\n", i, graph[i].currentF);
 		fp_t lat = graph[i].lat;
 		fp_t lon = graph[i].lon;
-		uint64_t fp_factor = (1<<28)*2l;
+
 		uint32_t d_lat = lat.to_double() *fp_factor;
 		uint32_t d_lon = lon.to_double() * fp_factor;
-		if (i==destNode)
+		//if (i==destNode)
 		printf("%d lat lon %.10f %.10f %x %x\n",i,lat.to_float(), lon.to_float(), d_lat, d_lon);
 
 		data[BASE_LATLON + (i*2)  ] = d_lat;
 		data[BASE_LATLON + (i*2)+1] = d_lon;
 	}
 	data[BASE_EDGE_OFFSET + numNodes] = offset;
+	data[11] = data[BASE_LATLON + (destNode*2)];
+	data[12] = data[BASE_LATLON + (destNode*2 + 1)];
+
 
 	char out_name[100];
 	sprintf(out_name,"%s_%d_%d.csr", graph_name.c_str(), startNode, destNode);
@@ -256,8 +259,10 @@ int main () {
 	LoadGraph(in_file.c_str());
 	startNode =  1*numNodes/10;
 	destNode =  9*numNodes/10;
-	startNode = 12277337;
-	destNode = 11049603;
+	//startNode = 12277337;
+	//destNode = 11049603;
+	startNode = 159;
+	destNode = 313;
 	printf("Finding shortest path between nodes %d and %d\n", startNode, destNode);
 
 	Vertex* source = &graph[startNode];
@@ -274,8 +279,8 @@ int main () {
 	astar_dist(src_lat, src_lon, target_lat, target_lon, &init_dist);
     std::priority_queue<Task, std::vector<Task>, compare_node> pq;
 
-    Task init_task = { init_dist , 0, startNode, -1};
-    //pq.push(init_task);
+    Task init_task = { init_dist , 0, startNode, (uint32_t) (-1)};
+    pq.push(init_task);
 
     printf("Init Dist %d\n", init_dist);
 
@@ -301,7 +306,7 @@ int main () {
 				//printf("\t\t lat: %x  %x %d\n", (uint32_t) (n->lat * (1<<30) * 2),(uint32_t) (n->lon * (1<<30) * 2) , dist );
 				uint32_t nGScore = std::max(t.ts, nFScore + dist);
 				Task enq = {nGScore, nFScore, neighbor.n, t.vertex};
-				printf("\tenqueue %d %d %d\n", enq.ts, enq.vertex, enq.fScore);
+				printf("\tenqueue %d %d %d dist:%d\n", enq.ts, enq.vertex, enq.fScore, dist);
 				pq.push(enq);
 			}
     	}

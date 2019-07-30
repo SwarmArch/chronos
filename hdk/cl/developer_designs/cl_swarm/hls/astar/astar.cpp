@@ -91,9 +91,11 @@ void astar_dist (fp_t src_lat, fp_t src_lon, fp_t dst_lat, fp_t dst_lon, unsigne
 	//fp_t sq2 = hls::sqrt(one_minus_a);
 	//fp_t c = 2*hls::atan2(sq1, sq2);
 	hls::atan2_input<32>::cartesian x;
+	std::complex<ap_ufixed<32,2>> com(sqrta, sqrt_minus_a);
+	x.cartesian = com;
 	//hls::atan2_input<32>::cartesian y;
-	x.cartesian.imag() = sqrta;
-	x.cartesian.real() = sqrt_minus_a;
+	//x.cartesian.imag() = ad;
+	//x.cartesian.real() = sqrt_minus_a;
 
 	//printf("sqrt(%.10f %.10f): %.10f sqrt(%.10f): %.10f\n",a.to_float(), ua.to_float(), sqrta.to_float(), uminusa.to_float(), sqrt_minus_a.to_float() );
 	//printf("atan2(%0.10f, %0.10f)\n", x.cartesian.real().to_float(), x.cartesian.imag().to_float());

@@ -214,6 +214,8 @@ module color_worker
    input data_t            in_data,
    input byte_t            in_word_id,
    input cq_slice_slot_t   in_cq_slot,
+
+   output cq_slice_slot_t  out_cq_slot,
    
    output logic            arvalid,
    output logic [31:0]     araddr,
@@ -239,6 +241,7 @@ module color_worker
 
 assign sched_task_valid = task_in_valid;
 assign task_in_ready = sched_task_ready;
+assign out_cq_slot = in_cq_slot;
 
 // headers
 logic [31:0] numV, numE;

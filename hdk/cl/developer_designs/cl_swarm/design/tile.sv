@@ -1294,7 +1294,7 @@ read_only_stage
    .out_ready   (ro_out_task_ready),
    .out_task    (ro_out_task),
    .out_subtype (ro_out_task_subtype),
-   .out_cq_slot (ro_out_cq_slot),
+   .out_task_cq_slot (ro_out_cq_slot),
    .out_data    (ro_out_data),
    .out_word_id (ro_out_word_id),
    
