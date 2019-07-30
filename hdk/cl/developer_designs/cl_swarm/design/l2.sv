@@ -307,7 +307,7 @@ module l2
                               l1.rvalid, l1.rready, l1.bvalid, l1.bready,
                               mem_bus.arvalid, mem_bus.arready, 
                               mem_bus.awvalid, mem_bus.awready, 
-                              membus.wvalid , mem_bus.wready,
+                              mem_bus.wvalid , mem_bus.wready,
                               mem_bus.rvalid, mem_bus.bvalid};
             
          endcase
