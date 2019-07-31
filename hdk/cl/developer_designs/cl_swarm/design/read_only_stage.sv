@@ -1024,7 +1024,7 @@ always_ff @(posedge clk) begin
       non_mem_cycles_stall_finish <=0;
       non_mem_cycles_unassigned <=0;
    end else if (started) begin
-      if (!task_valid[mem_access_subtype]) mem_cycles_no_task <= mem_cycles_no_task + 1;
+      if (!task_valid[mem_access_subtype] | !arvalid[mem_access_subtype]) mem_cycles_no_task <= mem_cycles_no_task + 1;
       else if (task_ready[mem_access_subtype]) mem_cycles_task_processed <= mem_cycles_task_processed + 1;
       else begin
          if (!s_arready) mem_cycles_stall_mem <= mem_cycles_stall_mem + 1;

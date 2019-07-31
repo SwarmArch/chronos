@@ -1230,9 +1230,13 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       // 32
       logic to_tq_abort_valid;
       logic to_tq_resource_abort;
-      logic [29:0] unused_4;
+      logic to_tq_abort_ready;
+      logic [3:0] state;
+      logic [24:0] n_resource_aborts;
 
-      logic [31:0] abort_running_task; 
+      logic [23:0] check_vt; 
+      logic [6:0] ts_check_id;
+      logic abort_ts_check_task;
       
 
    } cq_log_t;
@@ -1263,7 +1267,9 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
          log_valid = 1'b1;
       end
       log_word.to_tq_abort_valid = to_tq_abort_valid;
+      log_word.to_tq_abort_ready = to_tq_abort_ready;
       log_word.to_tq_resource_abort = in_resource_abort; 
+      log_word.n_resource_aborts = n_resource_aborts; // to debug why this counter is so off
 
       if (s_abort_children_valid & s_abort_children_ready) begin
          log_valid = 1'b1;
@@ -1288,6 +1294,11 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.out_task_cq_slot = out_task_slot;
       log_word.out_task_ttype = out_task.ttype;
       log_word.out_task_locale = out_task.locale;
+
+      log_word.state = state;
+      log_word.ts_check_id = ts_check_id;
+      log_word.abort_ts_check_task = abort_ts_check_task;
+      log_word.check_vt = check_vt.ts;
    end
 
    log #(
