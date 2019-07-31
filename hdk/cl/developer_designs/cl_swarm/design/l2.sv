@@ -101,14 +101,22 @@ module l2
    assign l1.rresp = 0;
 
    logic circulate_on_mem_stall;
+
+   logic block_aw_on_w_not_ready;
+   logic stage_2_awready;
    
    always_ff@(posedge clk) begin
       if (!rstn) begin
          circulate_on_mem_stall <= 1'b0;
+         block_aw_on_w_not_ready <= 1'b1;
       end else if (reg_bus.wvalid & (reg_bus.waddr == L2_CIRCULATE_ON_STALL)) begin
          circulate_on_mem_stall <= reg_bus.wdata[0];
+         block_aw_on_w_not_ready <= reg_bus.wdata[1];
       end
    end
+
+   assign stage_2_awready = block_aw_on_w_not_ready ? (mem_bus.awready & mem_bus.wready & !mem_bus.wvalid) 
+                                 : mem_bus.awready;
 
    typedef struct packed {
 
@@ -233,6 +241,8 @@ module l2
    logic [31:0] stat_retry_not_empty;
    logic [31:0] stat_retry_count;
    logic [31:0] stat_stall_in;
+
+   logic [7:0] aw_req, w_req;
    
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -276,6 +286,12 @@ module l2
          if (stall_in[1]) begin
             stat_stall_in <= stat_stall_in + 1;
          end
+         if (mem_bus.awvalid & mem_bus.awready) begin 
+            aw_req <= aw_req + 1;
+         end
+         if (mem_bus.wvalid & mem_bus.wready) begin 
+            w_req <= w_req + 1;
+         end
 
       end
    end
@@ -309,6 +325,7 @@ module l2
                               mem_bus.awvalid, mem_bus.awready, 
                               mem_bus.wvalid , mem_bus.wready,
                               mem_bus.rvalid, mem_bus.bvalid};
+            L2_MISC_DEBUG + 4 : reg_bus.rdata <= {aw_req, w_req};
             
          endcase
       end else begin
@@ -505,7 +522,7 @@ endgenerate
       .m_awvalid(mem_bus.awvalid),
       .m_awaddr(mem_bus.awaddr),
       .m_awid(mem_bus.awid),
-      .m_awready(mem_bus.awready),
+      .m_awready(stage_2_awready),
 
       .m_arvalid(mem_bus.arvalid),
       .m_araddr(mem_bus.araddr),
