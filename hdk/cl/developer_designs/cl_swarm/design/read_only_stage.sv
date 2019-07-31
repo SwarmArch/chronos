@@ -480,7 +480,7 @@ logic finish_task_fifo_empty, finish_task_fifo_full;
 
 recirculating_fifo #(
       .WIDTH( $bits(finish_task_slot) + $bits(finish_task_num_children)),
-      .LOG_DEPTH(1)
+      .LOG_DEPTH(3)
    ) FINISHED_TASK_FIFO (
       .clk(clk),
       .rstn(rstn),
@@ -652,7 +652,7 @@ always_ff @(posedge clk) begin
                {in_fifo_occ[3], in_fifo_occ[2], in_fifo_occ[1], in_fifo_occ[0]};
          CORE_THREAD_ID_FIFO_OCC : reg_bus.rdata <= thread_free_list_occ;
          8'b1xxx_xxxx: reg_bus.rdata <= sched_reg_bus.rdata;
-         CORE_DEBUG_MODE: reg_bus.rdata = {
+         CORE_DEBUG_WORD: reg_bus.rdata = {
             finish_task_valid, finish_task_ready,
             s_sched_task_valid, s_sched_task_ready,
             arvalid, arready, rvalid, rready, out_valid, out_ready, child_valid, child_ready};

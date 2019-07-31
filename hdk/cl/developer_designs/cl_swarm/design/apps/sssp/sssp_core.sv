@@ -124,7 +124,7 @@ logic [31:0] neighbors_base_addr;
 assign sched_task_valid = task_in_valid;
 assign task_in_ready = sched_task_ready;
 
-assing out_cq_slot = in_cq_slot;
+assign out_cq_slot = in_cq_slot;
 
 assign resp_task = in_task;
 always_comb begin
