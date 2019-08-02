@@ -521,6 +521,7 @@ always_ff @(posedge clk) begin
    else cycle <= cycle + 1;
 end
 
+logic [31:0] log_app [N_SUB_TYPES];
 
 generate 
 
@@ -562,6 +563,8 @@ for (i=0;i<N_SUB_TYPES;i++) begin
    
    .sched_task_valid       (s_sched_task_valid[i]),
    .sched_task_ready       (s_sched_task_ready[i]),
+
+   .log_output    (log_app[i]),
 
    .reg_bus      (reg_bus)
 
@@ -725,7 +728,7 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
    } rw_read_log_t;
    rw_read_log_t log_word;
    always_comb begin
-      log_valid = mem_access_subtype_valid | non_mem_subtype_valid  | (arvalid & arready) | (rvalid & rready) ;
+      log_valid = mem_access_subtype_valid | non_mem_subtype_valid | (task_in_ready != 0)  | (arvalid & arready) | (rvalid & rready) ;
 
       log_word = '0;
    
@@ -734,7 +737,10 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
                                    remaining_words[4][3:0], remaining_words[3][3:0],
                                    remaining_words[2][3:0], remaining_words[1][3:0],
                                    remaining_words[0][3:0]};
-      log_word.valid_words = {rid_mshr.valid_words[15:0], next_valid_words};
+      //log_word.valid_words = {rid_mshr.valid_words[15:0], next_valid_words};
+      if (N_SUB_TYPES >= 3) begin
+         log_word.valid_words = log_app[3];
+      end
       log_word.rid_mshr_thread_id = rid_thread;
       log_word.out_data_word_valid = {out_data_word_0_valid, out_data_word_1_valid};
 

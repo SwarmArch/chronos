@@ -126,6 +126,8 @@ module astar_worker
    output logic            sched_task_valid,
    input logic             sched_task_ready,
 
+   output logic [31:0]     log_output,
+
 
    reg_bus_t               reg_bus
 
@@ -280,7 +282,7 @@ end else if (SUBTYPE == 3) begin
 
    end
 
-   assign task_in_ready = task_in_valid & ( !reg_valid | ap_ready);
+   assign task_in_ready = task_in_valid & ( !reg_valid | ap_ready) & !in_flight_fifo_full;
    logic ap_ready;
    logic [63:0] reg_in_data;
    logic reg_valid;
@@ -306,10 +308,13 @@ end else if (SUBTYPE == 3) begin
 
    cq_slice_slot_t in_flight_fifo_out_cq_slot;
    assign out_cq_slot = in_flight_fifo_out_cq_slot;
-    
+   
+   logic[7:0] in_flight_fifo_size;
+   logic[7:0] dist_fifo_size;
+
    fifo #(
       .WIDTH( $bits(in_cq_slot)+ $bits(in_task )),
-      .LOG_DEPTH(5)
+      .LOG_DEPTH(6)
    ) IN_FLIGHT_FIFO (
       .clk(clk),
       .rstn(rstn),
@@ -321,7 +326,7 @@ end else if (SUBTYPE == 3) begin
 
       .full(in_flight_fifo_full),
       .empty(in_flight_fifo_empty),
-      .size()
+      .size(in_flight_fifo_size)
    );
    
    fifo #(
@@ -338,7 +343,7 @@ end else if (SUBTYPE == 3) begin
 
       .full(dist_fifo_full),
       .empty(dist_fifo_empty),
-      .size()
+      .size(dist_fifo_size)
    );
 
    astar_dist DIST (
@@ -356,8 +361,13 @@ end else if (SUBTYPE == 3) begin
            .out_r_ap_vld (astar_dist_out_valid)
    );
 
+   assign log_output[17:0] = dist_fifo_out;
+   assign log_output[31:25] = in_flight_fifo_size; 
+   assign log_output[24:18] = dist_fifo_size; 
+
 end
 endgenerate
+
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
