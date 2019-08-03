@@ -31,6 +31,8 @@ module astar_rw
 );
 
 logic [31:0] base_rw_addr;
+logic skip_type_1_rw;
+logic skip_type_1_ro;
 assign task_in_ready = sched_task_valid & sched_task_ready;
 assign sched_task_valid = task_in_valid;
 
@@ -54,7 +56,14 @@ always_comb begin
             out_valid = 1'b1;
          end
       end else if (in_task.ttype == 1) begin // queue_vertex task
-         out_valid = 1'b1; 
+         if (skip_type_1_rw & (gScore >= in_data)) begin
+            out_valid = 1'b0;
+         end else begin
+            out_valid = 1'b1; 
+            if (skip_type_1_ro) begin
+               out_task.args[63:32] = in_data; // if new dist is larger than this value, do not enqueue ttype 0
+            end
+         end
       end else if (in_task.ttype == TASK_TYPE_TERMINATE) begin
          // nothing
       end
@@ -64,10 +73,13 @@ end
 always_ff @(posedge clk) begin
    if (!rstn) begin
       base_rw_addr <= 0;
+      skip_type_1_rw <= 1;
+      skip_type_1_ro <= 1;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
-            8'h20 : base_rw_addr <= {reg_bus.wdata[29:0], 2'b00};
+            8'd20 : base_rw_addr <= {reg_bus.wdata[29:0], 2'b00};
+            8'd52 : {skip_type_1_rw, skip_type_1_ro} <= reg_bus.wdata[1:0];
          endcase
       end
    end
@@ -139,6 +151,8 @@ logic [31:0] latlon_base_addr;
 
 logic [31:0] target_lat, target_lon;
 logic [31:0] targetNode;
+
+logic skip_type_1_ro;
 
 logic [31:0] astar_dist;
 logic astar_dist_out_valid;
@@ -268,16 +282,23 @@ end else if (SUBTYPE == 3) begin
 
    assign sched_task_valid = !in_flight_fifo_empty & !dist_fifo_empty;
   
-   assign out_valid = sched_task_valid;
    assign out_subtype = 0;
    assign out_task_is_child = 1'b1;
    always_comb begin
       out_task = in_flight_fifo_out;
       out_task.ttype = 0;
+      out_valid = 1'b0;
       if ( (dist_fifo_out + in_flight_fifo_out.args[31:0]) < in_flight_fifo_out.ts) begin
          out_task.ts = in_flight_fifo_out.ts;
       end else begin
          out_task.ts = dist_fifo_out + in_flight_fifo_out.args[31:0];
+      end
+      if (sched_task_valid) begin
+         if (skip_type_1_ro) begin
+            out_valid = out_task.ts < in_flight_fifo_out.args[63:32];
+         end else begin
+            out_valid = 1'b1;
+         end
       end
 
    end
@@ -371,6 +392,7 @@ endgenerate
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
+      skip_type_1_ro <= 1'b1;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr)
@@ -380,6 +402,7 @@ always_ff @(posedge clk) begin
             8'd32 : targetNode <= reg_bus.wdata; 
             8'd44 : target_lat <= reg_bus.wdata; 
             8'd48 : target_lon <= reg_bus.wdata; 
+            8'd52 : skip_type_1_ro <= reg_bus.wdata[0];
          endcase
       end
    end
