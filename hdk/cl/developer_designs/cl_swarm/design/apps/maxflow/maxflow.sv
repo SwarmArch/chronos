@@ -313,6 +313,7 @@ module maxflow_worker
    output logic            sched_task_valid,
    input logic             sched_task_ready,
 
+   output logic [31:0]     log_output,
 
    reg_bus_t               reg_bus
 
