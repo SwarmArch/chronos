@@ -84,8 +84,8 @@ ${CL_ROOT}/design/VexRiscv.v
 ${CL_ROOT}/design/apps/sssp_hls/sssp_hls.v
 ${CL_ROOT}/design/apps/sssp_hls/sssp_hls_l1_V_m_axi.v
 ${CL_ROOT}/design/apps/sssp/sssp_core.sv
-${CL_ROOT}/design/apps/des/des_core.sv
-${CL_ROOT}/design/apps/des/des_enqueuer.sv
+${CL_ROOT}/design/apps/des/des.sv
+# ${CL_ROOT}/design/apps/des/des_enqueuer.sv
 ${CL_ROOT}/design/apps/astar/astar.sv
 # ${CL_ROOT}/design/apps/astar/visit_vertex.sv
 ${CL_ROOT}/design/apps/riscv/riscv_core.sv
