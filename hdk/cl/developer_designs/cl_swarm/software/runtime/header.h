@@ -87,6 +87,8 @@
 #define SSSP_STATE_STATS_BEGIN    0x40
 #define CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD 0x40
 
+#define CORE_DEBUG_WORD           0x48
+
 #define SPILL_BASE_TASKS         0x60
 #define SPILL_BASE_STACK         0x64
 #define SPILL_BASE_SCRATCHPAD    0x68
@@ -140,7 +142,10 @@
 #define TASK_UNIT_MISC_DEBUG                  0xf4
 #define TASK_UNIT_ALT_DEBUG                   0xf8
 
+#define TASK_UNIT_PRODUCER_THRESHOLD          0x34
+
 #define TSB_LOG_N_TILES            0x10
+#define TSB_HASH_KEY               0x14
 #define TSB_ENTRY_VALID            0x20
 
 #define CQ_SIZE                0x10
@@ -209,8 +214,10 @@
 #define L2_RETRY_NOT_EMPTY 0x38
 #define L2_RETRY_COUNT     0x3c
 #define L2_STALL_IN        0x40
+#define L2_DEBUG_WORD      0x50
 
 #define L2_LOG_BVALID        0x14
+#define L2_CIRCULATE_ON_STALL 0x18
 
 #define DEBUG_CAPACITY    0xf0 // For any component that does logging
 
@@ -222,7 +229,7 @@ int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, ui
 int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t);
 int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
-int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
+int log_ddr(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_ro_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size, uint32_t tile_id);

@@ -28,29 +28,31 @@ for line in f:
         print(line)
         continue
     if (line.find('going') >=0):
-        print(line)
+    #    print(line)
         continue
     #seq = int(line[1:7])
     seq = i
     slot_loc = line.find('slot:')
     ts_loc = line.find('ts:')
+    locale_loc = line.find('locale')
     if (slot_loc >0):
         slot = int(line[slot_loc+5:slot_loc+9])
 
     if (line.find('task_enqueue')>0):
         slot_lines[slot] = line
-        ts = int(line[ts_loc+3:ts_loc+11], 16)
+        ts = int(line[ts_loc+3:locale_loc], 16)
         slot_ts[slot] = ts
         slot_seq[slot] = seq
      
     if (line.find('commit')>0):
-        enqs.append([ slot_ts[slot], slot_seq[slot], slot_lines[slot]]) 
+        if (slot_ts[slot] is not None):
+            enqs.append([ slot_ts[slot], slot_seq[slot], slot_lines[slot]]) 
     if (line.find('overflow')>0):
         enqs.append([ slot_ts[slot], slot_seq[slot], slot_lines[slot]]) 
 
-enqs.sort(key=lambda tup: tup[0]*100000000 + tup[1])
+enqs.sort(key=lambda tup: tup[0]*1000000000 + tup[1])
 for (ts, seq, line) in enqs:
-    if (line[99+1] == ' '):
-        line = line[0:99] + "     " + line[100:]
+    #if (line[99+1] == ' '):
+    #    line = line[0:99] + "     " + line[100:]
     print("%s" % line[:-1])
     
