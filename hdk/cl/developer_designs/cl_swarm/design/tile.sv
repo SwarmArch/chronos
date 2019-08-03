@@ -193,6 +193,7 @@ axi_bus_t ocl_bus_q();
 
 axi_bus_t core_l1();
 logic [31:0] done;
+logic [31:0] l2_out_debug;
 ocl_slave  
 #(
    .TILE_ID(TILE_ID)
@@ -223,7 +224,9 @@ ocl_slave
   .l1(core_l1),
    
   .done(done),
-  .cur_cycle(cur_cycle)
+  .cur_cycle(cur_cycle),
+
+  .l2_debug(l2_out_debug)
 
 );
 assign core_l1.arready = 1'b1;
@@ -601,6 +604,16 @@ l2
 
    .pci_debug(pci_debug[ID_L2_RO])
 );
+
+assign l2_out_debug = {
+   l2_out_d[0].awvalid, l2_out_d[0].awready, l2_out_d[0].arvalid, l2_out_d[0].arready,
+   l2_out_d[0].wvalid, l2_out_d[0].wready,
+   l2_out_d[0].rvalid, l2_out_d[0].rready, l2_out_d[0].bvalid, l2_out_d[0].bready,
+   l2_out_d[1].awvalid, l2_out_d[1].awready, l2_out_d[1].arvalid, l2_out_d[1].arready,
+   l2_out_d[1].wvalid, l2_out_d[1].wready,
+   l2_out_d[1].rvalid, l2_out_d[1].rready, l2_out_d[1].bvalid, l2_out_d[1].bready,
+   mem_bus.awvalid, mem_bus.awready, mem_bus.arvalid, mem_bus.arready, mem_bus.wvalid, mem_bus.wready,
+   mem_bus.rvalid, mem_bus.rready, mem_bus.bvalid, mem_bus.bready};
 
 
   

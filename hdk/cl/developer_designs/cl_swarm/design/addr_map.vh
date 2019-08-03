@@ -47,6 +47,7 @@
    parameter OCL_CUR_CYCLE_MSB        = 8'h30;
    parameter OCL_CUR_CYCLE_LSB        = 8'h34;
    parameter OCL_LAST_MEM_LATENCY     = 8'h38;
+   parameter OCL_L2_DEBUG             = 8'h3c;
    parameter OCL_DONE                 = 8'h40;
 
    parameter OCL_PARAM_N_TILES             = 8'h50;

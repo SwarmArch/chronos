@@ -31,7 +31,9 @@ module ocl_slave
    axi_bus_t.slave l1,
 
    input [31:0] done,
-   output logic [63:0] cur_cycle
+   output logic [63:0] cur_cycle,
+
+   input [31:0] l2_debug
 
    
 );
@@ -201,6 +203,10 @@ module ocl_slave
                      OCL_LAST_MEM_LATENCY: begin
                         state <= OCL_SEND_R;
                         data <= last_mem_latency;
+                     end
+                     OCL_L2_DEBUG: begin
+                        state <= OCL_SEND_R;
+                        data <= l2_debug;
                      end
                      OCL_PARAM_N_TILES : begin
                         state <= OCL_SEND_R;

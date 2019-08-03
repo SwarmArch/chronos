@@ -101,6 +101,7 @@ module l2
    assign l1.rresp = 0;
 
    logic circulate_on_mem_stall;
+   logic [31:0] write_mshr_valid, read_mshr_valid;
 
    logic block_aw_on_w_not_ready;
    logic stage_2_awready;
@@ -177,6 +178,7 @@ module l2
    assign log_word.mshr_next = mshr_next;
    assign log_word.m_bid = mem_bus.bid;
    assign log_word.write_buf_match = write_buf_match; 
+   assign log_word.write_buf_mshr_valid = write_mshr_valid;
    always_comb begin
       log_word.repl_addr = tag_rdata[ log_word.way ].tag;
       log_word.tag_rdata_0 = tag_rdata[0];
@@ -326,6 +328,7 @@ module l2
                               mem_bus.wvalid , mem_bus.wready,
                               mem_bus.rvalid, mem_bus.bvalid};
             L2_MISC_DEBUG + 4 : reg_bus.rdata <= {aw_req, w_req};
+            L2_MISC_DEBUG + 8 : reg_bus.rdata <= {write_mshr_valid[15:0], read_mshr_valid[15:0]};
             
          endcase
       end else begin
@@ -492,7 +495,7 @@ endgenerate
 
       //if a writeback for this address is ongoing.
       .match(write_buf_match),
-      .debug_mshr_valid(log_word.write_buf_mshr_valid)
+      .debug_mshr_valid(write_mshr_valid)
 
    );
 
@@ -615,7 +618,9 @@ endgenerate
       .mshr_available(mshr_available),
       .next_available(mshr_next),
       .wr_data(mshr_wdata),
-      .mshr_claim(mshr_claim)
+      .mshr_claim(mshr_claim),
+
+      .debug_mshr_valid(read_mshr_valid)
    );
    
 endmodule
@@ -1368,7 +1373,9 @@ module mshr_manager (
    output mshr_addr_t   next_available,
    output logic         mshr_available,
    input mshr_t         wr_data,
-   input                mshr_claim
+   input                mshr_claim,
+
+   output logic [31:0]  debug_mshr_valid
 ); 
    localparam N_MSHR = 2**LOG_N_MSHR;
    mshr_t mem[0:N_MSHR-1];
@@ -1380,6 +1387,8 @@ module mshr_manager (
       .in(~mshr_valid),
       .out(mshr_next)
    );
+
+   assign debug_mshr_valid = mshr_valid;
 
    always_comb begin
       mshr_available = !mshr_valid[mshr_next];

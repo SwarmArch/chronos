@@ -34,6 +34,8 @@ module pci_arbiter(
 
    pci_debug_bus_t self_debug();
 
+   logic [7:0] reg_arlen;
+
    logic [15:0] rid;
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -44,6 +46,7 @@ module pci_arbiter(
                if (pci.arvalid & pci.arready & pci.araddr[DEBUG_ADDR_BIT]) begin
                   debug_state <= PCI_DEBUG_RECEIVED;
                   rid <= pci.arid;
+                  reg_arlen <= pci.arlen;
                   tile <= pci.araddr[35:28];
                   pci_debug_comp <= pci.araddr[27:20]; // component within the tile
                end
@@ -136,12 +139,12 @@ module pci_arbiter(
       for (integer i=0;i<N_TILES;i++) begin
          pci_debug_arvalid[i] = (i==tile) & (debug_state == PCI_DEBUG_RECEIVED); 
       end
-      pci_debug_arlen = pci.arlen;  
+      pci_debug_arlen = reg_arlen;  
       pci_debug_rready = pci.rready;
    end
 
    assign self_debug.arvalid = (tile == N_TILES) & (debug_state == PCI_DEBUG_RECEIVED);
-   assign self_debug.arlen = pci.arlen;
+   assign self_debug.arlen = reg_arlen;
    assign self_debug.rready = pci.rready; 
 
 generate
@@ -216,7 +219,11 @@ always_comb begin
       log_word.rready = ddr_snoop.rready;
       log_word.bvalid = ddr_snoop.bvalid;
       log_word.bready = ddr_snoop.bready;
-      log_valid = ddr_snoop.awvalid | ddr_snoop.wvalid | ddr_snoop.arvalid | ddr_snoop.rvalid | ddr_snoop.bvalid;
+      log_valid = (ddr_snoop.awvalid & ddr_snoop.awready) |
+                  (ddr_snoop.wvalid &  ddr_snoop.wready) | 
+                  (ddr_snoop.arvalid & ddr_snoop.arready) |
+                  (ddr_snoop.rvalid & ddr_snoop.rready) |
+                  (ddr_snoop.bvalid & ddr_snoop.bready) ;
    end else begin
       log_word.arid = pci.arid;
       log_word.awid = pci.awid;

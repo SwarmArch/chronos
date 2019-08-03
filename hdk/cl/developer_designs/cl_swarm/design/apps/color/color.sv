@@ -514,6 +514,7 @@ logic [31:0] cur_arg_0;
 logic [4:0] bitmap_color;
 logic [5:0] assign_color;
 
+logic [31:0] edge_dest [0:15];
 logic [31:0] cur_neighbor;
 always_comb begin
    cur_neighbor = edge_dest[neighbor_offset[3:0]];
@@ -545,7 +546,6 @@ always_comb begin
    cur_bit_set = (bitmap == new_bitmap);
 end
 
-logic [31:0] edge_dest [0:15];
 
 always_ff @(posedge clk) begin
    if (m_axi_l1_V_RVALID) begin

@@ -27,6 +27,10 @@ module ocl_arbiter(
    output logic ocl_rready,
 
    output logic [2:0] num_mem_ctrl,
+
+   output [7:0] ocl_global_raddr,
+   input [31:0] ocl_global_rdata,
+
    input [15:0] pci_log_size
 
 );
@@ -38,6 +42,8 @@ module ocl_arbiter(
                               OCL_SEND_AR, OCL_WAIT_R, OCL_SEND_R
                               } ocl_state;
 
+   
+   assign ocl_global_raddr = ocl_araddr[7:0];
 
    ocl_state state;
    
@@ -114,10 +120,8 @@ module ocl_arbiter(
             OCL_WAIT_R: begin
                if (tile == N_TILES) begin
                   if (ocl_araddr[15:8] == ID_GLOBAL) begin
-                     if (ocl_araddr[7:0] == DEBUG_CAPACITY) begin
-                        state <= OCL_SEND_R;
-                        ocl.rdata <= pci_log_size; 
-                     end
+                     ocl.rdata <= ocl_global_rdata; 
+                     state <= OCL_SEND_R;
                   end
                end else begin
                   if (ocl_rvalid[tile]) begin

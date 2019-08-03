@@ -443,6 +443,8 @@ axi_bus_t xbar_ddr_bus[4]();
 axi_bus_t xbar_ddr_bus_p[4](); 
 
 
+
+
 axi_id_t    [XBAR_IN_TILES:0] mem_xbar_in_awid;
 axi_addr_t  [XBAR_IN_TILES:0] mem_xbar_in_awaddr;
 axi_len_t   [XBAR_IN_TILES:0] mem_xbar_in_awlen;
@@ -747,6 +749,65 @@ axi_xbar
 
 );
 
+logic [31:0] ocl_global_rdata;
+logic [7:0] ocl_global_raddr;
+
+logic [31:0] axi_tree_debug_aw, axi_tree_debug_aw_d;
+logic [31:0] axi_tree_debug_ar, axi_tree_debug_ar_d;
+logic [31:0] axi_tree_debug_w,  axi_tree_debug_w_d;
+logic [31:0] axi_tree_debug_r,  axi_tree_debug_r_d;
+logic [31:0] axi_tree_debug_b,  axi_tree_debug_b_d;
+logic [31:0] ddr_debug, ddr_debug_d;
+
+logic [31:0] awcount[4];
+logic [31:0] wcount[4];
+logic [31:0] arcount[4];
+logic [31:0] rcount[4];
+logic [31:0] bcount[4];
+
+generate
+   for (i=0;i<C_N_TILES*2;i++) begin
+      assign axi_tree_debug_aw[i] = axi_tree[i].awvalid;
+      assign axi_tree_debug_aw[i+16] = axi_tree[i].awready;
+      assign axi_tree_debug_ar[i] = axi_tree[i].arvalid;
+      assign axi_tree_debug_ar[i+16] = axi_tree[i].arready;
+      assign axi_tree_debug_w[i] = axi_tree[i].wvalid;
+      assign axi_tree_debug_w[i+16] = axi_tree[i].wready;
+      assign axi_tree_debug_r[i] = axi_tree[i].rvalid;
+      assign axi_tree_debug_r[i+16] = axi_tree[i].rready;
+      assign axi_tree_debug_b[i] = axi_tree[i].bvalid;
+      assign axi_tree_debug_b[i+16] = axi_tree[i].bready;
+   end
+   assign ddr_debug = {xbar_ddr_awvalid, xbar_ddr_awready, xbar_ddr_arvalid, xbar_ddr_arready, xbar_ddr_wvalid,
+                        xbar_ddr_wready, xbar_ddr_rvalid, xbar_ddr_rready};
+
+   for (i=0;i<4;i++) begin
+      always_ff @(posedge clk_main_a0) begin
+         if (!rst_main_n_sync) begin
+            awcount[i] <= 0; arcount[i] <= 0; 
+            wcount[i] <= 0; rcount[i] <= 0; bcount[i] <= 0;
+         end else begin
+            if (xbar_ddr_awvalid[i] & xbar_ddr_awready[i]) awcount[i] <= awcount[i] + 1;
+            if (xbar_ddr_arvalid[i] & xbar_ddr_arready[i]) arcount[i] <= arcount[i] + 1;
+            if (xbar_ddr_wvalid[i] & xbar_ddr_wready[i]) wcount[i] <= wcount[i] + 1;
+            if (xbar_ddr_rvalid[i] & xbar_ddr_rready[i]) rcount[i] <= rcount[i] + 1;
+            if (xbar_ddr_bvalid[i] & xbar_ddr_bready[i]) bcount[i] <= bcount[i] + 1;
+         end
+      end
+   end
+endgenerate
+   
+   lib_pipe #(
+      .WIDTH(32*6),
+      .STAGES(2)
+   ) OCL_DEBUG_PIPE (
+      .clk(clk_main_a0), 
+      .rst_n(rst_main_n_sync),
+      
+      .in_bus ( {axi_tree_debug_aw, axi_tree_debug_ar, axi_tree_debug_w, axi_tree_debug_r, axi_tree_debug_b }),
+      .out_bus ({axi_tree_debug_aw_d, axi_tree_debug_ar_d, axi_tree_debug_w_d, axi_tree_debug_r_d, axi_tree_debug_b_d})
+   ); 
+
 ocl_arbiter OCL_ARBITER (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
@@ -773,8 +834,27 @@ ocl_arbiter OCL_ARBITER (
    .ocl_rready    (ocl_rready ),
 
    .num_mem_ctrl   (num_mem_ctrl),
-   .pci_log_size   (pci_log_size)
+
+   .ocl_global_raddr (ocl_global_raddr),
+   .ocl_global_rdata (ocl_global_rdata)
 );
+
+always_ff @(posedge clk_main_a0) begin
+   case (ocl_global_raddr) 
+      DEBUG_CAPACITY : ocl_global_rdata <= pci_log_size;
+      8'h0 : ocl_global_rdata <= axi_tree_debug_aw_d; 
+      8'h4 : ocl_global_rdata <= axi_tree_debug_ar_d; 
+      8'h8 : ocl_global_rdata <= axi_tree_debug_w_d; 
+      8'hc : ocl_global_rdata <= axi_tree_debug_r_d; 
+      8'h10 : ocl_global_rdata <= axi_tree_debug_b_d; 
+      8'h14 : ocl_global_rdata <= ddr_debug_d; 
+      8'h20, 8'h24, 8'h28, 8'h2c : ocl_global_rdata <= awcount[ocl_global_raddr[3:2]];
+      8'h30, 8'h34, 8'h38, 8'h3c : ocl_global_rdata <= arcount[ocl_global_raddr[3:2]];
+      8'h40, 8'h44, 8'h48, 8'h4c : ocl_global_rdata <= wcount[ocl_global_raddr[3:2]];
+      8'h50, 8'h54, 8'h58, 8'h5c : ocl_global_rdata <= rcount[ocl_global_raddr[3:2]];
+      8'h60, 8'h64, 8'h68, 8'h6c : ocl_global_rdata <= bcount[ocl_global_raddr[3:2]];
+   endcase
+end
 
    lib_pipe #(
       .WIDTH(N_TILES+8+8),

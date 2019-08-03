@@ -282,10 +282,10 @@ end else if (SUBTYPE == 3) begin
 
    end
 
+   logic reg_valid;
    assign task_in_ready = task_in_valid & ( !reg_valid | ap_ready) & !in_flight_fifo_full;
    logic ap_ready;
    logic [63:0] reg_in_data;
-   logic reg_valid;
    always_ff @(posedge clk) begin
       if (!rstn) begin
          reg_valid <= 1'b0;
