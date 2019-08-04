@@ -1439,12 +1439,13 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.enq_task_coal_child.slot  = next_free_tq_slot;
         log_word.enq_task_coal_child.epoch_1 = epoch[next_free_tq_slot];
         if (alt_log_word & ARG_WIDTH >= 32) begin
-		
            log_word.deq_locale = task_enq_data.args[31:0] ;
+        end
+        if (alt_log_word & ARG_WIDTH >= 64) begin
            log_word.deq_ts   = task_enq_data.args[63:32];
-           if (alt_log_word & ARG_WIDTH >= 65) begin
-              //log_word.gvt_tb = task_enq_data.args[95:64];
-           end
+        end
+        if (alt_log_word & ARG_WIDTH >= 65) begin
+           //log_word.gvt_tb = task_enq_data.args[95:64];
         end
         log_valid = 1;
      end else if (coal_child_valid & coal_child_ready) begin
