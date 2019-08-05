@@ -804,8 +804,8 @@ endgenerate
       .clk(clk_main_a0), 
       .rst_n(rst_main_n_sync),
       
-      .in_bus ( {axi_tree_debug_aw, axi_tree_debug_ar, axi_tree_debug_w, axi_tree_debug_r, axi_tree_debug_b }),
-      .out_bus ({axi_tree_debug_aw_d, axi_tree_debug_ar_d, axi_tree_debug_w_d, axi_tree_debug_r_d, axi_tree_debug_b_d})
+      .in_bus ( {axi_tree_debug_aw, axi_tree_debug_ar, axi_tree_debug_w, axi_tree_debug_r, axi_tree_debug_b, ddr_debug }),
+      .out_bus ({axi_tree_debug_aw_d, axi_tree_debug_ar_d, axi_tree_debug_w_d, axi_tree_debug_r_d, axi_tree_debug_b_d, ddr_debug_d})
    ); 
 
 ocl_arbiter OCL_ARBITER (

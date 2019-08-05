@@ -35,6 +35,11 @@ module des_rw
 assign task_in_ready = sched_task_valid & sched_task_ready;
 assign sched_task_valid = task_in_valid;
 
+logic        use_seq_number; 
+// append a per-gate 8-bit sequence number to the timestamp. This is used to
+// order the outgoing messages when a gate receives two messages at the same
+// timestamp.
+
 logic_val_t  input_logic_val;
 logic        input_port;
 
@@ -70,14 +75,23 @@ always_comb begin
    out_task = in_task;
    if (task_in_valid) begin
       if (in_task.ttype == 0) begin
-        wvalid = 1'b1;
-        wdata[21:20] = new_gate_in1;
-        wdata[23:22] = new_gate_in0;
-        wdata[25:24] = new_gate_output;
-        wdata[31:26] = in_data[31:26] + 1;
-        out_valid = gate_output_changed;
-        out_task.ts = {in_task.ts[31:8], 2'b0, in_data[31:26]};
-        out_task.args[1:0] = new_gate_output;
+         wvalid = 1'b1;
+         wdata[21:20] = new_gate_in1;
+         wdata[23:22] = new_gate_in0;
+         wdata[25:24] = new_gate_output;
+         out_valid = gate_output_changed;
+         if (use_seq_number) begin
+            wdata[31:26] = in_data[31:26];
+            if (wdata[31:26] < in_task.ts[5:0]) begin
+               // prevent TS going back
+               wdata[31:26] = in_task.ts[5:0];
+            end
+            out_task.ts = {in_task.ts[31:8], 2'b0, wdata[31:26]};
+         end else begin
+            out_task.ts = in_task.ts;
+            wdata[31:26] = 0;
+         end
+         out_task.args[1:0] = new_gate_output;
       end else begin
          out_valid = 1'b1;
       end
@@ -121,6 +135,18 @@ always_comb begin
       7: logic_gate = XNOR2;
    endcase
    gate_delay = in_data[15:0];
+end
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      use_seq_number <= 1;
+   end else begin
+      if (reg_bus.wvalid) begin
+         case (reg_bus.waddr)
+            8'd52 : use_seq_number <= reg_bus.wdata[0];
+         endcase
+      end
+   end
 end
 
          
@@ -196,6 +222,7 @@ logic [31:0] offset_base_addr;
 logic [31:0] neighbors_base_addr;
 logic [31:0] init_edge_offset;
 logic [31:0] init_edge_neighbors;
+logic use_seq_number;
 
 assign sched_task_valid = task_in_valid;
 assign task_in_ready = sched_task_ready;
@@ -271,10 +298,18 @@ always_comb begin
                   out_task.ttype = 1;
                   out_task.args = in_task.args + 7;
                   out_task_is_child = 1'b1;
-                  out_task.ts = {in_data[15:0], 8'b0};
+                  if (use_seq_number) begin
+                     out_task.ts = {in_data[23:0], 8'b0};
+                  end else begin
+                     out_task.ts = in_data[23:0];
+                  end
                end else begin
                   out_task.ttype = 0;
-                  out_task.ts = {in_data[15:0], 8'b0};
+                  if (use_seq_number) begin
+                     out_task.ts = {in_data[23:0], 8'b0};
+                  end else begin
+                     out_task.ts = in_data[23:0];
+                  end
                   out_task.args = {28'b0 , 1'b0 /*port*/, in_data[25:24]};
                   out_task_is_child = 1'b1;
                end
@@ -290,6 +325,7 @@ always_ff @(posedge clk) begin
    if (!rstn) begin
       offset_base_addr <= 0;
       neighbors_base_addr <= 0;
+      use_seq_number <= 1;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr)
@@ -297,6 +333,7 @@ always_ff @(posedge clk) begin
             NEIGHBOR_BASE_ADDR : neighbors_base_addr <= (reg_bus.wdata << 2);
             8'd32 : init_edge_offset <= (reg_bus.wdata << 2);
             8'd36 : init_edge_neighbors <= (reg_bus.wdata << 2);
+            8'd52 : use_seq_number <= reg_bus.wdata[0];
          endcase
       end
    end
