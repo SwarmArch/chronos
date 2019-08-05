@@ -81,14 +81,14 @@ always_comb begin
          wdata[25:24] = new_gate_output;
          out_valid = gate_output_changed;
          if (use_seq_number) begin
-            wdata[31:26] = in_data[31:26];
-            if (wdata[31:26] < in_task.ts[5:0]) begin
+            wdata[31:26] = in_data[31:26] + 1;
+            if ( (wdata[31:26] < in_task.ts[5:0]) & (gate_delay == 0)) begin
                // prevent TS going back
                wdata[31:26] = in_task.ts[5:0];
             end
-            out_task.ts = {in_task.ts[31:8], 2'b0, wdata[31:26]};
+            out_task.ts = {in_task.ts[31:8] + gate_delay, 2'b0, wdata[31:26]};
          end else begin
-            out_task.ts = in_task.ts;
+            out_task.ts = in_task.ts + gate_delay;
             wdata[31:26] = 0;
          end
          out_task.args[1:0] = new_gate_output;
