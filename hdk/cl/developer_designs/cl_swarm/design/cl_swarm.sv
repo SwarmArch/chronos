@@ -766,7 +766,7 @@ logic [31:0] rcount[4];
 logic [31:0] bcount[4];
 
 generate
-   for (i=0;i<C_N_TILES*2;i++) begin
+   for (i=0;i<(C_N_TILES >= 8 ? 16 : C_N_TILES*2);i++) begin
       assign axi_tree_debug_aw[i] = axi_tree[i].awvalid;
       assign axi_tree_debug_aw[i+16] = axi_tree[i].awready;
       assign axi_tree_debug_ar[i] = axi_tree[i].arvalid;
