@@ -16,10 +16,11 @@ module sssp_rw
    
    output logic            wvalid,
    output logic [31:0]     waddr,
-   output data_t           wdata,
+   output object_t         wdata,
 
    output logic            out_valid,
    output task_t           out_task,
+   output data_t           out_data,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,

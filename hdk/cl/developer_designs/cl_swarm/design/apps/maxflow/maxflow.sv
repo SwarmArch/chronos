@@ -67,6 +67,7 @@ module maxflow_rw
 
    output logic            out_valid,
    output task_t           out_task,
+   output data_t           out_data,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,

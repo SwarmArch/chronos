@@ -913,7 +913,7 @@ end
 logic is_non_mem_task_finished;
 always_comb begin
    is_non_mem_task_finished = 1'b0;
-   if (task_valid[non_mem_subtype]) begin
+   if (!NON_SPEC & task_valid[non_mem_subtype]) begin
       if (mem_task_enq_child) begin
          is_non_mem_task_finished = 1'b0;
       end else begin
@@ -978,22 +978,24 @@ initial begin
       n_enqueues[i] = 0;
    end
 end
-always_ff @(posedge clk) begin
-   if (process_mem_task) begin
-      n_enqueues[ mem_access_cq_slot] <= n_enqueues[mem_access_cq_slot] 
-         + (mem_access_subtype_valid ? (arlen[mem_access_subtype] + 8'd1) : 0)
-         - ((mem_access_subtype == 0)? 0 : 1);
+generate 
+if (!NON_SPEC) begin
+   always_ff @(posedge clk) begin
+      if (process_mem_task) begin
+         n_enqueues[ mem_access_cq_slot] <= n_enqueues[mem_access_cq_slot] 
+            + (mem_access_subtype_valid ? (arlen[mem_access_subtype] + 8'd1) : 0)
+            - ((mem_access_subtype == 0)? 0 : 1);
+      end
    end
-end
-always_ff @(posedge clk) begin
-   if (process_non_mem_task) begin
-      n_dequeues[ non_mem_cq_slot] <= n_dequeues[non_mem_cq_slot]
-               + ((non_mem_subtype == 0)? 0 : 1)
-               - ( (out_valid[non_mem_subtype] & !out_task_is_child[non_mem_subtype]) ? 1 :0);
+   always_ff @(posedge clk) begin
+      if (process_non_mem_task) begin
+         n_dequeues[ non_mem_cq_slot] <= n_dequeues[non_mem_cq_slot]
+                  + ((non_mem_subtype == 0)? 0 : 1)
+                  - ( (out_valid[non_mem_subtype] & !out_task_is_child[non_mem_subtype]) ? 1 :0);
+      end
    end
 end
 
-generate 
 for (i=0;i<N_SUB_TYPES;i++) begin
    always_comb begin
       task_ready[i] = 1'b0;

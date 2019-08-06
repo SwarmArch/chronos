@@ -1141,7 +1141,8 @@ fifo_size_t rw_write_out_fifo_occ;
 
 logic rw_write_out_valid;
 logic rw_write_out_ready;
-task_t rw_write_out_data;
+task_t rw_write_out_task;
+data_t rw_write_out_data;
 cq_slice_slot_t rw_write_out_cq_slot;
 
 assign rw_write_out_ready = !rw_write_out_fifo_full;
@@ -1197,7 +1198,8 @@ write_rw
 
    .task_out_valid(rw_write_out_valid),
    .task_out_ready(rw_write_out_ready),
-   .task_out(rw_write_out_data),  
+   .task_out(rw_write_out_task),  
+   .data_out(rw_write_out_data),  
    .task_out_cq_slot(rw_write_out_cq_slot),  
    .task_out_fifo_occ (fifo_occ[0]),
 
@@ -1251,8 +1253,8 @@ for (i=0;i<N_SUB_TYPES;i++) begin
 
    if (i==0) begin
       assign fifo_wr_en[i] = rw_write_out_valid;
-      assign fifo_in_task[i] = rw_write_out_data;
-      assign fifo_in_data[i] = 0;
+      assign fifo_in_task[i] = rw_write_out_task;
+      assign fifo_in_data[i] = rw_write_out_data;
       assign fifo_in_cq_slot[i] = rw_write_out_cq_slot;
       assign fifo_in_word_id[i] = 0;
    end else begin
