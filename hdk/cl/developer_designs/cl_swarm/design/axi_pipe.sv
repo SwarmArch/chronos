@@ -127,6 +127,14 @@ module axi_mux
 
 axi_bus_t out();
 
+typedef enum logic[0:0] {
+   A,
+   B
+} axi_port_id;
+
+// priority given to this port
+axi_port_id last_aw_sel, last_ar_sel;
+
 logic awsel, arsel; //0-A, 1-B
 logic w_waiting, w_wait_sel;
 always_ff @(posedge clk) begin
@@ -149,8 +157,37 @@ always_ff @(posedge clk) begin
    end
 end
 
-assign awsel = (w_waiting ? w_wait_sel : !a.awvalid); 
-assign arsel = !a.arvalid;
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      last_ar_sel <= A;
+      last_aw_sel <= A;
+   end else begin 
+      if (a.awvalid & a.awready) last_aw_sel <= A;
+      else if (b.awvalid & b.awready) last_aw_sel <= B;
+
+      if (a.arvalid & a.arready) last_ar_sel <= A;
+      else if (b.arvalid & b.arready) last_ar_sel <= B;
+   end
+end
+
+always_comb begin
+   // only give in to the other if the priority port is not valid
+   if (last_ar_sel == B) begin
+      arsel = !a.arvalid;
+   end else begin
+      arsel = b.arvalid;
+   end
+
+   if (w_waiting) begin
+      awsel = w_wait_sel;
+   end else begin
+      if (last_ar_sel == B) begin
+         awsel = !a.awvalid;
+      end else begin
+         awsel = b.awvalid;
+      end
+   end
+end
 
 always_comb begin
    if (!awsel) begin
@@ -197,10 +234,10 @@ always_comb begin
    end
 end
 
-assign a.awready = out.awready & !awsel ;
+assign a.awready = out.awready & !awsel & !w_waiting ;
 assign a.wready  = out.wready & !awsel;
 assign a.arready = out.arready & !arsel;
-assign b.awready = out.awready & awsel ;
+assign b.awready = out.awready & awsel  & !w_waiting;
 assign b.wready  = out.wready & awsel;
 assign b.arready = out.arready & arsel;
 

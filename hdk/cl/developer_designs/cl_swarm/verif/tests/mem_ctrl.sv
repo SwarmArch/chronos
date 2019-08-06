@@ -127,10 +127,15 @@ always_comb begin
    end
 end 
 always_comb begin
+   
    if (q_size<QUEUE_SIZE-1) begin
       axi.awready = !aw_taken;
       axi.wready = aw_taken;
       axi.arready = 1'b1;
+   end else begin
+      axi.awready = 1'b0;
+      axi.wready = 1'b0;
+      axi.arready = 1'b0;
    end
 end
 

@@ -67,6 +67,7 @@ initial begin
    for (int i=0;i<N_TILES;i++) begin
       for (int j=0;j<16;j++) begin
          ocl_poke(i, ID_ALL_APP_CORES, j*4, file[j]);
+         ocl_poke(i, ID_TSB, TSB_HASH_KEY, 32'h4b56917f);
       end
       ocl_poke(i, ID_ALL_APP_CORES, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 10);
       ocl_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS, 16);
@@ -108,7 +109,8 @@ initial begin
       ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_START, 1);
       ocl_poke(i, ID_ALL_CORES, CORE_START, '1);
    end
-   #1us;
+   #7us;
+   //check_log(N_TILES, ID_GLOBAL);
    
    // Wait until application completes
    do begin
@@ -131,8 +133,7 @@ initial begin
    $display("Run Complete. Flushing Cache ...");
    
    flush_caches();
-
-
+   
    #1us;
    
    // Application-specific verification code
@@ -206,7 +207,6 @@ initial begin
 
    // Uncomment to Test DEBUG interfaces
    //check_log(ID_L2);
-   //check_log(ID_TASK_UNIT);
    
    tb.kernel_reset();
    tb.power_down();
