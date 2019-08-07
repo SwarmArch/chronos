@@ -188,14 +188,17 @@ module l2
    end
    logic log_valid;
    logic log_bvalid;
+   logic log_retry;
    always_ff@(posedge clk) begin
       if (!rstn) begin
          log_bvalid <= 1'b0;
+         log_retry <= 1'b0;
       end else if (reg_bus.wvalid & (reg_bus.waddr == L2_LOG_BVALID)) begin
          log_bvalid <= reg_bus.wdata[0];
+         log_retry <= reg_bus.wdata[1];
       end
    end
-   assign log_valid = ((p12_op != NONE) & !stall_in[2] & !stall_out[2]) | (log_bvalid & ((mem_bus.bvalid & mem_bus.bready) | (mem_bus.rvalid) ));
+   assign log_valid = ((p12_op != NONE) & !stall_in[2] & !stall_out[2] & (!retry_fifo_wr_en | log_retry)) | (log_bvalid & ((mem_bus.bvalid & mem_bus.bready) | (mem_bus.rvalid) ));
 
 `ifdef XILINX_SIMULATOR
    if (1) begin
