@@ -190,10 +190,11 @@ always_comb begin
 end
 
 always_comb begin
+
    if (!awsel) begin
       out.awid       = a.awid;
       out.awaddr     = a.awaddr;
-      out.awvalid    = a.awvalid;
+      out.awvalid    = a.awvalid & !w_waiting;
       out.awlen      = a.awlen;
       out.awsize     = a.awsize;
 
@@ -201,12 +202,12 @@ always_comb begin
       out.wdata      = a.wdata;
       out.wstrb      = a.wstrb;
       out.wlast      = a.wlast;
-      out.wvalid     = a.wvalid;
+      out.wvalid     = a.wvalid & w_waiting;
       
    end else begin
       out.awid       = b.awid;
       out.awaddr     = b.awaddr;
-      out.awvalid    = b.awvalid;
+      out.awvalid    = b.awvalid & !w_waiting;
       out.awlen      = b.awlen;
       out.awsize     = b.awsize;
 
@@ -214,7 +215,7 @@ always_comb begin
       out.wdata      = b.wdata;
       out.wstrb      = b.wstrb;
       out.wlast      = b.wlast;
-      out.wvalid     = b.wvalid;
+      out.wvalid     = b.wvalid & w_waiting;
    end
 end
 
@@ -235,10 +236,10 @@ always_comb begin
 end
 
 assign a.awready = out.awready & !awsel & !w_waiting ;
-assign a.wready  = out.wready & !awsel;
+assign a.wready  = out.wready & !awsel & w_waiting;
 assign a.arready = out.arready & !arsel;
 assign b.awready = out.awready & awsel  & !w_waiting;
-assign b.wready  = out.wready & awsel;
+assign b.wready  = out.wready & awsel & w_waiting;
 assign b.arready = out.arready & arsel;
 
 assign out.bready = out.bid[ID_BIT] ? b.bready : a.bready;
