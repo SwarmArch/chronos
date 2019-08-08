@@ -1198,7 +1198,7 @@ module l2_stage_2
                      retry_wdata.wstrb = i_wstrb;
                   end else begin
                      m_awaddr = {tag_entry[way].tag, i_addr.index, 6'b0};
-                     m_awid = (TILE_ID <<10)+ (1<<15)+ (BANK_ID<<8) + write_buf_id;
+                     m_awid = (TILE_ID <<10)+ (1<<15)+ (BANK_ID<<8) + (m_awaddr[7:6] << 6) | write_buf_id;
 
                      m_araddr = i_addr;
                      m_arid = (TILE_ID << 10)+ (1<<15) + (BANK_ID<<8) + mshr_next_id;
@@ -1219,7 +1219,7 @@ module l2_stage_2
                         stall_out = 1'b0;
                         if (writeback_required) begin // if dirty
                            next_p_op = EVICT;
-                           next_p_mid = write_buf_id;
+                           next_p_mid = (m_awaddr[7:6] <<6) +  write_buf_id;
                            d_addr = i_addr.index * CACHE_NUM_WAYS + way;
                            d_en = 1'b1;
                         end
