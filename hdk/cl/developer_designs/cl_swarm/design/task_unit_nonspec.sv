@@ -217,6 +217,7 @@ module task_unit_nonspec
    );
 
    assign n_tasks = (2**TQ_STAGES - 1 - heap_capacity);
+   logic [47:0] cum_tasks;
    always_comb begin
       coal_child_ready = 1'b0;
       task_enq_ready = 1'b0;
@@ -406,10 +407,12 @@ if(TQ_STATS) begin
          n_overflow <= 0;
 
          n_cycles_task_deq_valid <= 0;
+         cum_tasks <= 0;
       end else begin
          if (task_enq_valid & task_enq_ready) begin
-               n_untied_enq <= n_untied_enq + 1;
+            n_untied_enq <= n_untied_enq + 1;
          end
+         cum_tasks <= cum_tasks + n_tasks;
 
          if (task_deq_valid & task_deq_ready) begin
             n_deq_task <= n_deq_task + 1;
@@ -474,6 +477,7 @@ endgenerate
             TASK_UNIT_STAT_N_COAL_CHILD          : reg_bus.rdata <= n_coal_child;
             TASK_UNIT_STAT_N_OVERFLOW            : reg_bus.rdata <= n_overflow;
             TASK_UNIT_STAT_N_CYCLES_DEQ_VALID    : reg_bus.rdata <= n_cycles_task_deq_valid;
+            TASK_UNIT_STAT_AVG_TASKS   : reg_bus.rdata <= cum_tasks[47:16];
 
             TASK_UNIT_MISC_DEBUG : reg_bus.rdata <= { abort_child_valid, task_enq_valid, cut_ties_valid, cq_child_abort_valid, abort_task_valid, abort_resp_valid, task_deq_valid, commit_task_valid, task_deq_ready};
             default: reg_bus.rdata <= 0;

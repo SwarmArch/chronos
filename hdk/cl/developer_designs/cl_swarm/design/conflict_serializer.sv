@@ -324,7 +324,7 @@ module conflict_serializer #(
          full_threshold    <= READY_LIST_SIZE - 1;
          ready_list_stall_threshold <= READY_LIST_SIZE - 4;
          active_threads <= N_THREADS;
-         max_running_tasks <= 128;
+         max_running_tasks <= 127;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
