@@ -116,6 +116,23 @@ if (NON_SPEC) begin : gen
    
    ts_t drop_task_ts;
 
+   free_list #(
+      .LOG_DEPTH(LOG_CQ_SLICE_SIZE)
+   ) FREE_LIST_CQ_ID  (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wr_en(finish_task_valid),
+      .rd_en(out_task_valid & out_task_ready),
+      .wr_data(finish_task_slot),
+
+      .full(), 
+      .empty(),
+      .rd_data(out_task_slot),
+
+      .size()
+   );
+
    assign out_task_valid = deq_task_valid;
    always_comb begin
       out_task = deq_task;
@@ -123,7 +140,7 @@ if (NON_SPEC) begin : gen
          out_task.ttype = TASK_TYPE_TERMINATE;
       end
    end
-   assign out_task_slot = 0;
+   //assign out_task_slot = 0;
    assign deq_task_ready = out_task_ready;
    assign deq_task_cq_slot = 0;
    assign finish_task_ready = 1;

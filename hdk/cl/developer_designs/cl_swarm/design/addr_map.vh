@@ -233,6 +233,7 @@
    parameter SERIALIZER_STAT_READ = 8'h48; // write to set addr, followed by read
    parameter SERIALIZER_DEBUG_WORD = 8'h50;
    parameter SERIALIZER_S_LOCALE = 8'h54;
+   parameter SERIALIZER_N_MAX_RUNNING_TASKS = 8'h60;
    
 
    parameter CQ_LOCALE_DATA_BASE_ADDR = 8'h10;

@@ -16,6 +16,8 @@ module conflict_serializer #(
    input                  unlock_valid,
    input thread_id_t      unlock_thread,
 
+   input                  finish_task,
+
    // to cq
    input task_t m_task,
    input cq_slice_slot_t m_cq_slot,
@@ -69,6 +71,19 @@ module conflict_serializer #(
    logic [READY_LIST_SIZE-1:0] ready_list_valid;
    logic [READY_LIST_SIZE-1:0] ready_list_conflict;
 
+   logic [6:0] n_running_tasks, max_running_tasks;
+   always_ff @ (posedge clk) begin
+      if (!rstn) begin
+         n_running_tasks <= 0;
+      end else begin
+         if (s_valid & s_ready & !finish_task) begin
+            n_running_tasks <= n_running_tasks + 1;
+         end else if (finish_task & !(s_valid & s_ready)) begin
+            n_running_tasks <= n_running_tasks - 1;
+         end
+      end
+   end
+
 
    logic [READY_LIST_SIZE-1:0] task_ready;
    
@@ -81,7 +96,8 @@ module conflict_serializer #(
    endgenerate
 
    always_comb begin
-      s_valid = task_ready[task_select] & next_thread_valid;
+      s_valid = task_ready[task_select] & next_thread_valid & 
+                           (n_running_tasks < max_running_tasks);
    end
    assign all_cores_idle = (ready_list_valid ==0) && (running_task_locale_valid==0); 
 
@@ -308,6 +324,7 @@ module conflict_serializer #(
          full_threshold    <= READY_LIST_SIZE - 1;
          ready_list_stall_threshold <= READY_LIST_SIZE - 4;
          active_threads <= N_THREADS;
+         max_running_tasks <= 128;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
@@ -318,6 +335,7 @@ module conflict_serializer #(
                end
                SERIALIZER_N_THREADS: active_threads <= reg_bus.wdata;
                SERIALIZER_LOG_S_VALID: log_s_valid <= reg_bus.wdata[0];
+               SERIALIZER_N_MAX_RUNNING_TASKS : max_running_tasks <= reg_bus.wdata;
             endcase
          end
       end

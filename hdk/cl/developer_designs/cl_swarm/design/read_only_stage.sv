@@ -913,7 +913,7 @@ end
 logic is_non_mem_task_finished;
 always_comb begin
    is_non_mem_task_finished = 1'b0;
-   if (!NON_SPEC & task_valid[non_mem_subtype]) begin
+   if ((!NON_SPEC | (N_TILES==1)) & task_valid[non_mem_subtype]) begin
       if (mem_task_enq_child) begin
          is_non_mem_task_finished = 1'b0;
       end else begin
@@ -979,7 +979,9 @@ initial begin
    end
 end
 generate 
-if (!NON_SPEC) begin
+// enable finish_task messages on 1-tile nonspec systems to count the number of
+// running tasks
+if (!NON_SPEC | (N_TILES == 1)) begin
    always_ff @(posedge clk) begin
       if (process_mem_task) begin
          n_enqueues[ mem_access_cq_slot] <= n_enqueues[mem_access_cq_slot] 

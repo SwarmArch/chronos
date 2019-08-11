@@ -181,7 +181,7 @@ always_comb begin
    if (w_waiting) begin
       awsel = w_wait_sel;
    end else begin
-      if (last_ar_sel == B) begin
+      if (last_aw_sel == B) begin
          awsel = !a.awvalid;
       end else begin
          awsel = b.awvalid;

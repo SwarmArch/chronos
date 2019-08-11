@@ -1051,6 +1051,8 @@ conflict_serializer #(
    .unlock_valid  ( unlock_thread_valid ), 
    .unlock_thread ( unlock_thread       ),
 
+   .finish_task (finish_task_valid & finish_task_ready),
+
    .m_task        ( fifo_cc_data      ),
    .m_cq_slot     ( fifo_cc_slot      ),
    .m_valid       ( fifo_cc_valid      ),
