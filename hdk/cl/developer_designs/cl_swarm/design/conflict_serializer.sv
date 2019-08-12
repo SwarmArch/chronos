@@ -71,7 +71,7 @@ module conflict_serializer #(
    logic [READY_LIST_SIZE-1:0] ready_list_valid;
    logic [READY_LIST_SIZE-1:0] ready_list_conflict;
 
-   logic [6:0] n_running_tasks, max_running_tasks;
+   logic [31:0] n_running_tasks, max_running_tasks;
    always_ff @ (posedge clk) begin
       if (!rstn) begin
          n_running_tasks <= 0;
