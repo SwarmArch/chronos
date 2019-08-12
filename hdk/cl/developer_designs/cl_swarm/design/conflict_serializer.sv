@@ -315,6 +315,44 @@ module conflict_serializer #(
       end
    end
 
+
+   // stats
+   logic [31:0] stat_no_task;
+   logic [31:0] stat_cq_stall;
+   logic [31:0] stat_task_issued;
+   logic [31:0] stat_task_not_accepted;
+   logic [31:0] stat_no_thread;
+   logic [31:0] stat_cr_full;
+
+generate 
+if (SERIALIZER_STATS[TILE_ID]) begin
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         stat_no_task <= 0;
+         stat_cq_stall <= 0;
+         stat_task_issued <= 0;
+         stat_task_not_accepted <= 0;
+         stat_no_thread <= 0;
+         stat_cr_full <=0 ;
+      end else begin
+         if (s_valid) begin
+            if (s_ready) stat_task_issued <= stat_task_issued + 1;
+            else stat_task_not_accepted <= stat_task_not_accepted + 1;
+         end else begin
+            if (!task_ready[task_select]) begin
+               if (almost_full) stat_cr_full <= stat_cr_full + 1;
+               else if (cq_full) stat_cq_stall <= stat_cq_stall + 1;
+               else stat_no_task <= stat_no_task + 1;
+            end else begin
+               stat_no_thread <= stat_no_thread + 1;
+            end
+
+         end
+      end
+   end
+end
+endgenerate
+
    logic log_s_valid;
    
    logic [4:0] ready_list_stall_threshold;
@@ -353,6 +391,12 @@ module conflict_serializer #(
             SERIALIZER_READY_LIST : reg_bus.rdata <= {ready_list_valid, ready_list_conflict};
             SERIALIZER_DEBUG_WORD  : reg_bus.rdata <= {free_list_size, s_thread, s_valid};
             SERIALIZER_S_LOCALE : reg_bus.rdata <= s_rdata.locale;
+            SERIALIZER_STAT + 0 : reg_bus.rdata <= stat_no_task;
+            SERIALIZER_STAT + 4 : reg_bus.rdata <= stat_cq_stall;
+            SERIALIZER_STAT + 8 : reg_bus.rdata <= stat_task_issued;
+            SERIALIZER_STAT +12 : reg_bus.rdata <= stat_task_not_accepted;
+            SERIALIZER_STAT +16 : reg_bus.rdata <= stat_no_thread;
+            SERIALIZER_STAT +20 : reg_bus.rdata <= stat_cr_full;
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;

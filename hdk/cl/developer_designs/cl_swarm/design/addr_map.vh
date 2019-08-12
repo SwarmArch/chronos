@@ -230,10 +230,10 @@
    parameter SERIALIZER_CAN_TAKE_REQ_3 = 8'h3c;
    parameter SERIALIZER_SIZE_CONTROL = 8'h40; // {0, stall, full, almost_full}
    parameter SERIALIZER_CQ_STALL_COUNT = 8'h44; // bits [39:8]
-   parameter SERIALIZER_STAT_READ = 8'h48; // write to set addr, followed by read
    parameter SERIALIZER_DEBUG_WORD = 8'h50;
    parameter SERIALIZER_S_LOCALE = 8'h54;
    parameter SERIALIZER_N_MAX_RUNNING_TASKS = 8'h60;
+   parameter SERIALIZER_STAT = 8'h80; 
    
 
    parameter CQ_LOCALE_DATA_BASE_ADDR = 8'h10;
