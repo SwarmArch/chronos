@@ -48,23 +48,50 @@ logic [31:0] base_rw_addr;
 fifo_size_t fifo_out_almost_full_thresh;
 logic [31:0] dequeues_remaining;
 
-assign arid = thread_id_in;
-assign araddr = base_rw_addr + (task_in.locale << (LOG_RW_WIDTH) );
 
 logic can_dequeue; 
 assign can_dequeue = (dequeues_remaining > 0) & 
    ( (task_out_fifo_occ < fifo_out_almost_full_thresh) 
     | (gvt_task_slot_valid & (gvt_task_slot == cq_slot_in)));
 
+logic s_arvalid, s_arready;
+logic [31:0] s_araddr;
+id_t s_arid;
+logic ar_fifo_empty;
+logic ar_fifo_full;
+
+assign s_arid = thread_id_in;
+assign s_araddr = base_rw_addr + (task_in.locale << (LOG_RW_WIDTH) );
+
+assign arvalid = !ar_fifo_empty;
+assign s_arready = !ar_fifo_full;
+
+   fifo #(
+      .WIDTH($bits(s_araddr) + $bits(s_arid)),
+      .LOG_DEPTH(3)
+   ) WDATA_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(s_arvalid & s_arready),
+      .wr_data({s_araddr, s_arid}),
+
+      .full(ar_fifo_full),
+      .empty(ar_fifo_empty),
+
+      .rd_en(arvalid & arready),
+      .rd_data({araddr, arid})
+
+   );
+
 always_comb begin
-   arvalid = 1'b0;
+   s_arvalid = 1'b0;
    task_in_ready = 1'b0;
    if (task_in_valid & can_dequeue) begin
       if (task_in.no_read) begin
          task_in_ready = 1'b1;
       end else begin
-         arvalid = 1'b1;
-         if (arready) begin
+         s_arvalid = 1'b1;
+         if (s_arready) begin
             task_in_ready = 1'b1;
          end
       end
