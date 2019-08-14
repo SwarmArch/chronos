@@ -671,7 +671,7 @@ always_ff @(posedge clk) begin
             finish_task_valid, finish_task_ready,
             s_sched_task_valid, s_sched_task_ready,
             arvalid, arready, rvalid, rready, out_valid, out_ready, child_valid, child_ready};
-         CORE_DEBUG_WORD + 4: reg_bus.wdata <= arvalid_ar_not_ready_cycles;
+         CORE_DEBUG_WORD + 4: reg_bus.rdata <= arvalid_ar_not_ready_cycles;
 
       endcase
    end else begin
