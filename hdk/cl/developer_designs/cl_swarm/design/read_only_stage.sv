@@ -630,6 +630,18 @@ assign sched_reg_bus.waddr = reg_bus.waddr;
 assign sched_reg_bus.wdata = reg_bus.wdata;
 assign sched_reg_bus.araddr = reg_bus.araddr;
 
+logic [31:0] arvalid_ar_not_ready_cycles;
+always_ff@(posedge clk) begin
+   if (!rstn) begin
+      arvalid_ar_not_ready_cycles <=0;
+   end else begin
+      if (arvalid & !arready) begin
+         arvalid_ar_not_ready_cycles <= arvalid_ar_not_ready_cycles + 1;
+      end
+   end   
+  
+end
+
 logic [LOG_LOG_DEPTH:0] log_size; 
 always_ff @(posedge clk) begin
    if (!rstn) begin
@@ -659,6 +671,7 @@ always_ff @(posedge clk) begin
             finish_task_valid, finish_task_ready,
             s_sched_task_valid, s_sched_task_ready,
             arvalid, arready, rvalid, rready, out_valid, out_ready, child_valid, child_ready};
+         CORE_DEBUG_WORD + 4: reg_bus.wdata <= arvalid_ar_not_ready_cycles;
 
       endcase
    end else begin
@@ -1022,6 +1035,7 @@ logic [31:0] non_mem_cycles_stall_out;
 logic [31:0] non_mem_cycles_stall_finish;
 logic [31:0] non_mem_cycles_unassigned;
 
+
 always_ff @(posedge clk) begin
    if (!rstn) begin
       mem_cycles_task_processed <=0;
@@ -1033,6 +1047,7 @@ always_ff @(posedge clk) begin
       non_mem_cycles_stall_out <=0;
       non_mem_cycles_stall_finish <=0;
       non_mem_cycles_unassigned <=0;
+
    end else if (started) begin
       if (!task_valid[mem_access_subtype] | !arvalid[mem_access_subtype]) mem_cycles_no_task <= mem_cycles_no_task + 1;
       else if (task_ready[mem_access_subtype]) mem_cycles_task_processed <= mem_cycles_task_processed + 1;

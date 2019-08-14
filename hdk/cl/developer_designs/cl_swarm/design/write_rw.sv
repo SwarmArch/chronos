@@ -345,6 +345,7 @@ always_ff @(posedge clk) begin
             task_in_valid, task_in_ready, task_out_valid, task_out_ready
          };
 
+
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;
