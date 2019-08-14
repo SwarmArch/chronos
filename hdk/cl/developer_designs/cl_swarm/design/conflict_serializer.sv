@@ -322,7 +322,9 @@ module conflict_serializer #(
    logic [31:0] stat_task_issued;
    logic [31:0] stat_task_not_accepted;
    logic [31:0] stat_no_thread;
-   logic [31:0] stat_cr_full;
+   logic [31:0] stat_cr_full; // all tasks are conflicted, but cannot new task because cr full
+
+   logic [31:0] stat_cr_full_no_enq; // could not enq task because full
 
 generate 
 if (SERIALIZER_STATS[TILE_ID]) begin
@@ -334,6 +336,7 @@ if (SERIALIZER_STATS[TILE_ID]) begin
          stat_task_not_accepted <= 0;
          stat_no_thread <= 0;
          stat_cr_full <=0 ;
+         stat_cr_full_no_enq <= 0;
       end else begin
          if (s_valid) begin
             if (s_ready) stat_task_issued <= stat_task_issued + 1;
@@ -346,8 +349,8 @@ if (SERIALIZER_STATS[TILE_ID]) begin
             end else begin
                stat_no_thread <= stat_no_thread + 1;
             end
-
          end
+         if (almost_full) stat_cr_full_no_enq <= stat_cr_full_no_enq + 1;
       end
    end
 end
@@ -397,6 +400,7 @@ endgenerate
             SERIALIZER_STAT +12 : reg_bus.rdata <= stat_task_not_accepted;
             SERIALIZER_STAT +16 : reg_bus.rdata <= stat_no_thread;
             SERIALIZER_STAT +20 : reg_bus.rdata <= stat_cr_full;
+            SERIALIZER_STAT +24 : reg_bus.rdata <= stat_cr_full_no_enq;
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;
