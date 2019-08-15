@@ -158,6 +158,34 @@ cq_slice_slot_t non_mem_cq_slot;
 
 cq_slice_slot_t [N_SUB_TYPES-1:0]  out_cq_slot;
 
+
+logic s_rvalid;
+logic s_rready;
+id_t  s_rid;
+logic [511:0] s_rdata;
+
+logic rdata_fifo_full, rdata_fifo_empty;
+
+assign s_rvalid = !rdata_fifo_empty;
+assign rready = !rdata_fifo_full;
+
+fifo_lutram #(
+      .WIDTH($bits(s_rid) + $bits(s_rdata)),
+      .LOG_DEPTH(2)
+   ) RDATA_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(rvalid & rready),
+      .wr_data({rid, rdata}),
+
+      .full(rdata_fifo_full),
+      .empty(rdata_fifo_empty),
+
+      .rd_en(s_rvalid & s_rready),
+      .rd_data({s_rid, s_rdata})
+
+   );
+
 always_comb begin
    mem_access_cq_slot = out_cq_slot[mem_access_subtype];
    non_mem_cq_slot = out_cq_slot[non_mem_subtype];
@@ -281,18 +309,18 @@ always_comb begin
    end
 end
 
-assign rready = !reg_rvalid | (out_valid & out_ready & next_valid_words==0);
+assign s_rready = !reg_rvalid | (out_valid & out_ready & next_valid_words==0);
 always_ff @(posedge clk) begin
    if (!rstn) begin
       reg_rvalid <= 1'b0;
    end else begin
-      if (rvalid & rready) begin
-         rid_mshr <= ro_mshr[rid[FREE_LIST_SIZE-1:0]];
-         rid_thread <= ro_mshr[rid[FREE_LIST_SIZE-1:0]].thread;
-         reg_rid <= rid;
-         reg_rvalid <= rvalid;
-         reg_rdata <= rdata;
-         out_word_id <= ro_mshr[rid[FREE_LIST_SIZE-1:0]].start_word_id;
+      if (s_rvalid & s_rready) begin
+         rid_mshr <= ro_mshr[s_rid[FREE_LIST_SIZE-1:0]];
+         rid_thread <= ro_mshr[s_rid[FREE_LIST_SIZE-1:0]].thread;
+         reg_rid <= s_rid;
+         reg_rvalid <= s_rvalid;
+         reg_rdata <= s_rdata;
+         out_word_id <= ro_mshr[s_rid[FREE_LIST_SIZE-1:0]].start_word_id;
       end else begin
          if (reg_rvalid) begin
             if ( (out_valid & out_ready) | (!out_valid & next_valid_words == 0)) begin
@@ -345,8 +373,8 @@ generate
 
 endgenerate
 
-assign arid_free_list_add_valid = rvalid & rready;
-assign arid_free_list_add = rid[7:0];
+assign arid_free_list_add_valid = s_rvalid & s_rready;
+assign arid_free_list_add = s_rid[7:0];
 assign thread_free_list_add_valid = is_last_resp & (out_valid & out_ready);
 assign thread_free_list_add = rid_thread;
 

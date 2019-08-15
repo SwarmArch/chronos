@@ -19,6 +19,88 @@ module fifo #(
 );
 
    logic [LOG_DEPTH:0] wr_ptr, rd_ptr, next_rd_ptr;
+   
+   logic [WIDTH-1:0] mem [0:(1<<LOG_DEPTH)-1];
+
+   logic [WIDTH-1:0] mem_out, wr_data_q;
+   logic addr_collision;
+
+   // distinction between empty and full is from the MSB
+   assign empty = (wr_ptr[LOG_DEPTH-1:0] == rd_ptr[LOG_DEPTH-1:0]) & 
+      (wr_ptr[LOG_DEPTH] == rd_ptr[LOG_DEPTH]);
+   assign full = (wr_ptr[LOG_DEPTH-1:0] == rd_ptr[LOG_DEPTH-1:0]) & 
+      (wr_ptr[LOG_DEPTH] != rd_ptr[LOG_DEPTH]);
+   assign next_rd_ptr = rd_ptr + (rd_en ? 1'b1 : 1'b0);
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         wr_ptr <= 0;
+         rd_ptr <= 0;
+      end else begin
+         if (wr_en) begin
+            assert(!full | rd_en)  else $error("wr when full");
+            wr_ptr <= wr_ptr + 1;
+         end
+         if (rd_en) begin
+            assert(!empty | wr_en)  else $error("rd when empty");
+            rd_ptr <= rd_ptr + 1;
+         end
+      end
+   end
+   
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         addr_collision <= 1'b0;
+      end else begin
+         addr_collision <= (wr_en & (wr_ptr == next_rd_ptr));
+         wr_data_q <= wr_data;
+      end
+   end
+   always_ff @(posedge clk) begin
+      if (wr_en) begin
+         mem[wr_ptr[LOG_DEPTH-1:0]] <= wr_data;
+      end
+      mem_out <= mem[next_rd_ptr[LOG_DEPTH-1:0]];
+   end
+
+   assign rd_data = addr_collision ? wr_data_q : mem_out;
+
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         size <= 0;
+      end else begin
+         if (wr_en & !rd_en) begin
+            size <= size + 1;
+         end else if (rd_en & !wr_en) begin
+            size <= size - 1;
+         end
+      end
+   end
+
+endmodule
+
+
+module fifo_lutram #(
+      parameter WIDTH = 32,
+      parameter LOG_DEPTH = 1
+) (
+   input  clk,
+   input  rstn,
+
+   input wr_en,
+   input rd_en,
+   input [WIDTH-1:0] wr_data,
+
+   output logic full, 
+   output logic empty,  // aka out_valid
+   output logic [WIDTH-1:0] rd_data,
+
+   // optional port. Hopefully should not be synthesized if not connected
+   output logic [LOG_DEPTH:0] size
+);
+
+   logic [LOG_DEPTH:0] wr_ptr, rd_ptr, next_rd_ptr;
+   
+   (* ram_style = "distributed" *)
    logic [WIDTH-1:0] mem [0:(1<<LOG_DEPTH)-1];
 
    logic [WIDTH-1:0] mem_out, wr_data_q;
