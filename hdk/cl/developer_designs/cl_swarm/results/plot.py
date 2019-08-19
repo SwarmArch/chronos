@@ -52,9 +52,9 @@ x = np.linspace(0, 2, 130)
 
 f, axarr = plt.subplots(2,2, figsize=[8,9])
 
-color_baseline = 'red'
+color_baseline = [0.6, 0.1, 0.1]# 'red'
 color_nonspec = [0.44, 0.64, 0.81]#'blue'
-color_spec =  [0.4, 0.75, 0.36]#'green'
+color_spec =  [0.3, 0.7, 0.36]#'green'
 
 app_plot_loc = {'des':[0,0], 
                 'maxflow' : [0, 1],
@@ -68,9 +68,9 @@ lw = 3
 l1 = axarr[1, 0].plot( speedups['sssp']['c'][0], speedups['sssp']['c'][1],
         color=color_baseline, linewidth=lw)[0]
 l2 = axarr[1, 0].plot( speedups['sssp']['n'][0], speedups['sssp']['n'][1],
-        color=color_nonspec, linewidth=lw)[0]
-l3 = axarr[1, 0].plot( speedups['sssp']['s'][0], speedups['sssp']['s'][1],
         color=color_spec, linewidth=lw)[0]
+#l3 = axarr[1, 0].plot( speedups['sssp']['s'][0], speedups['sssp']['s'][1],
+#        color=color_spec, linewidth=lw)[0]
 axarr[0, 0].plot( speedups['des']['c'][0], speedups['des']['c'][1],
         color=color_baseline, linewidth=lw)[0]
 axarr[0, 0].plot( speedups['des']['s'][0], speedups['des']['s'][1],
@@ -81,10 +81,10 @@ axarr[0, 1].plot( speedups['maxflow']['s'][0], speedups['maxflow']['s'][1],
         color=color_spec, linewidth=lw)[0]
 axarr[1, 1].plot( speedups['astar']['c'][0], speedups['astar']['c'][1],
         color=color_baseline, linewidth=lw)[0]
-axarr[1, 1].plot( speedups['astar']['s'][0], speedups['astar']['s'][1],
-        color=color_spec, linewidth=lw)[0]
+#axarr[1, 1].plot( speedups['astar']['s'][0], speedups['astar']['s'][1],
+#        color=color_spec, linewidth=lw)[0]
 axarr[1, 1].plot( speedups['astar']['n'][0], speedups['astar']['n'][1],
-        color=color_nonspec, linewidth=lw)[0]
+        color=color_spec, linewidth=lw)[0]
 #axarr[2, 0].plot( speedups['color']['c'][0], speedups['color']['c'][2],
 #        color=color_baseline, linewidth=lw)[0]
 #axarr[2, 0].plot( speedups['color']['n'][0], speedups['color']['n'][1],
@@ -95,6 +95,8 @@ axarr[1,0].set_xlabel('% system used', fontsize=fontsize-1)
 axarr[1,1].set_xlabel('% system used', fontsize=fontsize-1)
 axarr[0,0].set_ylabel('Speedup', fontsize=fontsize-1)
 axarr[1,0].set_ylabel('Speedup', fontsize=fontsize-1)
+axarr[1,0].set_ylim(0, 80)
+#axarr[1,1].set_ylim(0, 60)
 #axarr[2,0].set(xlabel='% system used', ylabel='Speedup')
 
 plt.gcf().subplots_adjust(top=0.795)
@@ -104,12 +106,13 @@ for app in app_plot_loc:
     loc = app_plot_loc[app]
     axarr[loc[0], loc[1]].set_title(app, fontsize=fontsize)
     axarr[loc[0], loc[1]].tick_params(axis='both', labelsize=fontsize-2)
-lgd= f.legend( [l1, l2, l3] ,
-          labels = ['Baseline CPU', 'Chronos Non-Speculative', 
-            'Chronos Speculative'],
+lgd= f.legend( [l1, l2] ,
+          labels = ['Baseline CPU', 'Chronos FPGA'], 
+          #labels = ['Baseline CPU', 'Chronos with rollback', 
+          #  'Chronos without rollback'],
           loc = 'lower right',
-          bbox_to_anchor=(0.78,0.83),
-          ncol = 1,
+          bbox_to_anchor=(0.83,0.83),
+          ncol = 2,
           fontsize = 17
           )
 #axarr[2,1].axis('off')
