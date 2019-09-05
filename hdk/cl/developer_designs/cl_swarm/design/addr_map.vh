@@ -7,8 +7,7 @@
    parameter ID_TASK_UNIT = 6; 
    parameter CM_PORTS = 3;
    // end all modules with an L2 port
-   parameter ID_L2_RW = 7;
-   parameter ID_L2_RO = 8;
+   parameter ID_L2 = 7;
    parameter ID_TSB     = 9;
    parameter ID_CQ      = 10;
    parameter ID_CM      = 11;
@@ -28,8 +27,8 @@
    parameter TASK_TYPE_SPLITTER = 14;
    parameter TASK_TYPE_UNDO_LOG_RESTORE = 15;
 
-   parameter L2_ID_COAL = 1;
-   parameter L2_ID_SPLITTER = 2;
+   parameter L2_ID_COAL = 2;
+   parameter L2_ID_SPLITTER = 3;
 
    // CL Register Addresses OCL is only 32 MiB (25 bit)
    // [23:16] is tile, [15:8] component, [7:0] addr 

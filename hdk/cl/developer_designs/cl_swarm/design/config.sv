@@ -93,7 +93,7 @@ package swarm;
    // The OCL slave takes about ~2000 LUTs.
    parameter ALL_OCL    = 1; 
 
-   parameter LOG_L2_BANKS = 0;  // Number of L2 banks (either 0 or 1)
+   parameter LOG_L2_BANKS = 1;  // Number of L2 banks (either 0 or 1)
 
    // The CQ contains a cache (indexed by locale) of the last dequeued timestamp
    // of each locale. This cache can be used to bypass conflict checks if the
@@ -132,7 +132,7 @@ package swarm;
    parameter LOG_CQ_TS_BANKS = LOG_CQ_SLICE_SIZE - LOG_GVT_PERIOD;
 
    parameter L2_BANKS = (1<<LOG_L2_BANKS);
-   parameter L2_PORTS = 3;
+   parameter L2_PORTS = 4; // rw, ro, splitter, coal 
    
 
    parameter UNDO_LOG_THREADS = UNORDERED ? 1 : 4;

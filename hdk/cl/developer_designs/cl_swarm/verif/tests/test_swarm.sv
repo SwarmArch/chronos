@@ -661,7 +661,8 @@ endtask
    
 task flush_caches; 
    // Faster simulation by capping flushing to read-write data (BIG HACK)
-   tb.card.fpga.CL.\tile[0].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   tb.card.fpga.CL.\tile[0].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   tb.card.fpga.CL.\tile[0].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[1].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[2].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[3].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
@@ -671,16 +672,18 @@ task flush_caches;
    //tb.card.fpga.CL.\tile[7].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    
    for (int i=0;i<N_TILES;i++) begin
-      ocl_addr[23:16] = i;
-      ocl_addr[15:8] = ID_L2_RW;
-      ocl_addr[ 7:0] = L2_FLUSH;
-      tb.poke(.addr(ocl_addr), .data(1),
-                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      for (int j=0;j<L2_BANKS;j++) begin
+         ocl_addr[23:16] = i;
+         ocl_addr[15:8] = ID_L2 + j;
+         ocl_addr[ 7:0] = L2_FLUSH;
+         tb.poke(.addr(ocl_addr), .data(1),
+                   .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+      end
    end
    do begin
       for (int i=0;i<N_TILES;i++) begin
          ocl_addr[23:16] = i;
-         ocl_addr[15:8] = ID_L2_RW;
+         ocl_addr[15:8] = ID_L2;
          ocl_addr[ 7:0] = L2_FLUSH;
          tb.peek(.addr(ocl_addr), .data(ocl_data),
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 

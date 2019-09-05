@@ -26,7 +26,6 @@ module read_rw
    output logic        rready,
    input id_t          rid,
    input logic [511:0] rdata,
-   input cache_addr_t  rindex,
 
    output logic        task_out_valid,
    input               task_out_ready,
@@ -147,7 +146,6 @@ always_comb begin
       5: task_out.object = rdata[ task_out.task_desc.locale[ 0] * 256  +: 256 ]; 
       default: task_out.object = rdata; 
    endcase
-   task_out.cache_addr = rindex;
    task_out_valid = 1'b0;
    rready = 1'b0;
    

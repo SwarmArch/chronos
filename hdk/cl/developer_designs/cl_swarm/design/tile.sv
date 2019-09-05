@@ -339,24 +339,6 @@ end
 
 endgenerate
 
-   
-   l2 
-   #(
-      .TILE_ID(TILE_ID),
-      .BANK_ID(0)
-   ) L2_RW (
-      .clk(clk_main_a0),
-      .rstn(rst_main_n_sync),
-
-      .l1(rw_l2),
-      .rindex(rw_l2_rindex),
-      .mem_bus(l2_out[0]),
-
-      .reg_bus(reg_bus[ID_L2_RW]),
-
-      .pci_debug(pci_debug[ID_L2_RW])
-   );
-
    // input to l2_arbiter
    axi_id_t    [L2_PORTS-1:0] l2_arb_in_awid;
    axi_addr_t  [L2_PORTS-1:0] l2_arb_in_awaddr;
@@ -574,7 +556,8 @@ l2_arbiter
    .m_rready      (  l2_arb_out_rready    )      
 );
 
-
+generate 
+for (i=0;i<L2_BANKS;i++) begin : l2
 
 axi_pipe 
 #(
@@ -584,26 +567,29 @@ axi_pipe
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
 
-   .in(arb_l2_p[0]),
-   .out(arb_l2[0])
+   .in(arb_l2_p[i]),
+   .out(arb_l2[i])
 );
 
 l2 
 #(
    .TILE_ID(TILE_ID),
-   .BANK_ID(1)
-) L2_RO (
+   .BANK_ID(i)
+) L2 (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
 
-   .l1(arb_l2[0]),
+   .l1(arb_l2[i]),
    .rindex(),
-   .mem_bus(l2_out[1]),
+   .mem_bus(l2_out[i]),
 
-   .reg_bus(reg_bus[ID_L2_RO]),
+   .reg_bus(reg_bus[ID_L2 + i]),
 
-   .pci_debug(pci_debug[ID_L2_RO])
+   .pci_debug(pci_debug[ID_L2 + i])
 );
+
+end
+endgenerate
 
 assign l2_out_debug = {
    l2_out_d[0].awvalid, l2_out_d[0].awready, l2_out_d[0].arvalid, l2_out_d[0].arready,
@@ -1096,16 +1082,15 @@ read_rw
    .gvt_task_slot_valid  (gvt_task_slot_valid ),
    .gvt_task_slot        (gvt_task_slot       ),
 
-   .arvalid    (rw_l2.arvalid),
-   .arready    (rw_l2.arready),
-   .araddr     (rw_l2.araddr[31:0] ),
-   .arid       (rw_l2.arid   ),
+   .arvalid    (l1_arb[0].arvalid),
+   .arready    (l1_arb[0].arready),
+   .araddr     (l1_arb[0].araddr[31:0] ),
+   .arid       (l1_arb[0].arid   ),
 
-   .rvalid     (rw_l2.rvalid ),
-   .rready     (rw_l2.rready ),
-   .rid        (rw_l2.rid    ),
-   .rdata      (rw_l2.rdata  ),
-   .rindex     (rw_l2_rindex ),
+   .rvalid     (l1_arb[0].rvalid ),
+   .rready     (l1_arb[0].rready ),
+   .rid        (l1_arb[0].rid    ),
+   .rdata      (l1_arb[0].rdata  ),
 
    .task_out_valid(rw_read_out_valid),
    .task_out_ready(rw_read_out_ready),
@@ -1116,7 +1101,7 @@ read_rw
    .pci_debug(pci_debug[ID_RW_READ])
 );
 
-assign rw_l2.araddr[63:32] = '0;
+assign l1_arb[0].araddr[63:32] = '0;
 
 recirculating_fifo #(
       .WIDTH( $bits(rw_read_out_data)),
@@ -1187,16 +1172,16 @@ write_rw
    .gvt_task_slot_valid  (gvt_task_slot_valid ),
    .gvt_task_slot        (gvt_task_slot       ),
 
-   .wvalid (rw_l2.awvalid),
-   .wready (rw_l2.awready),
-   .waddr  (rw_l2.awaddr[31:0] ), 
-   .wdata  (rw_l2.wdata  ),
-   .wstrb  (rw_l2.wstrb  ),
-   .wid    (rw_l2.awid  ),
+   .wvalid (l1_arb[0].awvalid),
+   .wready (l1_arb[0].awready),
+   .waddr  (l1_arb[0].awaddr[31:0] ), 
+   .wdata  (l1_arb[0].wdata  ),
+   .wstrb  (l1_arb[0].wstrb  ),
+   .wid    (l1_arb[0].awid  ),
 
-   .bvalid (rw_l2.bvalid),
-   .bready (rw_l2.bready),
-   .bid    (rw_l2.bid),
+   .bvalid (l1_arb[0].bvalid),
+   .bready (l1_arb[0].bready),
+   .bid    (l1_arb[0].bid),
 
    .task_out_valid(rw_write_out_valid),
    .task_out_ready(rw_write_out_ready),
@@ -1217,9 +1202,9 @@ write_rw
 );
 
 
-assign rw_l2.wvalid = rw_l2.awvalid;
-assign rw_l2.awaddr[63:32] = '0;
-assign rw_l2.wid = rw_l2.awid;
+assign l1_arb[0].wvalid = l1_arb[0].awvalid;
+assign l1_arb[0].awaddr[63:32] = '0;
+assign l1_arb[0].wid = l1_arb[0].awid;
 
 
 
@@ -1297,15 +1282,15 @@ read_only_stage
    .gvt_task_slot        (gvt_task_slot       ),
    .tsb_almost_full (tsb_almost_full),
    
-   .arvalid(l1_arb[0].arvalid),
-   .arready(l1_arb[0].arready),
-   .araddr (l1_arb[0].araddr[31:0] ),
-   .arid   (l1_arb[0].arid   ),
+   .arvalid(l1_arb[1].arvalid),
+   .arready(l1_arb[1].arready),
+   .araddr (l1_arb[1].araddr[31:0] ),
+   .arid   (l1_arb[1].arid   ),
 
-   .rvalid(l1_arb[0].rvalid),
-   .rready(l1_arb[0].rready),
-   .rdata (l1_arb[0].rdata ),
-   .rid   (l1_arb[0].rid   ),
+   .rvalid(l1_arb[1].rvalid),
+   .rready(l1_arb[1].rready),
+   .rdata (l1_arb[1].rdata ),
+   .rid   (l1_arb[1].rid   ),
 
    .out_valid   (ro_out_task_valid),
    .out_ready   (ro_out_task_ready),
@@ -1333,10 +1318,10 @@ read_only_stage
    .pci_debug(pci_debug[ID_RO_STAGE])
 );
 
-assign l1_arb[0].araddr[63:32] = 0;
-assign l1_arb[0].awvalid = 0;
-assign l1_arb[0].wvalid = 0;
-assign l1_arb[0].bready = 1;
+assign l1_arb[1].araddr[63:32] = 0;
+assign l1_arb[1].awvalid = 0;
+assign l1_arb[1].wvalid = 0;
+assign l1_arb[1].bready = 1;
 
 always_comb begin
    finish_task_valid = 1'b0;
