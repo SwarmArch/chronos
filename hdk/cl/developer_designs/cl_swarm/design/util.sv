@@ -503,6 +503,34 @@ module register_slice_single #
    input  m_ready
    );
 
+/*
+   logic full;
+   logic empty;
+
+   assign s_ready = !full;
+   assign m_valid = !empty;
+
+   fifo #(
+      .WIDTH(WIDTH),
+      .LOG_DEPTH(1)
+   ) FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(s_valid & s_ready),
+      .wr_data(s_data),
+
+      .full(full),
+      .empty(empty),
+
+      .rd_en(m_valid & m_ready),
+      .rd_data(m_data),
+
+      .size()
+
+   );
+*/
+
+
       reg [WIDTH-1:0] m_payload_i;
       reg [WIDTH-1:0] skid_buffer;
 
@@ -536,7 +564,6 @@ module register_slice_single #
           skid_buffer <= s_data;
         end
       end
-
 endmodule
 
 module free_list #(

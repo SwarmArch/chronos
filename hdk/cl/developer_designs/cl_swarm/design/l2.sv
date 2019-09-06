@@ -74,6 +74,8 @@ module l2
    logic darr_en;
    logic [63:0]  darr_wr;
 
+   logic [31:0] rdata_fifo_size;
+
    pipe_op_t p23_op;
    id_t      p23_cid; // id from core 
    id_t      p23_mid; // id to memory
@@ -121,6 +123,7 @@ module l2
 
    typedef struct packed {
 
+     logic [7:0] rdata_fifo_size;
      logic [3:0] mshr_next; 
      logic m_arvalid;
      logic m_arready;
@@ -179,6 +182,7 @@ module l2
    assign log_word.m_bid = mem_bus.bid;
    assign log_word.write_buf_match = write_buf_match; 
    assign log_word.write_buf_mshr_valid = write_mshr_valid;
+   assign log_word.rdata_fifo_size = rdata_fifo_size;
    always_comb begin
       log_word.repl_addr = tag_rdata[ log_word.way ].tag;
       log_word.tag_rdata_0 = tag_rdata[0];
@@ -332,6 +336,7 @@ module l2
                               mem_bus.rvalid, mem_bus.bvalid};
             L2_MISC_DEBUG + 4 : reg_bus.rdata <= {aw_req, w_req};
             L2_MISC_DEBUG + 8 : reg_bus.rdata <= {write_mshr_valid[15:0], read_mshr_valid[15:0]};
+            L2_MISC_DEBUG + 12 : reg_bus.rdata <= rdata_fifo_size;
             
          endcase
       end else begin
@@ -491,7 +496,7 @@ endgenerate
       .bready(mem_bus.bready),
 
       // from/to l2_stage 2
-      .awvalid(mem_bus.awvalid & mem_bus.awready),
+      .awvalid(mem_bus.awvalid & stage_2_awready),
       .awaddr(mem_bus.awaddr),
       .awready(write_buf_available),
       .awid(write_buf_id), 
@@ -607,7 +612,9 @@ endgenerate
       .m_wstrb(mem_bus.wstrb),
       .m_wvalid(mem_bus.wvalid),
       .m_wlast(mem_bus.wlast),
-      .m_wready(mem_bus.wready)
+      .m_wready(mem_bus.wready),
+
+      .fifo_size(rdata_fifo_size)
    );
 
    mshr_manager MSHR_MANAGER (
@@ -1121,8 +1128,8 @@ module l2_stage_2
                   m_awaddr = {tag_entry[way].tag, i_addr.index, 6'b0};
                   m_awid = (TILE_ID << 10) + (1<<15) + (BANK_ID<<8) + write_buf_id;
 
-                  m_awvalid = write_buf_available; 
-                  if (m_awready & m_awvalid) begin
+                  if (m_awready & write_buf_available) begin
+                     m_awvalid = 1'b1;
                      next_p_op = EVICT;
                      d_addr = i_addr.index * CACHE_NUM_WAYS + way;
                      d_en = 1'b1;
@@ -1313,14 +1320,48 @@ module l2_stage_3
    output logic [63:0]  m_wstrb, // all 1s
    output logic         m_wvalid,
    output logic         m_wlast,
-   input                m_wready
+   input                m_wready,
+
+   output logic [7:0]   fifo_size
 
 );
 
+   logic full, empty;
+   logic s_rvalid, s_rready;
+   id_t s_rid;
+   cache_line_t s_rdata;
+   logic [6:0] size;
+
+   assign fifo_size = size;
+   
+   recirculating_fifo #(
+      .WIDTH( $bits(c_rdata) + $bits(c_rid)),
+      .LOG_DEPTH(5)
+   ) L2_RDATA_OUT_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(s_rvalid & s_rready),
+      .wr_data( {s_rdata, s_rid} ),
+
+      .full(  full ),
+      .empty( empty),
+
+      .rd_en( c_rvalid & c_rready ),
+      .rd_data( {c_rdata, c_rid} ),
+
+      .size(size)
+
+   );
+
+   assign s_rready = !full;
+   assign c_rvalid = !empty;
+
+   
+
    always_comb begin
-      c_rdata = 'x;
-      c_rvalid = 1'b0;
-      c_rid = 'x;
+      s_rdata = 'x;
+      s_rvalid = 1'b0;
+      s_rid = 'x;
 
       c_bvalid = 1'b0;
       c_bid = 'x;
@@ -1334,10 +1375,10 @@ module l2_stage_3
       stall_out = 1'b0;
       case (i_op) 
          READ: begin
-            c_rdata = d_rdata;
-            c_rvalid = 1'b1;
-            c_rid = i_cid;
-            if (!c_rready) begin
+            s_rdata = d_rdata;
+            s_rvalid = 1'b1;
+            s_rid = i_cid;
+            if (!s_rready) begin
                stall_out = 1'b1;
             end 
          end
