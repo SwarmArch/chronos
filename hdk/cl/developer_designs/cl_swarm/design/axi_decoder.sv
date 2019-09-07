@@ -40,7 +40,7 @@ always_ff @(posedge clk) begin
 end
 
 logic [8:0] ack_remaining [0:15];
-id_t  full_bid [0:15];
+axi_id_t  full_bid [0:15];
 
 // Note: In general it is not safe to assign these signals default
 // values and then overwrite in the same always_comb block. 
