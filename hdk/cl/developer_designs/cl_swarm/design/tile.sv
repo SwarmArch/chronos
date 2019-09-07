@@ -265,7 +265,7 @@ coalescer
   .stack_lock_in (splitter_stack_lock)
 );
 axi_decoder #(
-   .ID_BASE( L2_ID_COAL << 8 ),
+   .ID_BASE( L2_ID_COAL << 12 ),
    .MAX_ARSIZE(2),
    .MAX_AWSIZE( $clog2(TQ_WIDTH) -3 )
 ) COAL_L1 (
@@ -303,7 +303,7 @@ splitter #(
 );
 
 axi_decoder #(
-   .ID_BASE( L2_ID_SPLITTER << 8 ),
+   .ID_BASE( L2_ID_SPLITTER << 12 ),
    .MAX_ARSIZE( $clog2(TQ_WIDTH) -3),
    .MAX_AWSIZE(2)
 ) SPLITTER_L1 (

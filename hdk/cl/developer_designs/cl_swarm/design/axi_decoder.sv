@@ -13,8 +13,7 @@ module axi_decoder
     // The impact maybe small, but considering this module is instantiated 100s
     // of times, they add up.
     parameter MAX_AWSIZE = 6,
-    parameter MAX_ARSIZE = 6,
-    parameter LOG_MAX_REQUESTS = 4
+    parameter MAX_ARSIZE = 6
  )
 (
    input clk,
@@ -40,12 +39,14 @@ always_ff @(posedge clk) begin
    end
 end
 
+logic [8:0] ack_remaining [0:15];
+id_t  full_bid [0:15];
 
 // Note: In general it is not safe to assign these signals default
 // values and then overwrite in the same always_comb block. 
 // Simulator could deadlock where the same two events are being repeatedly
 // added to the event list.
-assign core.awready = (write_state == WRITE_IDLE);
+assign core.awready = (write_state == WRITE_IDLE) & (ack_remaining[core.awid[3:0]] == 0);
 assign core.wready = (write_state == WRITE_IDLE | write_state == WRITE_WAITING_DATA);
 
 
@@ -94,27 +95,11 @@ always_ff @(posedge clk) begin
    end
 end
 
-// Tracks how many writes can be issued to L2 in a single transaction. 
+// Tracks how many writes have been issued to L2 in a single transaction. 
 // Currently limited to 16, which is sufficient for a burst of 256 32-bit words. 
 // (where initial address is cache-line aligned)
-logic [2**LOG_MAX_REQUESTS-1:0] id_used;
-logic [LOG_MAX_REQUESTS-1:0] reg_id;
-genvar i;
-generate 
-   for (i=0;i<(2**LOG_MAX_REQUESTS);i++) begin
-      always_ff @(posedge clk) begin
-         if (!rstn) begin
-            id_used[i] <= 0;
-         end else begin
-            if ( (reg_id == i) & l2.awvalid & l2.awready) begin
-               id_used[i] <= 1;
-            end else if (l2.bvalid & l2.bready & (l2.bid[LOG_MAX_REQUESTS-1:0] == i))begin
-               id_used[i] <= 0;
-            end
-         end
-      end
-   end
-endgenerate
+logic [7:0] reg_id;
+logic [3:0] tx_id;
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
@@ -282,17 +267,61 @@ always_ff @(posedge clk) begin
    end
 end
 
-assign l2.bready = 1;
-assign l2.awid = ID_BASE + reg_id;;
-assign l2.wid = ID_BASE + reg_id;;
+initial begin
+   for (integer i=0;i<16;i++) begin
+      ack_remaining[i] = 0;
+   end
+end
+always_ff @(posedge clk) begin
+   if (l2.wvalid & l2.wready & reg_awlen==0) begin
+      ack_remaining[tx_id] <= ack_remaining[tx_id] + reg_id + 1;
+   end else if (l2.bvalid & l2.bready) begin
+      ack_remaining[l2.bid[11:8]] <= ack_remaining[l2.bid[11:8]] - 1;
+   end
+end
+always_ff @(posedge clk) begin
+   if (core.awvalid & core.awready) begin
+      tx_id <= core.awid[3:0];
+      full_bid[core.awid[3:0]] <= core.awid;
+   end
+end
 
-assign core.bid = 0;
+logic bvalid_fifo_full, bvalid_fifo_empty;
+logic bvalid_fifo_wr_en;
+assign bvalid_fifo_wr_en = l2.bvalid & l2.bready & (ack_remaining[l2.bid[11:8]] == 1);
+
+logic [3:0] s_bid;
+
+fifo #(
+      .WIDTH(4),
+      .LOG_DEPTH(1)
+   ) BVALID_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(bvalid_fifo_wr_en),
+      .wr_data(l2.bid[11:8]),
+
+      .full(bvalid_fifo_full),
+      .empty(bvalid_fifo_empty),
+
+      .rd_en(core.bvalid & core.bready),
+      .rd_data(s_bid)
+   );
+
+always_comb begin
+   core.bid = full_bid[s_bid];
+end
+assign core.bvalid = !bvalid_fifo_empty;
+
+assign l2.bready = !bvalid_fifo_full & !(l2.wvalid & l2.wready & (reg_awlen==0));
+assign l2.awid = ID_BASE | (tx_id << 8) | reg_id;;
+assign l2.wid = ID_BASE | (tx_id << 8) | reg_id;;
+
 assign core.bresp = 0;
 
 always_comb begin
    next_write_state = write_state;
 
-   core.bvalid = 0;
 
    l2.awvalid = 1'b0;
    l2.wvalid = 1'b0;
@@ -317,21 +346,19 @@ always_comb begin
          end
       end
       WRITE_WAITING_L2: begin
-         if (!id_used[reg_id]) begin
-            l2.awvalid = 1'b1;
-            l2.wvalid = 1'b1;
-            // Try to push both AW and W, if only AW is accepted try W next
-            // cycle
-            if (l2.awready) begin
-               if (l2.wready) begin
-                  if (reg_awlen == 0) begin
-                     next_write_state = WRITE_WAITING_BVALID;
-                  end else begin
-                     next_write_state = WRITE_WAITING_DATA;
-                  end
+         l2.awvalid = 1'b1;
+         l2.wvalid = 1'b1;
+         // Try to push both AW and W, if only AW is accepted try W next
+         // cycle
+         if (l2.awready) begin
+            if (l2.wready) begin
+               if (reg_awlen == 0) begin
+                  next_write_state = WRITE_IDLE;
                end else begin
-                  next_write_state = WRITE_WAITING_L2_WREADY; 
+                  next_write_state = WRITE_WAITING_DATA;
                end
+            end else begin
+               next_write_state = WRITE_WAITING_L2_WREADY; 
             end
          end
       end
@@ -339,17 +366,9 @@ always_comb begin
          l2.wvalid = 1'b1;
          if (l2.wready) begin
             if (reg_awlen == 0) begin
-               next_write_state = WRITE_WAITING_BVALID;
+               next_write_state = WRITE_IDLE;
             end else begin
                next_write_state = WRITE_WAITING_DATA;
-            end
-         end
-      end
-      WRITE_WAITING_BVALID: begin
-         if (id_used == 0) begin
-            core.bvalid = 1;
-            if (core.bready) begin
-               next_write_state = WRITE_IDLE;
             end
          end
       end
@@ -358,6 +377,7 @@ always_comb begin
       end
    endcase
 end
+
 
 // Read Logic. 
 typedef enum logic [1:0] {READ_IDLE, READ_WAITING_L2, READ_WAITING_RESP, READ_DATA_OUT} read_state_t;

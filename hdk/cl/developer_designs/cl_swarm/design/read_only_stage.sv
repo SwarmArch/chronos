@@ -279,7 +279,7 @@ assign write_mshr.start_word_id = reg_start_word;
 
 assign araddr = reg_araddr;
 assign arvalid = reg_arvalid & !arid_free_list_empty;
-assign arid = (1 <<8) | arid_free_list_next;
+assign arid = (1 <<12) | arid_free_list_next;
 assign s_arready = !thread_free_list_empty & ( !reg_arvalid | (arvalid & arready & last_read_in_burst) );
 assign last_read_in_burst = ((reg_araddr[5:2] + reg_n_words) <= 16);
 // if the number of words remaining in the cache line is greater than number of

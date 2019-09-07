@@ -48,8 +48,7 @@ typedef enum logic [3:0] {
    COAL_READ_STACK_TOP, COAL_READ_STACK_TOP_WAIT,
    COAL_RELEASE_LOCK,
    COAL_IDLE, 
-   COAL_WRITE_TASK, COAL_WRITE_TASK_WAIT,
-   COAL_ENQ_SPLITTER
+   COAL_WRITE_TASK, COAL_WRITE_TASK_WAIT
 } coal_state_t ;
 
 logic start;
@@ -103,7 +102,7 @@ always_ff @(posedge clk) begin
    end
    if (state == COAL_READ_STACK_TOP_WAIT & l1.rvalid ) begin
       coal_id <= (l1.rdata[STACK_WIDTH-1:0]) << LOG_SPLITTERS_PER_CHUNK;
-   end else if (state == COAL_ENQ_SPLITTER & coal_child_valid & coal_child_ready) begin
+   end else if (state == COAL_WRITE_TASK_WAIT) begin
       coal_id <= coal_id + 1;
    end
    if (state == COAL_WRITE_TASK & l1.wvalid & l1.wready) begin
@@ -126,25 +125,81 @@ always_comb begin
    endcase
 end
 
-always_comb begin
-   l1.bready = 1'b0;
-   case (state) 
-      COAL_WRITE_STACK_PTR_WAIT,
-      COAL_WRITE_TASK_WAIT
-         : l1.bready = 1'b1;
-   endcase
+
+ts_t pending_coal_child_ts [0:15];
+logic[15:0] pending_coal_child_id [0:15];
+logic free_list_empty, free_list_full;
+logic [3:0] next_awid;
+
+   free_list #(
+      .LOG_DEPTH(4)
+   ) FREE_LIST (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wr_en(l1.bvalid & l1.bready),
+      .rd_en(l1.awvalid & l1.awready),
+      .wr_data(l1.bid[3:0]),
+
+      .full(free_list_full), 
+      .empty(free_list_empty),
+      .rd_data(next_awid)
+   );
+
+logic [3:0] reg_awid, write_stack_ptr_awid; 
+always_ff @(posedge clk) begin
+   if (l1.awvalid & l1.awready) begin
+      if (state == COAL_WRITE_STACK_PTR) begin
+         write_stack_ptr_awid <= next_awid;
+      end
+      reg_awid <= next_awid;
+   end
 end
+
+always_ff @(posedge clk) begin
+   if (state == COAL_WRITE_TASK_WAIT) begin
+      pending_coal_child_ts[reg_awid] <= coal_ts;
+      pending_coal_child_id[reg_awid] <= coal_id;
+   end
+end
+
+ts_t fifo_out_ts;
+logic[15:0] fifo_out_id;
+assign l1.bready = !fifo_full;
+
+   fifo #(
+      .LOG_DEPTH(4),
+      .WIDTH(32+16)
+   ) COAL_CHILD_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wr_en(l1.bvalid & l1.bready & 
+            !( (state==COAL_WRITE_STACK_PTR_WAIT & (l1.bid[3:0] == write_stack_ptr_awid)) )),
+      .rd_en(coal_child_valid & coal_child_ready),
+      .wr_data( { pending_coal_child_ts[l1.bid[3:0]], pending_coal_child_id[l1.bid[3:0]]}  ),
+
+      .full(fifo_full), 
+      .empty(fifo_empty),
+      .rd_data( {fifo_out_ts, fifo_out_id} )
+   );
+
+assign coal_child_valid = !fifo_empty;
+assign coal_child_task.ts = fifo_out_ts;
+assign coal_child_task.locale = (fifo_out_id<< 16) + ((TILE_ID)<<4); // route to same tile 
+assign coal_child_task.ttype = TASK_TYPE_SPLITTER;
+assign coal_child_task.args = 0;
+assign coal_child_task.producer = 1'b1;
+assign coal_child_task.no_write = 1'b1;
+assign coal_child_task.no_read = 1'b0;
 
 always_comb begin
    state_next = state;
    tasks_remaining_next = tasks_remaining;
 
-   coal_child_valid = 1'b0;
-   coal_child_task = 'x;
-
    spill_fifo_rd_en = 1'b0;
 
-   l1.awid    = 0;
+   l1.awid    = next_awid;
    l1.awlen   = 0; // TASKS_PER_COALSECER; 
    l1.awsize  = 1;  
    l1.awvalid = 0;
@@ -163,7 +218,7 @@ always_comb begin
 
    case (state) 
       COAL_INIT: begin
-         if (start & !spill_fifo_empty) state_next = COAL_GRAB_LOCK;
+         if (start & !spill_fifo_empty & !free_list_empty) state_next = COAL_GRAB_LOCK;
       end
       COAL_GRAB_LOCK: begin
          if (!stack_lock_in) state_next = COAL_CHECK_LOCK;
@@ -193,12 +248,13 @@ always_comb begin
          l1.wvalid = 1;
          l1.wdata = stack_ptr + 1;
          l1.wlast = 1;
+         l1.wid = next_awid;
          if (l1.awready) begin
             state_next = COAL_WRITE_STACK_PTR_WAIT;
          end
       end
       COAL_WRITE_STACK_PTR_WAIT: begin
-         if (l1.bvalid) state_next = COAL_READ_STACK_TOP;
+         if (l1.bvalid & (l1.bid[3:0] == write_stack_ptr_awid)) state_next = COAL_READ_STACK_TOP;
       end
       COAL_READ_STACK_TOP: begin
          l1.araddr = ADDR_BASE_SPLITTER_STACK + 
@@ -221,7 +277,7 @@ always_comb begin
             // soft reset
             state_next = COAL_INIT;
          end else
-         if (!spill_fifo_empty) begin
+         if (!spill_fifo_empty & !free_list_empty) begin
            state_next = COAL_WRITE_TASK;
            tasks_remaining_next = TASKS_PER_SPLITTER;
            l1.awaddr = ADDR_BASE_SPILL + (coal_id << LOG_SPLITTER_CHUNK_WIDTH);
@@ -236,6 +292,7 @@ always_comb begin
             l1.wvalid = 1'b1;
             l1.wdata[TQ_WIDTH-1:0] = spill_fifo_rd_data;  
             l1.wlast = (tasks_remaining == 1);
+            l1.wid = reg_awid;
             if (l1.wready) begin
                spill_fifo_rd_en = 1'b1;
                tasks_remaining_next = tasks_remaining - 1;
@@ -246,22 +303,7 @@ always_comb begin
          end
       end
       COAL_WRITE_TASK_WAIT: begin
-         if (l1.bvalid) begin
-            state_next = COAL_ENQ_SPLITTER; 
-         end
-      end
-      COAL_ENQ_SPLITTER: begin
-         coal_child_valid = 1'b1;
-         coal_child_task.ts = coal_ts;
-         coal_child_task.locale = (coal_id<< 16) + ((TILE_ID)<<4); // route to same tile 
-         coal_child_task.ttype = TASK_TYPE_SPLITTER;
-         coal_child_task.args = 0;
-         coal_child_task.producer = 1'b1;
-         coal_child_task.no_write = 1'b1;
-         coal_child_task.no_read = 1'b0;
-         if (coal_child_ready) begin
-            state_next = (coal_id[LOG_SPLITTERS_PER_CHUNK-1:0] == '1) ? COAL_INIT : COAL_IDLE;
-         end
+         state_next = (coal_id[LOG_SPLITTERS_PER_CHUNK-1:0] == '1) ? COAL_INIT : COAL_IDLE;
       end
    endcase
 end
