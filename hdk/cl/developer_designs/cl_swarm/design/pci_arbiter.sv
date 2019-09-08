@@ -152,109 +152,132 @@ if (PCI_LOGGING) begin
    
    logic log_valid;
    typedef struct packed {
-      
-      logic [15:0] arid;
-      logic [15:0] awid;
-      logic [15:0] wid;
-      logic [15:0] rid;
-      logic [15:0] bid;
-      logic [31:0] awaddr;
-      logic [31:0] araddr;
-      logic [31:0] wdata_32;
-      logic [31:0] rdata_32;
 
-      // 64 
-      logic [23:0] wstrb;
-      logic [7:0] awlen;
-      logic [3:0] awsize;
-      logic [7:0] arlen;
-      logic [3:0] arsize;
+      logic [7:0] pci_awlen;
+      logic [7:0] pci_arlen;
+      logic [15:0] pci_awid;
+      logic [15:0] pci_wid;
+      logic [15:0] pci_bid;
+      logic [15:0] pci_arid;
+      logic [15:0] pci_rid;
+      logic [31:0] pci_awaddr;
+      logic [31:0] pci_araddr;
 
       // 16
-      logic wlast;
-      logic rlast;
-      logic [1:0] rresp;
-      logic [1:0] bresp;
-      logic awvalid;
-      logic awready;
-      logic wvalid;
-      logic wready;
-      logic arvalid;
-      logic arready;
-      logic rvalid;
-      logic rready;
-      logic bvalid;
-      logic bready;
+      logic [3:0] pci_awsize;
+      logic pci_wlast;
+      logic pci_rlast;
+      logic pci_awvalid;
+      logic pci_awready;
+      logic pci_wvalid;
+      logic pci_wready;
+      logic pci_arvalid;
+      logic pci_arready;
+      logic pci_rvalid;
+      logic pci_rready;
+      logic pci_bvalid;
+      logic pci_bready;
+      
+      logic [15:0] ddr_arid;
+      logic [15:0] ddr_awid;
+      logic [15:0] ddr_wid;
+      logic [15:0] ddr_rid;
+      logic [15:0] ddr_bid;
+      logic [31:0] ddr_awaddr;
+      logic [31:0] ddr_araddr;
+      logic [31:0] ddr_wdata_32;
+      logic [31:0] ddr_rdata_32;
+
+      // 64 
+      logic [23:0] ddr_wstrb;
+      logic [7:0] ddr_awlen;
+      logic [3:0] ddr_awsize;
+      logic [7:0] ddr_arlen;
+      logic [3:0] ddr_arsize;
+
+      // 16
+      logic ddr_wlast;
+      logic ddr_rlast;
+      logic [1:0] ddr_rresp;
+      logic [1:0] ddr_bresp;
+      logic ddr_awvalid;
+      logic ddr_awready;
+      logic ddr_wvalid;
+      logic ddr_wready;
+      logic ddr_arvalid;
+      logic ddr_arready;
+      logic ddr_rvalid;
+      logic ddr_rready;
+      logic ddr_bvalid;
+      logic ddr_bready;
 
    } pci_log_t;
    pci_log_t log_word;
 always_comb begin
    log_word = 0;
-   if (LOG_DDR) begin
-      log_word.arid = ddr_snoop.arid;
-      log_word.awid = ddr_snoop.awid;
-      log_word.wid = ddr_snoop.wid;
-      log_word.rid = ddr_snoop.rid;
-      log_word.bid = ddr_snoop.bid;
-      log_word.awaddr = ddr_snoop.awaddr;
-      log_word.araddr = ddr_snoop.araddr;
-      log_word.wdata_32 = ddr_snoop.wdata[31:0];
-      log_word.rdata_32 = ddr_snoop.rdata[31:0];
-      log_word.wstrb = ddr_snoop.wstrb;
-      log_word.awlen = ddr_snoop.awlen;
-      log_word.awsize = ddr_snoop.awsize;
-      log_word.arlen = ddr_snoop.arlen;
-      log_word.arsize = ddr_snoop.arsize;
-      log_word.wlast = ddr_snoop.wlast;
-      log_word.rlast = ddr_snoop.rlast;
-      log_word.rresp = ddr_snoop.rresp;
-      log_word.bresp = ddr_snoop.bresp;
-      log_word.awvalid = ddr_snoop.awvalid;
-      log_word.wvalid = ddr_snoop.wvalid;
-      log_word.arvalid = ddr_snoop.arvalid;
-      log_word.arready = ddr_snoop.arready;
-      log_word.awready = ddr_snoop.awready;
-      log_word.wready = ddr_snoop.wready;
-      log_word.rvalid = ddr_snoop.rvalid;
-      log_word.rready = ddr_snoop.rready;
-      log_word.bvalid = ddr_snoop.bvalid;
-      log_word.bready = ddr_snoop.bready;
+      log_word.ddr_arid = ddr_snoop.arid;
+      log_word.ddr_awid = ddr_snoop.awid;
+      log_word.ddr_wid = ddr_snoop.wid;
+      log_word.ddr_rid = ddr_snoop.rid;
+      log_word.ddr_bid = ddr_snoop.bid;
+      log_word.ddr_awaddr = ddr_snoop.awaddr;
+      log_word.ddr_araddr = ddr_snoop.araddr;
+      log_word.ddr_wdata_32 = ddr_snoop.wdata[31:0];
+      log_word.ddr_rdata_32 = ddr_snoop.rdata[31:0];
+      log_word.ddr_wstrb = ddr_snoop.wstrb;
+      log_word.ddr_awlen = ddr_snoop.awlen;
+      log_word.ddr_awsize = ddr_snoop.awsize;
+      log_word.ddr_arlen = ddr_snoop.arlen;
+      log_word.ddr_arsize = ddr_snoop.arsize;
+      log_word.ddr_wlast = ddr_snoop.wlast;
+      log_word.ddr_rlast = ddr_snoop.rlast;
+      log_word.ddr_rresp = ddr_snoop.rresp;
+      log_word.ddr_bresp = ddr_snoop.bresp;
+      log_word.ddr_awvalid = ddr_snoop.awvalid;
+      log_word.ddr_wvalid = ddr_snoop.wvalid;
+      log_word.ddr_arvalid = ddr_snoop.arvalid;
+      log_word.ddr_arready = ddr_snoop.arready;
+      log_word.ddr_awready = ddr_snoop.awready;
+      log_word.ddr_wready = ddr_snoop.wready;
+      log_word.ddr_rvalid = ddr_snoop.rvalid;
+      log_word.ddr_rready = ddr_snoop.rready;
+      log_word.ddr_bvalid = ddr_snoop.bvalid;
+      log_word.ddr_bready = ddr_snoop.bready;
       log_valid = (ddr_snoop.awvalid & ddr_snoop.awready) |
                   (ddr_snoop.wvalid &  ddr_snoop.wready) | 
                   (ddr_snoop.arvalid & ddr_snoop.arready) |
                   (ddr_snoop.rvalid & ddr_snoop.rready) |
-                  (ddr_snoop.bvalid & ddr_snoop.bready) ;
-   end else begin
-      log_word.arid = pci.arid;
-      log_word.awid = pci.awid;
-      log_word.wid = pci.wid;
-      log_word.rid = pci.rid;
-      log_word.bid = pci.bid;
-      log_word.awaddr = pci.awaddr;
-      log_word.araddr = pci.araddr;
-      log_word.wdata_32 = pci.wdata[31:0];
-      log_word.rdata_32 = pci.rdata[31:0];
-      log_word.wstrb = pci.wstrb;
-      log_word.awlen = pci.awlen;
-      log_word.awsize = pci.awsize;
-      log_word.arlen = pci.arlen;
-      log_word.arsize = pci.arsize;
-      log_word.wlast = pci.wlast;
-      log_word.rlast = pci.rlast;
-      log_word.rresp = pci.rresp;
-      log_word.bresp = pci.bresp;
-      log_word.awvalid = pci.awvalid;
-      log_word.wvalid = pci.wvalid;
-      log_word.arvalid = pci.arvalid;
-      log_word.arready = pci.arready;
-      log_word.awready = pci.awready;
-      log_word.wready = pci.wready;
-      log_word.rvalid = pci.rvalid;
-      log_word.rready = pci.rready;
-      log_word.bvalid = pci.bvalid;
-      log_word.bready = pci.bready;
-      log_valid = pci.awvalid | pci.wvalid | pci.arvalid | pci.rvalid | pci.bvalid;
-   end
+                  (ddr_snoop.bvalid & ddr_snoop.bready) |
+                  (mem.awvalid | mem.wvalid | mem.arvalid | mem.rvalid | mem.bvalid);
+
+                  ;
+
+      log_word.pci_arid = mem.arid;
+      log_word.pci_awid = mem.awid;
+      log_word.pci_wid = mem.wid;
+      log_word.pci_rid = pci.rid;
+      log_word.pci_bid = mem.bid;
+      log_word.pci_awaddr = mem.awaddr;
+      log_word.pci_araddr = mem.araddr;
+      //log_word.pci_wstrb = mem.wstrb;
+      log_word.pci_awlen = mem.awlen;
+      log_word.pci_awsize = mem.awsize;
+      log_word.pci_arlen = mem.arlen;
+      //log_word.pci_arsize = mem.arsize;
+      log_word.pci_wlast = mem.wlast;
+      log_word.pci_rlast = mem.rlast;
+      //log_word.pci_rresp = mem.rresp;
+      //log_word.pci_bresp = mem.bresp;
+      log_word.pci_awvalid = mem.awvalid;
+      log_word.pci_wvalid = mem.wvalid;
+      log_word.pci_arvalid = mem.arvalid;
+      log_word.pci_arready = mem.arready;
+      log_word.pci_awready = mem.awready;
+      log_word.pci_wready = mem.wready;
+      log_word.pci_rvalid = mem.rvalid;
+      log_word.pci_rready = mem.rready;
+      log_word.pci_bvalid = mem.bvalid;
+      log_word.pci_bready = mem.bready;
 end
 
    log #(
