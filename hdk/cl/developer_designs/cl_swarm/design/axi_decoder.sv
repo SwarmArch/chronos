@@ -47,7 +47,7 @@ axi_id_t  full_bid [0:15];
 // Simulator could deadlock where the same two events are being repeatedly
 // added to the event list.
 assign core.awready = (write_state == WRITE_IDLE) & (ack_remaining[core.awid[3:0]] == 0);
-assign core.wready = (write_state == WRITE_IDLE | write_state == WRITE_WAITING_DATA);
+assign core.wready = ((write_state == WRITE_IDLE) & core.awvalid & core.awready) | (write_state == WRITE_WAITING_DATA);
 
 
 logic [63:0] reg_awaddr, next_awaddr;

@@ -67,8 +67,7 @@ module pci_arbiter(
    localparam LOG_DDR = 1; // if set, logs the transactions of the chosen DDR ctrl instead of the pci controller
 
    // NOTE: This may not work correctly multiple outstading PCI transactions.
-   // esp, the case where debug read comes in the middle of a memory
-   // transactions
+   // esp, the case where debug read comes in the middle of a memory access
    always_comb begin
       if (debug_state == PCI_DEBUG_IDLE) begin
             pci.awready =  mem.awready;

@@ -1201,6 +1201,8 @@ write_rw
    .reg_bus(reg_bus[ID_RW_WRITE])
 );
 
+assign l1_arb[0].awsize = 6;
+assign l1_arb[0].awlen = 0;
 
 assign l1_arb[0].wvalid = l1_arb[0].awvalid;
 assign l1_arb[0].awaddr[63:32] = '0;
