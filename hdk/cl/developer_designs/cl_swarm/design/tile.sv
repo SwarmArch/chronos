@@ -262,7 +262,8 @@ coalescer
    .overflow_task(overflow_task),
 
   .stack_lock_out(coal_stack_lock),
-  .stack_lock_in (splitter_stack_lock)
+  .stack_lock_in (splitter_stack_lock),
+  .pci_debug(pci_debug[ID_COAL])
 );
 axi_decoder #(
    .ID_BASE( L2_ID_COAL << 12 ),

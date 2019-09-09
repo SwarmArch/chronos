@@ -24,7 +24,9 @@ module coalescer
    input task_t   overflow_task,
 
    output logic stack_lock_out,
-   input stack_lock_in
+   input stack_lock_in,
+   
+   pci_debug_bus_t.master pci_debug
     
 );
    
@@ -167,6 +169,7 @@ ts_t fifo_out_ts;
 logic[15:0] fifo_out_id;
 assign l1.bready = !fifo_full;
 
+logic [4:0] coal_child_fifo_size;
    fifo #(
       .LOG_DEPTH(4),
       .WIDTH(32+16)
@@ -175,13 +178,14 @@ assign l1.bready = !fifo_full;
       .rstn(rstn),
 
       .wr_en(l1.bvalid & l1.bready & 
-            !( (state==COAL_WRITE_STACK_PTR_WAIT & (l1.bid[3:0] == write_stack_ptr_awid)) )),
+            !( (state==COAL_WRITE_STACK_PTR_WAIT) & (l1.bid[3:0] == write_stack_ptr_awid)) ),
       .rd_en(coal_child_valid & coal_child_ready),
       .wr_data( { pending_coal_child_ts[l1.bid[3:0]], pending_coal_child_id[l1.bid[3:0]]}  ),
 
       .full(fifo_full), 
       .empty(fifo_empty),
-      .rd_data( {fifo_out_ts, fifo_out_id} )
+      .rd_data( {fifo_out_ts, fifo_out_id} ),
+      .size (coal_child_fifo_size)
    );
 
 assign coal_child_valid = !fifo_empty;
@@ -334,6 +338,8 @@ fifo #(
 );
 
 
+logic [LOG_LOG_DEPTH:0] log_size; 
+
 always_ff @(posedge clk) begin
    if (!rstn) begin
       start <= 1'b0;
@@ -361,7 +367,7 @@ always_ff @(posedge clk) begin
       if (coal_child_valid & coal_child_ready) begin
          num_enqueues <= num_enqueues + 1;
       end
-      if (overflow_valid) begin
+      if (overflow_valid & overflow_ready) begin
          num_dequeues <= num_dequeues + 1;
       end
    end
@@ -379,12 +385,83 @@ always_ff @(posedge clk) begin
          CORE_STATE    : reg_bus.rdata <= {
             l1.wvalid, l1.wready, l1.awvalid, l1.awready,
             tasks_remaining, 3'b0, spill_fifo_size, state};
+         DEBUG_CAPACITY : reg_bus.rdata <= log_size;
          
       endcase
    end else begin
       reg_bus.rvalid <= 1'b0;
    end
 end  
+
+generate 
+if (SPLITTER_LOGGING[TILE_ID]) begin
+   
+   logic log_valid;
+   typedef struct packed {
+   
+      logic [31:0] awaddr;
+      
+      logic [15:0] awid;
+      logic [15:0] wid;
+      logic [15:0] bid;
+      logic [15:0] coal_id;
+      logic [15:0] write_stack_ptr_awid;
+      logic [15:0] stack_ptr;
+
+      logic [11:0] spill_fifo_size;
+      logic [7:0] coal_child_fifo_size; 
+      logic [3:0] state;
+
+      logic awvalid;
+      logic awready;
+      logic wvalid;
+      logic wready;
+      logic arvalid;
+      logic arready;
+      logic bvalid;
+      logic bready;
+   } coal_log_t;
+   coal_log_t log_word;
+   always_comb begin
+      log_valid = (l1.bvalid & l1.bready) | (l1.awvalid & l1.awready) | (l1.wvalid & l1.wready);
+
+      log_word = '0;
+      log_word.bready = l1.bready;
+      log_word.bvalid = l1.bvalid;
+      log_word.arready = l1.arready;
+      log_word.arvalid = l1.arvalid;
+      log_word.awready = l1.awready;
+      log_word.awvalid = l1.awvalid;
+      log_word.wready = l1.wready;
+      log_word.wvalid = l1.wvalid;
+      log_word.state  = state;
+      log_word.coal_child_fifo_size  = coal_child_fifo_size;
+      log_word.spill_fifo_size  = spill_fifo_size;
+      log_word.stack_ptr = stack_ptr;
+      log_word.write_stack_ptr_awid = write_stack_ptr_awid;
+      log_word.coal_id = coal_id;
+      log_word.awid = l1.awid;
+      log_word.wid = l1.wid;
+      log_word.bid = l1.bid;
+   end
+
+   log #(
+      .WIDTH($bits(log_word)),
+      .LOG_DEPTH(LOG_LOG_DEPTH)
+   ) TASK_UNIT_LOG (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wvalid(log_valid),
+      .wdata(log_word),
+
+      .pci(pci_debug),
+
+      .size(log_size)
+
+   );
+end
+endgenerate
 
 `ifdef XILINX_SIMULATOR
 integer cycle;
