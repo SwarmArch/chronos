@@ -514,8 +514,8 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       logic [31:0] deq_ts;
 
       msg_type_t  commit_task_abort_child;
-      msg_type_t  abort_task;
-      msg_type_t  cut_ties;
+      logic [31:0] overflow_locale;
+      logic [31:0] overflow_ts;
       msg_type_t  deq_task;
       msg_type_t  overflow_task;
       msg_type_t  enq_task_coal_child;
@@ -551,10 +551,6 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       log_word.overflow_task.ready = overflow_ready;
       log_word.deq_task.valid = task_deq_valid;
       log_word.deq_task.ready = task_deq_ready;
-      log_word.cut_ties.valid = cut_ties_valid;
-      log_word.cut_ties.ready = cut_ties_ready;
-      log_word.abort_task.valid = abort_task_valid;
-      log_word.abort_task.ready = abort_task_ready;
 
       log_word.splitter_deq_valid = splitter_deq_valid;
       log_word.splitter_deq_ready = splitter_deq_ready;
@@ -612,19 +608,11 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.commit_task_abort_child.epoch_1  = abort_child_epoch;
         log_valid = 1'b1;
      end
-     if (cut_ties_valid & cut_ties_ready) begin
-        log_word.cut_ties.slot     = cut_ties_tq_slot;
-        log_word.cut_ties.epoch_1  = cut_ties_epoch;
-        log_valid = 1'b1;
-     end
-     if (abort_task_valid & abort_task_ready) begin
-        log_word.abort_task.slot     = abort_task_slot;
-        log_word.abort_task.epoch_1  = abort_task_epoch;
-        log_valid = 1'b1;
-     end
      if (overflow_valid & overflow_ready) begin
         log_valid = 1'b1;
      end
+     log_word.overflow_locale = overflow_data.locale;
+     log_word.overflow_ts = overflow_data.ts;
 
 
    end

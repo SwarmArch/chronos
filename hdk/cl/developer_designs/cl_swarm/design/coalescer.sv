@@ -401,6 +401,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
    typedef struct packed {
   
       logic [7:0] tasks_remaining;
+
+      logic [127:0] wdata;
       logic [31:0] awaddr;
       
       logic [15:0] awid;
@@ -449,6 +451,7 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       log_word.wid = l1.wid;
       log_word.bid = l1.bid;
       log_word.awaddr = l1.awaddr;
+      log_word.wdata = l1.wdata;
       log_word.tasks_remaining = tasks_remaining;
    end
 

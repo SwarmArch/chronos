@@ -364,6 +364,10 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
    
    logic log_valid;
    typedef struct packed {
+
+      logic [127:0] rdata;
+      logic [31:0] state;
+
       logic[31:0] num_dequeues;
       logic[15:0] coal_id; 
       logic[15:0] scratchpad_entry;
@@ -371,9 +375,12 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
    } splitter_log_t;
    splitter_log_t log_word;
    always_comb begin
-      log_valid = (state == SPLITTER_WRITE_SCRATCHPAD_WAIT & l1.bvalid);
+      log_valid = (state == SPLITTER_WRITE_SCRATCHPAD_WAIT & l1.bvalid)
+         | (state == SPLITTER_WAIT_MEMORY & l1.rvalid);
 
       log_word = '0;
+      log_word.rdata = l1.rdata;
+      log_word.state = state;
       log_word.num_dequeues = num_dequeues;
       log_word.coal_id = coal_id;
       log_word.scratchpad_entry = scratchpad_entry;
