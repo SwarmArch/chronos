@@ -282,13 +282,14 @@ always_comb begin
             state_next = COAL_INIT;
          end else
          if (!spill_fifo_empty & !free_list_empty) begin
-           state_next = COAL_WRITE_TASK;
            tasks_remaining_next = TASKS_PER_SPLITTER;
            l1.awaddr = ADDR_BASE_SPILL + (coal_id << LOG_SPLITTER_CHUNK_WIDTH);
            l1.awsize = LOG_TASK_WIDTH - 3;
            l1.awlen = TASKS_PER_SPLITTER - 1;
-           l1.awvalid = 1;
-           if (l1.awready) state_next = COAL_WRITE_TASK;
+           l1.awvalid = 1'b1;
+           if (l1.awready) begin
+              state_next = COAL_WRITE_TASK;
+           end
          end
       end
       COAL_WRITE_TASK: begin
@@ -398,7 +399,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
    
    logic log_valid;
    typedef struct packed {
-   
+  
+      logic [7:0] tasks_remaining;
       logic [31:0] awaddr;
       
       logic [15:0] awid;
@@ -408,7 +410,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       logic [15:0] write_stack_ptr_awid;
       logic [15:0] stack_ptr;
 
-      logic [11:0] spill_fifo_size;
+      logic wlast;
+      logic [10:0] spill_fifo_size;
       logic [7:0] coal_child_fifo_size; 
       logic [3:0] state;
 
@@ -423,7 +426,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
    } coal_log_t;
    coal_log_t log_word;
    always_comb begin
-      log_valid = (l1.bvalid & l1.bready) | (l1.awvalid & l1.awready) | (l1.wvalid & l1.wready);
+      log_valid = (l1.bvalid & l1.bready) | (l1.awvalid ) | (l1.wvalid & l1.wready) |
+                  (state == COAL_WRITE_STACK_PTR_WAIT);
 
       log_word = '0;
       log_word.bready = l1.bready;
@@ -434,6 +438,7 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       log_word.awvalid = l1.awvalid;
       log_word.wready = l1.wready;
       log_word.wvalid = l1.wvalid;
+      log_word.wlast = l1.wlast;
       log_word.state  = state;
       log_word.coal_child_fifo_size  = coal_child_fifo_size;
       log_word.spill_fifo_size  = spill_fifo_size;
@@ -443,6 +448,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       log_word.awid = l1.awid;
       log_word.wid = l1.wid;
       log_word.bid = l1.bid;
+      log_word.awaddr = l1.awaddr;
+      log_word.tasks_remaining = tasks_remaining;
    end
 
    log #(
