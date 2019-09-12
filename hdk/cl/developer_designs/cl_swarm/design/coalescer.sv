@@ -167,7 +167,8 @@ end
 
 ts_t fifo_out_ts;
 logic[15:0] fifo_out_id;
-assign l1.bready = !fifo_full;
+assign l1.bready = ((state == COAL_WRITE_STACK_PTR_WAIT) & (l1.bid[3:0] == write_stack_ptr_awid)) 
+               ? 1'b1 :!fifo_full;
 
 logic [4:0] coal_child_fifo_size;
    fifo #(
@@ -258,7 +259,7 @@ always_comb begin
          end
       end
       COAL_WRITE_STACK_PTR_WAIT: begin
-         if (l1.bvalid & (l1.bid[3:0] == write_stack_ptr_awid)) state_next = COAL_READ_STACK_TOP;
+         if (l1.bvalid & l1.bready & (l1.bid[3:0] == write_stack_ptr_awid)) state_next = COAL_READ_STACK_TOP;
       end
       COAL_READ_STACK_TOP: begin
          l1.araddr = ADDR_BASE_SPLITTER_STACK + 
