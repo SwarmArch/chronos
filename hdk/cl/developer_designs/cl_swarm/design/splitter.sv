@@ -29,6 +29,7 @@ module splitter
    output ts_t lvt
 );
 
+localparam SPLITTER_HEAP_SIZE_STAGES = 3;
 
 typedef enum logic[3:0] {SPLITTER_IDLE,  
       SPLITTER_READ_MEM, SPLITTER_WAIT_MEMORY,
@@ -43,9 +44,61 @@ typedef enum logic[3:0] {SPLITTER_IDLE,
    } splitter_state_t;
 
 logic start;
+   
+logic s_splitter_valid;
+logic s_splitter_ready;
+task_t s_splitter_task;
+logic [SPLITTER_HEAP_SIZE_STAGES-1:0] heap_capacity;
 
 splitter_state_t state, state_next;
 locale_t coal_id;
+heap_op_t heap_in_op;
+logic heap_ready;
+logic heap_can_enq;
+logic heap_can_deq; 
+logic heap_out_valid;
+
+assign heap_can_enq = splitter_valid & (heap_capacity != 0);
+assign heap_can_deq = (state == SPLITTER_IDLE) & start & heap_out_valid;
+always_comb begin
+   heap_in_op = NOP;
+   splitter_ready = 1'b0;
+   s_splitter_valid = 1'b0;
+   if (heap_ready) begin
+      if (heap_can_enq & heap_can_deq) begin
+         heap_in_op = REPLACE;
+         splitter_ready = 1'b1;
+         s_splitter_valid = 1'b1;
+      end else if (heap_can_enq) begin
+         heap_in_op = ENQ;
+         splitter_ready = 1'b1;
+      end else if (heap_can_deq) begin
+         s_splitter_valid = 1'b1;
+         heap_in_op = DEQ_MIN;
+      end
+   end
+end
+
+   min_heap #(
+      .N_STAGES(SPLITTER_HEAP_SIZE_STAGES),
+      .PRIORITY_WIDTH(TS_WIDTH),
+      .DATA_WIDTH( TQ_WIDTH)
+   ) SPLITTER_HEAP (
+      .clk(clk),
+      .rstn(rstn),
+
+      .in_ts(splitter_task.ts),
+      .in_data(splitter_task ),
+      .in_op(heap_in_op),
+      .ready(heap_ready),
+
+      .out_ts(),  
+      .out_data(s_splitter_task),
+      .out_valid(heap_out_valid),
+   
+      .capacity(heap_capacity)
+
+   );
 
 
 always_comb begin
@@ -92,15 +145,21 @@ logic [31:0] ADDR_BASE_SPILL;
 logic [31:0] ADDR_BASE_SPLITTER_SCRATCHPAD; 
 logic [31:0] ADDR_BASE_SPLITTER_STACK; 
 logic [31:0] ADDR_SPLITTER_STACK_PTR; 
+
+ts_t cur_task_ts;
+ts_t lvt_heap_1, lvt_heap_2;
    
 always_ff @(posedge clk) begin
    if (~rstn) begin
       state <= SPLITTER_IDLE;
       lvt <= '1;
+      lvt_heap_1 <= '1;
+      lvt_heap_2 <= '1;
    end else begin
       state <= state_next;
-      if (splitter_valid & splitter_ready) begin
-         coal_id <= splitter_task.locale >> 16;
+      if (s_splitter_valid & s_splitter_ready) begin
+         coal_id <= s_splitter_task.locale >> 16;
+
       end
       if (state == SPLITTER_READ_SCRATCHPAD_WAIT & l1.rvalid ) begin
          scratchpad_entry <= l1.rdata[SPLITTERS_PER_CHUNK-1:0] |
@@ -113,11 +172,17 @@ always_ff @(posedge clk) begin
          next_enq_task <= l1.rdata[TQ_WIDTH-1:0];
          last_enq_task <= l1.rlast;
       end
-      if (splitter_valid & splitter_ready) begin
-         lvt <= splitter_task.ts;
+      if (s_splitter_valid & s_splitter_ready) begin
+         cur_task_ts <= s_splitter_task.ts;
       end else if (state == SPLITTER_IDLE) begin
-         lvt <= '1;
+         cur_task_ts <= '1;
       end
+      if (s_splitter_valid) begin
+         lvt_heap_1 <= s_splitter_task.ts;
+      end else begin
+         lvt_heap_1 <= '1;
+      end
+      lvt <= (lvt_heap_1 < cur_task_ts) ? lvt_heap_1 : cur_task_ts;
    end
 end
 
@@ -142,7 +207,7 @@ always_comb begin
    task_wvalid = 1'b0;
    task_wdata  = 'x;
 
-   splitter_ready = 1'b0;
+   s_splitter_ready = 1'b0;
 
    state_next = state;
 
@@ -151,8 +216,8 @@ always_comb begin
       case(state)
          SPLITTER_IDLE: begin
             if (start) begin
-               if (splitter_valid) begin
-                  splitter_ready = 1'b1;
+               if (s_splitter_valid) begin
+                  s_splitter_ready = 1'b1;
                   state_next = SPLITTER_READ_MEM; 
                end
             end
@@ -280,9 +345,9 @@ always_ff @(posedge clk) begin
 end
 always_ff @(posedge clk) begin
    if (state == SPLITTER_IDLE) begin
-      if (splitter_valid & splitter_ready) begin
+      if (s_splitter_valid & s_splitter_ready) begin
          $display("[%5d][splitter-%2d] dequeue_task: (%5d,%5d)",
-            cycle, TILE_ID, splitter_task.ts, splitter_task.locale >> 16);
+            cycle, TILE_ID, s_splitter_task.ts, s_splitter_task.locale >> 16);
       end
    end
 
@@ -333,7 +398,7 @@ always_ff @(posedge clk) begin
       if (task_wvalid & task_wready) begin
          num_enqueues <= num_enqueues + 1;
       end
-      if (splitter_valid & splitter_ready) begin
+      if (s_splitter_valid & s_splitter_ready) begin
          num_dequeues <= num_dequeues + 1;
       end
    end

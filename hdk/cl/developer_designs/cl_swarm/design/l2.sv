@@ -74,7 +74,7 @@ module l2
    logic darr_en;
    logic [63:0]  darr_wr;
 
-   logic [31:0] rdata_fifo_size;
+   logic [7:0] rdata_fifo_size;
 
    pipe_op_t p23_op;
    id_t      p23_cid; // id from core 
@@ -1330,7 +1330,7 @@ module l2_stage_3
    logic s_rvalid, s_rready;
    id_t s_rid;
    cache_line_t s_rdata;
-   logic [6:0] size;
+   logic [5:0] size;
 
    assign fifo_size = size;
    
