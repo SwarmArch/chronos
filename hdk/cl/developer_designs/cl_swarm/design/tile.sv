@@ -1509,11 +1509,14 @@ tsb TSB (
 assign task_enq_out.resp_tile = TILE_ID;
 assign abort_child_out.resp_tile = TILE_ID;
 
+logic splitter_idle;
+assign splitter_idle = (splitter_lvt_out == '1);
+
 always @(posedge clk_main_a0) begin
    if (!rst_main_n_sync) begin
       done <= 0;
    end else begin
-      done <= { {27{1'b1}}, tq_empty, tsb_empty, all_cores_idle, out_task_fifo_empty, ro_idle};
+      done <= { {26{1'b1}}, splitter_idle, tq_empty, tsb_empty, all_cores_idle, out_task_fifo_empty, ro_idle};
    end
 
 end

@@ -24,7 +24,8 @@ typedef logic [TQ_STAGES-1:0] addr_t;
 module min_heap #(
    parameter N_STAGES = 10,
    parameter PRIORITY_WIDTH = 32,
-   parameter DATA_WIDTH = 33
+   parameter DATA_WIDTH = 33,
+   parameter PSEUDO_SORTED = 1 // pseudo-sort such that large elememnts go in the right branch
 ) (
    input clk,
    input rstn,
@@ -146,7 +147,8 @@ module min_heap #(
          .N_STAGES(N_STAGES),
          .STAGE_ID(i),
          .PRIORITY_WIDTH(PRIORITY_WIDTH),
-         .DATA_WIDTH(DATA_WIDTH)
+         .DATA_WIDTH(DATA_WIDTH),
+         .PSEUDO_SORTED(PSEUDO_SORTED)
       ) HEAP_STAGE (
          .clk(clk),
          .rstn(rstn),
@@ -269,7 +271,8 @@ module heap_stage
    parameter STAGE_ID,
    parameter N_STAGES,
    parameter PRIORITY_WIDTH,
-   parameter DATA_WIDTH
+   parameter DATA_WIDTH,
+   parameter PSEUDO_SORTED
 ) (
    input clk,
    input rstn,
@@ -356,15 +359,23 @@ module heap_stage
                wr_en_c = 1'b1;
                waddr_c = cur_pos;
             end
-            if (rdata_0_n.capacity > 0) begin
-               out_pos = cur_pos * 2; 
+            if (PSEUDO_SORTED) begin
+               if ((rdata_0_n.capacity ==0) | 
+                     (rdata_1_n.active & (rdata_1_n.capacity > 0) & (cur_ts > rdata_1_n.ts) ) ) begin
+                  out_pos = cur_pos * 2 + 1;
+               end else begin
+                  out_pos = cur_pos * 2; 
+               end
             end else begin
-               //assert(rdata_1_n.capacity>0) else $error("Queue Full");
-               out_pos = cur_pos * 2 + 1;
+               // always try to go left
+               if (rdata_0_n.capacity > 0) begin
+                  out_pos = cur_pos * 2; 
+               end else begin
+                  out_pos = cur_pos * 2 + 1;
+               end
             end
          end
          DEQ_MIN: begin
-            //assert(!rdata_c.active) else $error("DEQ: head should be inactive");
             if (!rdata_0_n.active & !rdata_1_n.active) begin
                out_op = NOP;
             end else begin
@@ -459,10 +470,10 @@ module heap_stage
                wr_en_c = 1'b1;
                waddr_c = cur_pos;
                wdata_c.capacity = rdata_c.capacity + 1;
-               if (rdata_0_n.active) begin
-                  out_pos = cur_pos * 2;
-               end else if (rdata_1_n.active) begin
+               if (rdata_1_n.active) begin
                   out_pos = cur_pos * 2 + 1;
+               end else if (rdata_0_n.active) begin
+                  out_pos = cur_pos * 2;
                end else begin
                   out_ts = rdata_c.ts;
                   out_data = rdata_c.data;
