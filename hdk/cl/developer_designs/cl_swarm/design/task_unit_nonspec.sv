@@ -122,6 +122,7 @@ module task_unit_nonspec
    //misc
    logic [LOG_TQ_SPILL_SIZE-1:0] task_unit_spill_size;
    logic [LOG_TQ_SPILL_SIZE-1:0] spills_remaining;
+   logic [LOG_TQ_SPILL_SIZE-1:0] spill_heap_occ;
 
    ts_t task_unit_throttle_margin;
    ts_t task_unit_throttle_ts;
@@ -135,16 +136,31 @@ module task_unit_nonspec
 
    logic tq_stall;
    logic tq_started;
+   heap_op_t heap_in_op;
+
+   logic [4:0] deq_max_propagation_delay;
 
 
    always_ff @(posedge clk) begin
       if (!rstn) begin
          spills_remaining <= 0;
       end else begin
-         if ((spills_remaining==0)  & almost_full) begin
+         if ((spills_remaining==0)  & almost_full & (spill_heap_occ == 8'hff)) begin
             spills_remaining <= task_unit_spill_size;
          end else if (heap_in_op == DEQ_MAX) begin
             spills_remaining <= spills_remaining - 1;
+         end
+      end
+
+      if (!rstn) begin
+         deq_max_propagation_delay <= '1;
+      end else begin
+         if (heap_in_op == DEQ_MAX) begin
+            deq_max_propagation_delay = TQ_STAGES * 2 + 2;
+         end else begin
+            if (deq_max_propagation_delay != 0) begin
+               deq_max_propagation_delay <= deq_max_propagation_delay -1;
+            end
          end
       end
    end
@@ -158,7 +174,6 @@ module task_unit_nonspec
    
    logic heap_ready;
    logic heap_out_valid;
-   heap_op_t heap_in_op;
 
    task_t next_deque_elem;
    logic deq_task;
@@ -169,7 +184,6 @@ module task_unit_nonspec
 
    logic spill_fifo_wr_en;
    logic spill_fifo_rd_en;
-   logic [4:0] spill_fifo_occ;
 
    task_t spill_fifo_rd_data;
    task_t spill_fifo_wr_data;
@@ -261,9 +275,9 @@ module task_unit_nonspec
       end else begin
          if (heap_ready) begin // cannot start if started last cycle
             if (spills_remaining > 0) begin
-               if (spill_fifo_occ < 16) begin
-                  heap_in_op = DEQ_MAX;
-               end
+               //if (spill_heap_occ < 16) begin
+               heap_in_op = DEQ_MAX;
+               //end
             end else begin
                if (reg_next_insert_elem_valid & deq_task) begin
                   heap_in_op = REPLACE;
@@ -279,6 +293,8 @@ module task_unit_nonspec
       end
    end
 
+/*
+if (0) begin
    fifo #(
       .WIDTH( TQ_WIDTH ),
       .LOG_DEPTH(5) // Size should be enough to hold the results of all DEQ_MAX requeusts in flight.
@@ -299,6 +315,50 @@ module task_unit_nonspec
 
    assign overflow_valid = !(spill_fifo_empty);
    assign overflow_data = spill_fifo_rd_data;
+
+end else begin
+*/
+   logic spill_heap_ready;
+   logic spill_heap_out_valid;
+   heap_op_t spill_heap_in_op;
+
+   min_heap #(
+      .N_STAGES(LOG_TQ_SPILL_SIZE),
+      .PRIORITY_WIDTH(TS_WIDTH),
+      .DATA_WIDTH( TQ_WIDTH)
+   ) SPLITTER_HEAP (
+      .clk(clk),
+      .rstn(rstn),
+
+      .in_ts(spill_fifo_wr_data.ts),
+      .in_data(spill_fifo_wr_data ),
+      .in_op(spill_heap_in_op),
+      .ready(spill_heap_ready),
+
+      .out_ts(),  
+      .out_data(spill_fifo_rd_data),
+      .out_valid(spill_heap_out_valid),
+   
+      .capacity(spill_heap_occ)
+
+   );
+  
+   assign overflow_valid = spill_heap_out_valid & (spills_remaining == 0) & (deq_max_propagation_delay ==0) ;
+   assign overflow_data = spill_fifo_rd_data;
+
+   always_comb begin
+      spill_heap_in_op = NOP;
+      if (spill_heap_ready) begin
+         if (spill_fifo_rd_en & spill_fifo_wr_en) begin
+            spill_heap_in_op = REPLACE; // shouldn't happen
+         end else if (spill_fifo_rd_en) begin
+            spill_heap_in_op = DEQ_MIN;
+         end else if (spill_fifo_wr_en) begin
+            spill_heap_in_op = ENQ;
+         end
+      end
+   end
+
    assign spill_fifo_rd_en = overflow_valid & overflow_ready;
 
 

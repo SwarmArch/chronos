@@ -290,7 +290,7 @@ module task_unit
    logic [LOG_TQ_SPILL_SIZE-1:0] spill_heap_capacity;
 
 generate
-if (!NO_SPILLING) begin
+if (SPILLING_METHOD != NONE) begin
    min_heap #(
       .N_STAGES(LOG_TQ_SPILL_SIZE),
       .PRIORITY_WIDTH(TS_WIDTH),
@@ -427,7 +427,7 @@ endgenerate
             // if the same enq triggers both spill and clean, do spill first and
             // then check for clean. This might cause capacity to overshoot
             // clean_threshold, hence do a '<' comparison 
-               if (n_tasks == task_spill_threshold & !NO_SPILLING) begin
+               if (n_tasks == task_spill_threshold & (SPILLING_METHOD == STRICT)) begin
                   tq_state <= TQ_SPILL_ENQ_READ_ARRAY;
                   tq_walk_addr <= 0;
                end else if (heap_capacity < task_unit_clean_threshold) begin

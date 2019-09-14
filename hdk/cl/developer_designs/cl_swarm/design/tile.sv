@@ -240,7 +240,7 @@ assign cores_cm_enq_untied[2] = 1'b1;
 
 
 generate
-if (!NO_SPILLING) begin
+if (SPILLING_METHOD != NONE) begin
 coalescer 
 #(
    .TILE_ID(TILE_ID),

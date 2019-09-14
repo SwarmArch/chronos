@@ -37,8 +37,13 @@ package swarm;
    parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in locale serializer
    parameter CACHE_INDEX_WIDTH = 11; // index bits in cache
    parameter CACHE_NUM_WAYS = 4;     // number of cache ways
-   parameter NON_SPEC = 0;  // Non-spec version. 
-   parameter NO_SPILLING = 0; // disable all task_spilling hardware.  
+   parameter NON_SPEC = 1;  // Non-spec version. 
+
+
+   typedef enum {NONE, PSEUDO, STRICT} spill_type;
+   // NONE- Spilling is disabled. Use this to save some area if you know that
+   // TQ will not overflow. 
+   parameter spill_type SPILLING_METHOD = PSEUDO; 
 
    // Logging parameters. Used in debugging. The value of each parameter is
    // a bitmask specifying which tiles are being actively logged. 
@@ -57,7 +62,7 @@ package swarm;
    parameter PCI_LOGGING = 0;
 
    // Stats parameters. The value of each parameter is a bitmask specifying
-   // which tiles' stats are beign recorded. 
+   // which tiles' stats are being recorded. 
    parameter CORE_STATE_STATS = 1;
    parameter SERIALIZER_STATS = 1;
    parameter TQ_STATS = 1;
