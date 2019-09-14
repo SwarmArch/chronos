@@ -141,12 +141,16 @@ if (NON_SPEC) begin : gen
    logic [LOG_NUM_SI-1:0] write_select; 
    genvar i;
 
-   lowbit #(
+   rr_sched #(
       .OUT_WIDTH(LOG_NUM_SI),
       .IN_WIDTH(NUM_SI)
    ) WRITE_SELECT (
+      .clk(clk),
+      .rstn(rstn),
       .in(s_wvalid),
-      .out(write_select)
+      .out(write_select),
+
+      .advance(s_wready != 0)
    );
 
    logic can_take_new_task;
