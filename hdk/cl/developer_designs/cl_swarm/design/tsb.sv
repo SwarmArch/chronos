@@ -83,11 +83,15 @@ module tsb
    };  
 
    logic [15:0] hashed_locale;
+
+   logic do_not_hash;
+   assign do_not_hash = (s_wdata.ttype == TASK_TYPE_SPLITTER | s_wdata.ttype == TASK_TYPE_TERMINATE);
    
    genvar i;
    generate;
    for (i=0;i<16;i++) begin
-      assign hashed_locale[i] = use_hash ? ^(s_wdata.locale[31:4] & hash_keys[i][31:4]) : s_wdata.locale[i+4];
+      assign hashed_locale[i] = (use_hash | do_not_hash) ?
+             ^(s_wdata.locale[31:4] & hash_keys[i][31:4]) : s_wdata.locale[i+4];
    end
    endgenerate
    
