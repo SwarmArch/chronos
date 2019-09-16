@@ -110,7 +110,7 @@ always_ff @(posedge clk) begin
    if (state == COAL_WRITE_TASK & l1.wvalid & l1.wready) begin
       if (tasks_remaining == TASKS_PER_SPLITTER) begin
          coal_ts <= spill_fifo_rd_data.ts;
-      end else if (NON_SPEC) begin
+      end else begin
          if (coal_ts > spill_fifo_rd_data.ts) begin
             coal_ts <= spill_fifo_rd_data.ts;
          end

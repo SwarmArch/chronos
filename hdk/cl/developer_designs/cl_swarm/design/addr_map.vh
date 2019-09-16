@@ -102,6 +102,7 @@
    parameter TASK_UNIT_THROTTLE_MARGIN = 8'h3c;
    parameter TASK_UNIT_TIED_CAPACITY   = 8'h40;
    parameter TASK_UNIT_LVT             = 8'h44;
+   parameter TASK_UNIT_SPILL_CHECK_LIMIT  = 8'h5c;
    
    parameter TASK_UNIT_STAT_AVG_TASKS              = 8'h48; // << 16
    parameter TASK_UNIT_STAT_AVG_HEAP_UTIL          = 8'h4c; // << 16

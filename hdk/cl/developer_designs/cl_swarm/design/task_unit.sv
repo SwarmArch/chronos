@@ -362,6 +362,9 @@ endgenerate
    tq_slot_t n_tasks;
 
    tq_slot_t tq_walk_addr;
+   tq_slot_t spill_check_tasks_limit; // number of task array entries to check for spilling
+   tq_slot_t spill_check_tasks_cur; // number of tasks checked in the current spilling run
+   tq_slot_t spill_check_tasks_end;
 
    logic tq_stall;
    logic tq_started;
@@ -429,7 +432,9 @@ endgenerate
             // clean_threshold, hence do a '<' comparison 
                if (n_tasks == task_spill_threshold & (SPILLING_METHOD == STRICT)) begin
                   tq_state <= TQ_SPILL_ENQ_READ_ARRAY;
-                  tq_walk_addr <= 0;
+                  //tq_walk_addr <= 0; // do not reset counter for fairness of high-index entries
+                  spill_check_tasks_cur <= 0;
+                  spill_check_tasks_end <= tq_walk_addr - 1;
                end else if (heap_capacity < task_unit_clean_threshold) begin
                   tq_state <= TQ_HEAP_CLEAN;
                end
@@ -438,11 +443,14 @@ endgenerate
                tq_state <= TQ_SPILL_ENQ;
             end
             TQ_SPILL_ENQ: begin
-               if (tq_walk_addr == (2**LOG_TQ_SIZE) -1) begin  
+               //if (tq_walk_addr == (2**LOG_TQ_SIZE) -1) begin  
+               if ( (spill_check_tasks_cur == spill_check_tasks_limit) 
+                     || (tq_walk_addr == (spill_check_tasks_end) )) begin
                   tq_state <= TQ_SPILL_DEQ;
                end else begin
                   if (spill_heap_in_op != NOP) begin
                      tq_state <= TQ_SPILL_ENQ_READ_ARRAY;
+                     spill_check_tasks_cur <= spill_check_tasks_cur + 1;
                   end
                   tq_walk_addr <= tq_walk_addr + 1;
                end
@@ -1269,6 +1277,7 @@ endgenerate
       if (!rstn) begin
          task_unit_throttle_margin <= NON_SPEC ? 1000 : 0;
          task_spill_threshold <= SPILL_THRESHOLD;
+         spill_check_tasks_limit <= 64;
          task_unit_tied_capacity <= (2**(LOG_TQ_SIZE-2) -1 );
          task_unit_clean_threshold <= 40;
          task_unit_spill_size <= 32; // has to be muliple of 8
@@ -1286,7 +1295,11 @@ endgenerate
                TASK_UNIT_SPILL_THRESHOLD : task_spill_threshold <= reg_bus.wdata;
                TASK_UNIT_TIED_CAPACITY : task_unit_tied_capacity <= reg_bus.wdata;
                TASK_UNIT_CLEAN_THRESHOLD : task_unit_clean_threshold <= reg_bus.wdata;
-               TASK_UNIT_SPILL_SIZE   : task_unit_spill_size <= reg_bus.wdata; 
+               TASK_UNIT_SPILL_SIZE   : begin 
+                     task_unit_spill_size <= reg_bus.wdata;
+                     spill_check_tasks_limit <= reg_bus.wdata * 2; 
+                  end
+               TASK_UNIT_SPILL_CHECK_LIMIT   : spill_check_tasks_limit <= reg_bus.wdata; 
                TASK_UNIT_STALL : tq_stall <= reg_bus.wdata;
                TASK_UNIT_START : tq_started <= reg_bus.wdata;
                TASK_UNIT_ALT_LOG : alt_log_word <= reg_bus.wdata;
