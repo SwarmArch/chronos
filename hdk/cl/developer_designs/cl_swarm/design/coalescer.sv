@@ -387,6 +387,7 @@ always_ff @(posedge clk) begin
          CORE_STATE    : reg_bus.rdata <= {
             l1.wvalid, l1.wready, l1.awvalid, l1.awready,
             tasks_remaining, 3'b0, spill_fifo_size, state};
+         COAL_STACK_PTR : reg_bus.rdata <= {coal_id, stack_ptr};
          DEBUG_CAPACITY : reg_bus.rdata <= log_size;
          
       endcase

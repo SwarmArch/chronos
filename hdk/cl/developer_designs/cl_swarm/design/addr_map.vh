@@ -81,6 +81,8 @@
    parameter CORE_THREAD_ID_FIFO_OCC = 8'h44;
    parameter CORE_DEBUG_WORD         = 8'h48;
 
+   parameter COAL_STACK_PTR          = 8'h80;
+
    parameter DES_SPARSE_OUTPUT       = 8'h80;
 
    parameter SPILL_BASE_TASKS        = 8'h60;

@@ -536,6 +536,7 @@ endgenerate
          casex (reg_bus.araddr) 
             DEBUG_CAPACITY : reg_bus.rdata <= log_size;
             TASK_UNIT_N_TASKS : reg_bus.rdata <= n_tasks;
+            TASK_UNIT_LVT : reg_bus.rdata <= lvt;
             
             TASK_UNIT_STAT_N_UNTIED_ENQ          : reg_bus.rdata <= n_untied_enq;
             TASK_UNIT_STAT_N_DEQ_TASK            : reg_bus.rdata <= n_deq_task;
