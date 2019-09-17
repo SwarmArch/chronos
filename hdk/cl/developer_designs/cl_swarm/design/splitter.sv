@@ -430,8 +430,13 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
    logic log_valid;
    typedef struct packed {
 
+      logic [31:0] s_splitter_ts;
+      logic [31:0] s_splitter_locale;
+      logic [31:0] lvt;
+
       logic [127:0] rdata;
-      logic [31:0] state;
+      logic [23:0] heap_size;
+      logic [7:0] state;
 
       logic[31:0] num_dequeues;
       logic[15:0] coal_id; 
@@ -444,6 +449,10 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
          | (state == SPLITTER_WAIT_MEMORY & l1.rvalid);
 
       log_word = '0;
+      log_word.s_splitter_ts = s_splitter_data.ts;
+      log_word.s_splitter_locale = s_splitter_data.locale;
+      log_word.heap_size = (2**SPLITTER_HEAP_SIZE_STAGES-1-heap_capacity);
+      log_word.lvt = lvt;
       log_word.rdata = l1.rdata;
       log_word.state = state;
       log_word.num_dequeues = num_dequeues;
