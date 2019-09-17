@@ -449,8 +449,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
          | (state == SPLITTER_WAIT_MEMORY & l1.rvalid);
 
       log_word = '0;
-      log_word.s_splitter_ts = s_splitter_data.ts;
-      log_word.s_splitter_locale = s_splitter_data.locale;
+      log_word.s_splitter_ts = s_splitter_task.ts;
+      log_word.s_splitter_locale = s_splitter_task.locale;
       log_word.heap_size = (2**SPLITTER_HEAP_SIZE_STAGES-1-heap_capacity);
       log_word.lvt = lvt;
       log_word.rdata = l1.rdata;
