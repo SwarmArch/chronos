@@ -147,14 +147,13 @@ logic [31:0] ADDR_BASE_SPLITTER_STACK;
 logic [31:0] ADDR_SPLITTER_STACK_PTR; 
 
 ts_t cur_task_ts;
-ts_t lvt_heap_1, lvt_heap_2;
+ts_t lvt_heap;
    
 always_ff @(posedge clk) begin
    if (~rstn) begin
       state <= SPLITTER_IDLE;
       lvt <= '1;
-      lvt_heap_1 <= '1;
-      lvt_heap_2 <= '1;
+      lvt_heap <= '1;
    end else begin
       state <= state_next;
       if (s_splitter_valid & s_splitter_ready) begin
@@ -177,12 +176,12 @@ always_ff @(posedge clk) begin
       end else if (state == SPLITTER_IDLE) begin
          cur_task_ts <= '1;
       end
-      if (s_splitter_valid) begin
-         lvt_heap_1 <= s_splitter_task.ts;
+      if (heap_out_valid) begin
+         lvt_heap <= s_splitter_task.ts;
       end else begin
-         lvt_heap_1 <= '1;
+         lvt_heap <= '1;
       end
-      lvt <= (lvt_heap_1 < cur_task_ts) ? lvt_heap_1 : cur_task_ts;
+      lvt <= (lvt_heap < cur_task_ts) ? lvt_heap : cur_task_ts;
    end
 end
 
