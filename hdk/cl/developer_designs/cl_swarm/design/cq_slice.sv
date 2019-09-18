@@ -1287,7 +1287,7 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.to_tq_abort_ready = to_tq_abort_ready;
       log_word.to_tq_resource_abort = in_resource_abort; 
       log_word.n_resource_aborts = n_resource_aborts; // to debug why this counter is so off
-      if (in_resource_abort) log_valid = 1'b1;
+      //if (in_resource_abort) log_valid = 1'b1;
 
       if (s_abort_children_valid & s_abort_children_ready) begin
          log_valid = 1'b1;
