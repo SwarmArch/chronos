@@ -434,7 +434,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       logic [31:0] lvt;
 
       logic [127:0] rdata;
-      logic [23:0] heap_size;
+      logic [7:0] splitter_valid;
+      logic [15:0] heap_size;
       logic [7:0] state;
 
       logic[31:0] num_dequeues;
@@ -457,6 +458,7 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       log_word.num_dequeues = num_dequeues;
       log_word.coal_id = coal_id;
       log_word.scratchpad_entry = scratchpad_entry;
+      log_word.splitter_valid = splitter_valid;
    end
 
    log #(

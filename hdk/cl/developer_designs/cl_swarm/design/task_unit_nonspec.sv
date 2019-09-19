@@ -459,6 +459,9 @@ end else begin
 
    logic [31:0] n_cycles_task_deq_valid; 
 
+   logic [31:0] n_heap_enq;
+   logic [31:0] n_heap_replace;
+   logic [31:0] n_heap_deq;
 
 generate
 if(TQ_STATS) begin 
@@ -471,6 +474,10 @@ if(TQ_STATS) begin
 
          n_coal_child <= 0;
          n_overflow <= 0;
+         
+         n_heap_enq <= 0;
+         n_heap_deq <= 0;
+         n_heap_replace <= 0;
 
          n_cycles_task_deq_valid <= 0;
          cum_tasks <= 0;
@@ -494,6 +501,16 @@ if(TQ_STATS) begin
          end
          if (task_deq_valid) begin
             n_cycles_task_deq_valid <= n_cycles_task_deq_valid + 1; 
+         end
+         
+         if (heap_in_op == ENQ) begin
+            n_heap_enq <= n_heap_enq+1;
+         end
+         if (heap_in_op == DEQ_MIN) begin
+            n_heap_deq <= n_heap_deq+1;
+         end
+         if (heap_in_op == REPLACE) begin
+            n_heap_replace <= n_heap_replace+1;
          end
       end
    end
@@ -545,6 +562,10 @@ endgenerate
             TASK_UNIT_STAT_N_OVERFLOW            : reg_bus.rdata <= n_overflow;
             TASK_UNIT_STAT_N_CYCLES_DEQ_VALID    : reg_bus.rdata <= n_cycles_task_deq_valid;
             TASK_UNIT_STAT_AVG_TASKS   : reg_bus.rdata <= cum_tasks[47:16];
+            
+            TASK_UNIT_STAT_N_HEAP_ENQ   : reg_bus.rdata <= n_heap_enq;
+            TASK_UNIT_STAT_N_HEAP_DEQ   : reg_bus.rdata <= n_heap_deq;
+            TASK_UNIT_STAT_N_HEAP_REPLACE   : reg_bus.rdata <= n_heap_replace;
 
             TASK_UNIT_MISC_DEBUG : reg_bus.rdata <= { abort_child_valid, task_enq_valid, cut_ties_valid, cq_child_abort_valid, abort_task_valid, abort_resp_valid, task_deq_valid, commit_task_valid, task_deq_ready};
             default: reg_bus.rdata <= 0;
@@ -640,19 +661,24 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.enq_task_coal_child.ready = coal_child_ready;
         log_valid = 1;
      end 
-     if (task_deq_valid & task_deq_ready) begin
-        log_word.deq_task.slot    = task_deq_tq_slot;
+     if (task_deq_valid) begin
+        log_word.deq_task.slot    = task_deq_data.ttype;
         if (!alt_log_word) begin
            log_word.deq_locale = task_deq_data.locale;
            log_word.deq_ts   = task_deq_data.ts;
         end
-        log_valid = 1;
-     end else if (splitter_deq_valid & splitter_deq_ready) begin
+        if (task_deq_ready) begin
+           log_valid = 1;
+        end
+     end else if (splitter_deq_valid) begin
+        log_word.deq_task.slot    = splitter_deq_task.ttype;
         if (!alt_log_word) begin
           log_word.deq_locale = splitter_deq_task.locale;
           log_word.deq_ts   = splitter_deq_task.ts;
         end
-        log_valid = 1;
+        if (splitter_deq_ready) begin
+           log_valid = 1;
+        end
      end
      if (commit_task_valid & commit_task_ready) begin
         log_word.commit_n_abort_child = 1'b1;

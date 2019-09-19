@@ -56,6 +56,7 @@
    parameter OCL_PARAM_LOG_TQ_HEAP_STAGES  = 8'h54;
    parameter OCL_PARAM_LOG_TQ_SIZE         = 8'h58;
    parameter OCL_PARAM_LOG_CQ_SIZE         = 8'h5c;
+   parameter OCL_PARAM_APP_ID              = 8'h60;
    parameter OCL_PARAM_LOG_SPILL_Q_SIZE    = 8'h64;
    parameter OCL_PARAM_NON_SPEC            = 8'h68;
    parameter OCL_PARAM_LOG_READY_LIST_SIZE = 8'h6c;

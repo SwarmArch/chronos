@@ -250,6 +250,10 @@ module ocl_slave
                         state <= OCL_SEND_R;
                         data <= LOG_L2_BANKS;
                      end
+                     OCL_PARAM_APP_ID : begin
+                        state <= OCL_SEND_R;
+                        data <= APP_ID;
+                     end
                      OCL_DONE: begin
                         state <= OCL_SEND_R;
                         data <= done;

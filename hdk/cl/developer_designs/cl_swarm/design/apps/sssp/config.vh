@@ -1,5 +1,6 @@
 
 parameter APP_NAME = "sssp";
+parameter APP_ID = 0;
 parameter RISCV = 0;
 
 parameter ARG_WIDTH = 1;

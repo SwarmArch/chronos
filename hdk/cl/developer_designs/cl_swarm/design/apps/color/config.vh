@@ -1,5 +1,6 @@
 
 parameter APP_NAME = "color";
+parameter APP_ID = 5;
 parameter RISCV = 0;
 
 parameter ARG_WIDTH = 80;

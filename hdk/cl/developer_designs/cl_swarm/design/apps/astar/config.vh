@@ -1,5 +1,6 @@
 
 parameter APP_NAME = "astar";
+parameter APP_ID = 2;
 parameter RISCV = 0;
 
 parameter ARG_WIDTH = 64;

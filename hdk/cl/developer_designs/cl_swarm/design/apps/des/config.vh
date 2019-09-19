@@ -1,5 +1,6 @@
 
 parameter APP_NAME = "des";
+parameter APP_ID = 1;
 parameter RISCV = 0;
 
 parameter ARG_WIDTH = 32;

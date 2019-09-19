@@ -1,5 +1,6 @@
 
 parameter APP_NAME = "maxflow";
+parameter APP_ID = 3;
 parameter RISCV = 0;
 
 parameter ARG_WIDTH = 96;
