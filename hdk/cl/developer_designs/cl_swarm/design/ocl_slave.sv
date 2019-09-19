@@ -81,12 +81,18 @@ module ocl_slave
                         if (RISCV) begin
                            wr_comp_bit_vector [ID_CORE_BEGIN +: N_CORES] <= '1;
                         end else begin
-                           wr_comp_bit_vector[5:1] <= '1;
+                           wr_comp_bit_vector[4:1] <= '1;
                         end
                         wr_comp_bit_vector[ID_COAL    ] <= 1;
                         wr_comp_bit_vector[ID_SPLITTER    ] <= 1;
                      end
-                     ID_ALL_APP_CORES : wr_comp_bit_vector[5:1] <= '1;
+                     ID_ALL_APP_CORES : begin
+                        if (RISCV) begin
+                           wr_comp_bit_vector [ID_CORE_BEGIN +: N_CORES] <= '1;
+                        end else begin
+                           wr_comp_bit_vector[3:1] <= '1;
+                        end
+                     end
                      ID_COAL_AND_SPLITTER : begin 
                         wr_comp_bit_vector[ID_SPLITTER] <= 1;
                         wr_comp_bit_vector[ID_COAL    ] <= 1;

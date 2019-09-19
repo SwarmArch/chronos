@@ -364,7 +364,7 @@ always_ff @(posedge clk) begin
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
-            CORE_START: start <= reg_bus.wdata[CORE_ID];
+            CORE_START: start <= reg_bus.wdata[ID_CORE_BEGIN + CORE_ID];
             CORE_DEBUG_MODE: debug_mode <= reg_bus.wdata[CORE_ID];
          endcase
       end
@@ -694,7 +694,7 @@ end
       .out_q(l1)
    );
 generate 
-if (CORE_LOGGING[TILE_ID] & (CORE_ID == 1)) begin
+if (CORE_LOGGING[TILE_ID] & (CORE_ID == 0)) begin
    
    logic log_valid;
    typedef struct packed {

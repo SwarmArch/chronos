@@ -202,7 +202,7 @@ always_comb begin
       out.wdata      = a.wdata;
       out.wstrb      = a.wstrb;
       out.wlast      = a.wlast;
-      out.wvalid     = a.wvalid & w_waiting;
+      out.wvalid     = a.wvalid;
       
    end else begin
       out.awid       = b.awid;
@@ -215,7 +215,7 @@ always_comb begin
       out.wdata      = b.wdata;
       out.wstrb      = b.wstrb;
       out.wlast      = b.wlast;
-      out.wvalid     = b.wvalid & w_waiting;
+      out.wvalid     = b.wvalid;
    end
 end
 

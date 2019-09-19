@@ -1357,6 +1357,17 @@ end
 end else begin : riscv 
    assign cores_cm_wvalid[1] = 1'b0;
    assign ro_idle = 1'b1;
+
+   always_ff @(posedge clk_main_a0) begin
+      reg_bus[ID_RW_READ].rvalid <= reg_bus[ID_RW_READ].arvalid;
+      reg_bus[ID_RW_WRITE].rvalid <= reg_bus[ID_RW_WRITE].arvalid;
+      reg_bus[ID_RO_STAGE].rvalid <= reg_bus[ID_RO_STAGE].arvalid;
+   end
+   
+   assign reg_bus[ID_RW_READ].rdata = 0;
+   assign reg_bus[ID_RW_WRITE].rdata = 0;
+   assign reg_bus[ID_RO_STAGE].rdata = 0;
+
    
    axi_bus_t core_l1[N_CORES]();
    
