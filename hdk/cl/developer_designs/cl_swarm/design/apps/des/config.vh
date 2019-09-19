@@ -16,3 +16,5 @@ parameter NEIGHBOR_BASE_ADDR = 16;
 
 `define RO_WORKER des_worker
 `define RW_WORKER des_rw
+
+parameter N_CORES = 0;

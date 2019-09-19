@@ -137,7 +137,7 @@ package swarm;
    parameter LOG_CQ_TS_BANKS = LOG_CQ_SLICE_SIZE - LOG_GVT_PERIOD;
 
    parameter L2_BANKS = (1<<LOG_L2_BANKS);
-   parameter L2_PORTS = 4; // rw, ro, splitter, coal 
+   parameter L2_PORTS = RISCV ? N_CORES + 2 : 4 ; // rw, ro, splitter, coal 
    
 
    parameter UNDO_LOG_THREADS = UNORDERED ? 1 : 4;

@@ -17,3 +17,5 @@ parameter LOG_N_SUB_TYPES = 2;
 
 `define RO_WORKER maxflow_worker
 `define RW_WORKER maxflow_rw
+
+parameter N_CORES = 0;

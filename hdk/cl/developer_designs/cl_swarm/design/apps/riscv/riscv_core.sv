@@ -19,6 +19,7 @@ module riscv_core
    input                   task_rvalid,
    input task_t            task_rdata,
    input cq_slice_slot_t   task_rslot, 
+   input thread_id_t       task_rthread, 
 
    // Task Enqueue
    output logic            task_wvalid,
@@ -37,6 +38,7 @@ module riscv_core
    output logic            finish_task_valid,
    input                   finish_task_ready,
    output cq_slice_slot_t  finish_task_slot,
+   output thread_id_t      finish_task_thread,
    // Informs the CQ of the number of children I have enqueued and whether
    // I have made a write that needs to be reversed on abort
    output child_id_t       finish_task_num_children,
@@ -121,6 +123,7 @@ cq_slice_slot_t cq_slot;
 always_ff @(posedge clk) begin
    if ((state == NEXT_TASK) & task_rvalid) begin
       cq_slot <= task_rslot;
+      finish_task_thread <= task_rthread;
    end
 end
 always_ff @(posedge clk) begin
@@ -436,7 +439,6 @@ end
 always_ff @(posedge clk) begin
    if (!rstn) begin
       task_wvalid <= 1'b0;
-      task_wdata.ts <= 'x; 
    end else begin
       if (task_out_valid & task_out_ready) begin
          task_wvalid <= 1'b1;
@@ -450,16 +452,23 @@ always_ff @(posedge clk) begin
 end
 
 always_ff @ (posedge clk) begin
-   if (dBus_cmd_valid & dBus_cmd_payload_wr) begin
-      case (dBus_cmd_addr) 
-         RISCV_DEQ_TASK      : if (!task_wvalid) task_wdata.ts <= dBus_cmd_data;
-         RISCV_DEQ_TASK_LOCALE : if (!task_wvalid) task_wdata.locale <= dBus_cmd_data; 
-         RISCV_DEQ_TASK_TTYPE: if (!task_wvalid) task_wdata.ttype <= dBus_cmd_data;
-         RISCV_DEQ_TASK_ARG0 : if (!task_wvalid) task_wdata.args[31:0] <= dBus_cmd_data;
-         RISCV_DEQ_TASK_ARG1 : if (!task_wvalid) task_wdata.args[63:32] <= dBus_cmd_data;
-         RISCV_UNDO_LOG_ADDR : if (!undo_log_valid) undo_log_addr <= dBus_cmd_data;
-         RISCV_UNDO_LOG_DATA : if (!undo_log_valid) undo_log_data <= dBus_cmd_data;
-      endcase
+   if (!rstn) begin
+      task_wdata.producer <= 1'b0; 
+      task_wdata.no_write <= 1'b0; 
+      task_wdata.no_read <= 1'b0; 
+      task_wdata.non_spec <= 1'b0; 
+   end else begin
+      if (dBus_cmd_valid & dBus_cmd_payload_wr) begin
+         case (dBus_cmd_addr) 
+            RISCV_DEQ_TASK      : if (!task_wvalid) task_wdata.ts <= dBus_cmd_data;
+            RISCV_DEQ_TASK_LOCALE : if (!task_wvalid) task_wdata.locale <= dBus_cmd_data; 
+            RISCV_DEQ_TASK_TTYPE: if (!task_wvalid) task_wdata.ttype <= dBus_cmd_data;
+            RISCV_DEQ_TASK_ARG0 : if (!task_wvalid) task_wdata.args[31:0] <= dBus_cmd_data;
+            RISCV_DEQ_TASK_ARG1 : if (!task_wvalid) task_wdata.args[63:32] <= dBus_cmd_data;
+            RISCV_UNDO_LOG_ADDR : if (!undo_log_valid) undo_log_addr <= dBus_cmd_data;
+            RISCV_UNDO_LOG_DATA : if (!undo_log_valid) undo_log_data <= dBus_cmd_data;
+         endcase
+      end
    end
 end
 
@@ -501,6 +510,7 @@ axi_bus_t iBus_out ();
 axi_bus_t dBus_in ();
 axi_bus_t dBus_out ();
 assign iBus_in.arsize = 2;
+assign iBus_in.arid = 0;
 
 assign rst_core = !(rstn & start);
 
@@ -515,6 +525,10 @@ assign dBus_in.bready = 1'b1;
 assign dBus_in.awaddr = dBus_cmd_addr;
 assign dBus_in.araddr = dBus_cmd_addr;
 assign dBus_in.wdata = dBus_cmd_data;
+
+assign dBus_in.awid = 0;
+assign dBus_in.wid = 0;
+assign dBus_in.arid = 0;
 always_comb begin
    dBus_cmd_ready = 1'b0;
    dBus_in.awvalid = 1'b0;
@@ -644,10 +658,9 @@ end
    );
 
    axi_decoder #(
-      .ID_BASE( (TILE_ID<<11) + ((CORE_ID) << 4)),
+      .ID_BASE( CORE_ID << 12),
       .MAX_AWSIZE(2),
-      .MAX_ARSIZE(5),
-      .LOG_MAX_REQUESTS(2)
+      .MAX_ARSIZE(5)
    ) IBUS_CONVERT (
      .clk(clk),
      .rstn(rstn),
@@ -657,10 +670,9 @@ end
    );
    
    axi_decoder #(
-      .ID_BASE( (TILE_ID<<11) + ((CORE_ID) << 4) + 8),
+      .ID_BASE( (CORE_ID << 12) + 8),
       .MAX_AWSIZE(2),
-      .MAX_ARSIZE(5),
-      .LOG_MAX_REQUESTS(2)
+      .MAX_ARSIZE(5)
    ) DBUS_CONVERT (
      .clk(clk),
      .rstn(rstn),

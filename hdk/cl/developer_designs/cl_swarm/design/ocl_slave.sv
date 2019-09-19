@@ -78,7 +78,11 @@ module ocl_slave
                   addr <= ocl.awaddr;
                   case (ocl.awaddr[15:8])
                      ID_ALL_CORES: begin
-                        wr_comp_bit_vector[5:1] <= '1;
+                        if (RISCV) begin
+                           wr_comp_bit_vector [ID_CORE_BEGIN +: N_CORES] <= '1;
+                        end else begin
+                           wr_comp_bit_vector[5:1] <= '1;
+                        end
                         wr_comp_bit_vector[ID_COAL    ] <= 1;
                         wr_comp_bit_vector[ID_SPLITTER    ] <= 1;
                      end

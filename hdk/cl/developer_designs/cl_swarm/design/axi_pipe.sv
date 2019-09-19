@@ -236,10 +236,10 @@ always_comb begin
 end
 
 assign a.awready = out.awready & !awsel & !w_waiting ;
-assign a.wready  = out.wready & !awsel & w_waiting;
+assign a.wready  = out.wready & !awsel ;
 assign a.arready = out.arready & !arsel;
 assign b.awready = out.awready & awsel  & !w_waiting;
-assign b.wready  = out.wready & awsel & w_waiting;
+assign b.wready  = out.wready & awsel ;
 assign b.arready = out.arready & arsel;
 
 assign out.bready = out.bid[ID_BIT] ? b.bready : a.bready;

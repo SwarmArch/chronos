@@ -17,3 +17,5 @@ parameter LOG_N_SUB_TYPES = 2;
 
 `define RO_WORKER sssp_worker
 `define RW_WORKER sssp_rw
+
+parameter N_CORES = 0;

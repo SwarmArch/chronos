@@ -191,7 +191,8 @@ axi_bus_t ocl_bus_q();
       .out(ocl_bus_q)
    );
 
-axi_bus_t core_l1();
+axi_bus_t ocl_l1(); // DEPRECATED
+
 logic [31:0] done;
 logic [31:0] l2_out_debug;
 ocl_slave  
@@ -221,7 +222,7 @@ ocl_slave
   .task_wdata (cores_cm_wdata [0]),
   .task_wready(cores_cm_wready[0]),
 
-  .l1(core_l1),
+  .l1(ocl_l1),
    
   .done(done),
   .cur_cycle(cur_cycle),
@@ -229,9 +230,9 @@ ocl_slave
   .l2_debug(l2_out_debug)
 
 );
-assign core_l1.arready = 1'b1;
-assign core_l1.awready = 1'b1;
-assign core_l1.wready = 1'b1;
+assign ocl_l1.arready = 1'b1;
+assign ocl_l1.awready = 1'b1;
+assign ocl_l1.wready = 1'b1;
 
 assign cores_cm_cq_slot[0] = 0;
 assign cores_cm_child_id[0] = 0;
@@ -305,7 +306,7 @@ splitter #(
 
 axi_decoder #(
    .ID_BASE( L2_ID_SPLITTER << 12 ),
-   .MAX_ARSIZE( $clog2(TQ_WIDTH) -3),
+   .MAX_ARSIZE( $clog2(TQ_WIDTH) -3 ),
    .MAX_AWSIZE(2)
 ) SPLITTER_L1 (
   .clk(clk_main_a0),
@@ -1053,6 +1054,11 @@ conflict_serializer #(
    .reg_bus(reg_bus[ID_SERIALIZER])
 );
 
+logic ro_idle;
+
+generate 
+if (!RISCV) begin : core
+
 logic rw_read_out_fifo_full;
 logic rw_read_out_fifo_empty;
 fifo_size_t rw_read_out_fifo_occ;
@@ -1219,9 +1225,7 @@ data_t ro_out_data;
 cq_slice_slot_t ro_out_cq_slot;
 byte_t ro_out_word_id;
 
-logic ro_idle;
 
-generate 
 for (i=0;i<N_SUB_TYPES;i++) begin
    recirculating_fifo #(
          .WIDTH( $bits(fifo_in_task[0]) + $bits(fifo_in_data[0])+ $bits(fifo_in_cq_slot[0]) + 8),
@@ -1262,7 +1266,6 @@ always_comb begin
    ro_out_task_ready = ro_out_task_valid & !fifo_full[ro_out_task_subtype];
 end
 
-endgenerate
 
 read_only_stage
 #(
@@ -1350,6 +1353,116 @@ always_comb begin
       end
    end
 end
+
+end else begin : riscv 
+   assign cores_cm_wvalid[1] = 1'b0;
+   assign ro_idle = 1'b1;
+   
+   axi_bus_t core_l1[N_CORES]();
+   
+   logic [N_CORES-1:0] cc_cores_arvalid;
+   logic [N_CORES-1:0] cc_cores_rvalid;
+
+
+   logic [N_CORES-1:0] core_finish_task_valid;
+   logic [N_CORES-1:0] core_finish_task_ready;
+   cq_slice_slot_t [N_CORES-1:0] core_finish_task_slot;
+   thread_id_t [N_CORES-1:0] core_finish_task_thread;
+   child_id_t [N_CORES-1:0] core_finish_task_num_children;
+   logic [N_CORES-1:0] core_finish_task_undo_log_write;
+
+   logic [$clog2(N_CORES)-1:0] cc_cores_select, core_finish_task_select;
+
+   for (i=0;i<N_CORES;i++) begin
+      assign cc_cores_rvalid[i] = (cc_cores_select == i) & cc_cores_arvalid[i] & issue_task_valid;
+      assign core_finish_task_ready[i] = (core_finish_task_select == i) & finish_task_valid & finish_task_ready; 
+   end
+   always_comb begin
+      finish_task_valid = core_finish_task_valid[core_finish_task_select];
+      finish_task_slot = core_finish_task_slot[core_finish_task_select];
+      finish_task_is_undo_log_restore = 1'b0;
+      finish_task_num_children = core_finish_task_num_children[core_finish_task_select];
+      unlock_thread = core_finish_task_thread[core_finish_task_select];
+   end   
+   assign unlock_thread_valid = (finish_task_valid & finish_task_ready);
+   assign issue_task_ready = issue_task_valid & |cc_cores_arvalid;
+         
+   lowbit #(
+       .OUT_WIDTH($clog2(N_CORES)) 
+   ) RV_DEQ_SELECT (
+       .in(cc_cores_arvalid),
+       .out(cc_cores_select)
+   );
+   
+   lowbit #(
+       .OUT_WIDTH($clog2(N_CORES)) 
+   ) RV_FINISH_SELECT (
+       .in(core_finish_task_valid),
+       .out(core_finish_task_select)
+   );
+
+   for (i=0;i<N_CORES;i++) begin :core
+
+
+        riscv_core #( 
+           .CORE_ID(i),
+           .TILE_ID(TILE_ID)
+         ) CORE (
+           .clk(clk_main_a0),
+           .rstn(rst_main_n_sync),
+
+           .reg_bus(reg_bus[ID_CORE_BEGIN + i]),
+           .pci_debug(pci_debug[ID_CORE_BEGIN + i]),
+            
+           .task_arvalid( cc_cores_arvalid[i] ),
+           .task_araddr ( ),
+           .task_rvalid ( cc_cores_rvalid [i] ),
+           .task_rdata  ( issue_task        ),
+           .task_rslot  ( issue_task_cq_slot        ),
+           .task_rthread( issue_task_thread        ),
+
+           .start_task_valid( ),
+           .start_task_slot ( ),
+           .start_task_ready( 1'b1 ),
+           
+           .finish_task_valid( core_finish_task_valid[i]),
+           .finish_task_slot ( core_finish_task_slot [i]),
+           .finish_task_thread ( core_finish_task_thread [i]),
+           .finish_task_num_children ( core_finish_task_num_children [i]),
+           .finish_task_undo_log_write ( core_finish_task_undo_log_write [i]),
+           .finish_task_ready( core_finish_task_ready[i]),
+
+           // aborting running tasks is not required anymore because CQ does not
+           // block on the abort to complete
+           .abort_running_task (1'b0), 
+           .abort_running_slot (),
+           .gvt_task_slot_valid  (gvt_task_slot_valid ),
+           .gvt_task_slot        (gvt_task_slot       ),
+            
+           .task_wvalid    (cores_cm_wvalid     [3+i]),
+           .task_wdata     (cores_cm_wdata      [3+i]),
+           .task_wready    (cores_cm_wready     [3+i]),
+           .task_enq_untied(cores_cm_enq_untied [3+i]),  
+           .task_cq_slot   (cores_cm_cq_slot    [3+i]),
+           .task_child_id  (cores_cm_child_id   [3+i]),
+           
+           .undo_log_ready (1'b1),
+/*
+           .undo_log_valid (undo_log_valid[i]),
+           .undo_log_ready (undo_log_ready[i]),
+           .undo_log_id    (undo_log_id   [i]),
+           .undo_log_addr  (undo_log_addr [i]),
+           .undo_log_data  (undo_log_data [i]),
+           .undo_log_slot  (undo_log_slot [i]),
+*/
+           .l1(l1_arb[i])
+         );
+
+   end
+
+end
+
+endgenerate
 
 
 logic             cm_tsb_valid;
