@@ -19,7 +19,6 @@
 #include <poll.h>
 #include <assert.h>
 
-
 #define LOG_SPLITTERS_PER_CHUNK           4
 #define ADDR_BASE_SPILL                   (1<<30)
 #define LOG_SPLITTER_STACK_SIZE           14
@@ -57,6 +56,7 @@
 #define OCL_CUR_CYCLE_MSB         0x30
 #define OCL_CUR_CYCLE_LSB         0x34
 #define OCL_LAST_MEM_LATENCY      0x38
+#define OCL_L2_DEBUG              0x3c
 #define OCL_DONE                  0x40
 
 #define OCL_PARAM_N_TILES             0x50
@@ -88,6 +88,8 @@
 #define CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD 0x40
 
 #define CORE_DEBUG_WORD           0x48
+
+#define COAL_STACK_PTR           0x80
 
 #define SPILL_BASE_TASKS         0x60
 #define SPILL_BASE_STACK         0x64
@@ -143,6 +145,7 @@
 #define TASK_UNIT_ALT_DEBUG                   0xf8
 
 #define TASK_UNIT_PRODUCER_THRESHOLD          0x34
+#define TASK_UNIT_SPILL_CHECK_LIMIT          0x5c
 
 #define TSB_LOG_N_TILES            0x10
 #define TSB_HASH_KEY               0x14
@@ -199,9 +202,10 @@
 #define SERIALIZER_CAN_TAKE_REQ_3 0x3c
 #define SERIALIZER_SIZE_CONTROL 0x40
 #define SERIALIZER_CQ_STALL_COUNT 0x44
-#define SERIALIZER_STAT_READ 0x48
+#define SERIALIZER_STAT 0x80
 #define SERIALIZER_DEBUG_WORD 0x50
 #define SERIALIZER_S_LOCALE 0x54
+#define SERIALIZER_N_MAX_RUNNING_TASKS 0x60
 
 #define L2_FLUSH          0x10
 #define L2_READ_HITS      0x20
@@ -227,7 +231,8 @@ int log_sssp_core(pci_bar_handle_t pci_bar_handle, int fd, int cid, FILE* fw);
 int log_task_unit(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
-int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, uint32_t);
+int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
+int log_coalescer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_ddr(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
@@ -238,6 +243,7 @@ void init_params();
 void pci_poke(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t data);
 void pci_peek(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t* data);
 void task_unit_stats(uint32_t tile, uint32_t);
+void serializer_stats(uint32_t tile, uint32_t);
 void cq_stats (uint32_t tile, uint32_t);
 void core_stats (uint32_t tile, uint32_t);
 extern pci_bar_handle_t pci_bar_handle;
