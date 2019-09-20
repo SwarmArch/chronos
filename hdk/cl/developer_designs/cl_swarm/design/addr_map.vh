@@ -100,6 +100,7 @@
    parameter TASK_UNIT_N_TIED_TASKS    = 8'h18;
    parameter TASK_UNIT_STALL           = 8'h20;
    parameter TASK_UNIT_START           = 8'h24;
+   parameter TASK_UNIT_PRE_ENQ_BUFFER_CONFIG = 8'h28; // {full_thresh, last_deq_tolerance}
    parameter TASK_UNIT_SPILL_THRESHOLD = 8'h30;
    parameter TASK_UNIT_CLEAN_THRESHOLD = 8'h34;
    parameter TASK_UNIT_PRODUCER_PRIORITY_THRESHOLD = 8'h34;
@@ -107,7 +108,6 @@
    parameter TASK_UNIT_THROTTLE_MARGIN = 8'h3c;
    parameter TASK_UNIT_TIED_CAPACITY   = 8'h40;
    parameter TASK_UNIT_LVT             = 8'h44;
-   parameter TASK_UNIT_SPILL_CHECK_LIMIT  = 8'h5c;
    
    parameter TASK_UNIT_STAT_AVG_TASKS              = 8'h48; // << 16
    parameter TASK_UNIT_STAT_AVG_HEAP_UTIL          = 8'h4c; // << 16
@@ -116,6 +116,7 @@
    // if start_mask == 0, increment tx id by start_inc
    parameter TASK_UNIT_GLOBAL_RELABEL_START_MASK = 8'h54;
    parameter TASK_UNIT_GLOBAL_RELABEL_START_INC  = 8'h58;
+   parameter TASK_UNIT_SPILL_CHECK_LIMIT  = 8'h5c;
    parameter TX_ID_OFFSET_BITS = 8;
 
    parameter TASK_UNIT_STAT_N_UNTIED_ENQ           = 8'h60;

@@ -233,6 +233,10 @@ module task_unit_nonspec
       .max_out_valid(spill_fifo_wr_en)
    );
 
+   logic pre_enq_fifo_full, pre_enq_fifo_empty;
+   logic [5:0] pre_enq_fifo_occ;
+
+
    assign n_tasks = (2**TQ_STAGES - 1 - heap_capacity);
    logic [47:0] cum_tasks;
    always_comb begin
@@ -243,7 +247,7 @@ module task_unit_nonspec
       if (spills_remaining > 0) begin
 
       end else begin
-         if (!reg_next_insert_elem_valid) begin
+         if (!pre_enq_fifo_full) begin
             if (coal_child_valid) begin
                coal_child_ready = 1'b1;
                next_insert_elem_set = 1'b1;
@@ -256,7 +260,7 @@ module task_unit_nonspec
          end
       end
    end
-   
+/* 
    always_ff @(posedge clk) begin
       if (!rstn) begin
          reg_next_insert_elem_valid <= 1'b0;
@@ -269,7 +273,40 @@ module task_unit_nonspec
          end
       end
    end 
+*/
 
+   logic [15:0] time_since_last_deq;
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         time_since_last_deq <= 0;
+      end else begin
+         if (heap_in_op == DEQ_MIN || heap_in_op == REPLACE) begin
+            time_since_last_deq <= 0;
+         end else begin
+            time_since_last_deq <= time_since_last_deq + 1;
+         end
+      end
+   end
+
+   logic [15:0] deq_tolerance, pre_enq_fifo_full_thresh; 
+
+   always_comb begin
+      reg_next_insert_elem_valid = 1'b0;
+      // Try to maximize replace operations.
+      // Enq a new element only if 
+      // 1. Can do a heap DEQ in the same cycle
+      // 2. "deq_tolerance" no. of cycles have elapsed since the last deq
+      // 3. fifo is almost full
+      if (!pre_enq_fifo_empty) begin
+         if (deq_task) begin
+            reg_next_insert_elem_valid = 1'b1;
+         end else if (deq_tolerance < time_since_last_deq) begin
+            reg_next_insert_elem_valid = 1'b1;
+         end else if (pre_enq_fifo_occ > pre_enq_fifo_full_thresh) begin
+            reg_next_insert_elem_valid = 1'b1;
+         end
+      end
+   end
 
    always_comb begin
       heap_in_op = NOP;
@@ -296,31 +333,24 @@ module task_unit_nonspec
       end
    end
 
-/*
-if (0) begin
    fifo #(
       .WIDTH( TQ_WIDTH ),
       .LOG_DEPTH(5) // Size should be enough to hold the results of all DEQ_MAX requeusts in flight.
-   ) SPILL_FIFO (
+   ) PRE_ENQ_FIFO (
       .clk(clk),
       .rstn(rstn),
-      .wr_en(spill_fifo_wr_en),
-      .wr_data(spill_fifo_wr_data),
+      .wr_en(next_insert_elem_set),
+      .wr_data(next_insert_elem),
 
-      .full(spill_fifo_full),
-      .empty(spill_fifo_empty),
+      .full(pre_enq_fifo_full),
+      .empty(pre_enq_fifo_empty),
 
-      .rd_en(spill_fifo_rd_en),
-      .rd_data(spill_fifo_rd_data),
-      .size(spill_fifo_occ)
+      .rd_en(next_insert_elem_clear),
+      .rd_data(reg_next_insert_elem),
+      .size(pre_enq_fifo_occ)
 
    );
 
-   assign overflow_valid = !(spill_fifo_empty);
-   assign overflow_data = spill_fifo_rd_data;
-
-end else begin
-*/
    logic spill_heap_ready;
    logic spill_heap_out_valid;
    heap_op_t spill_heap_in_op;
@@ -387,7 +417,7 @@ end else begin
    assign abort_task_ready = 1'b1;
    assign commit_task_ready = 1'b1;
 
-   assign empty = (n_tasks == 0);
+   assign empty = (n_tasks == 0) & pre_enq_fifo_empty;
    assign almost_full = (n_tasks > task_spill_threshold);
    assign full = (heap_capacity == 10);
 
@@ -530,7 +560,8 @@ endgenerate
          tq_started <= 0;
          alt_log_word <= 0;
          task_unit_throttle_margin <= NON_SPEC ? 1000 : 0;
-
+         deq_tolerance <= 1;
+         pre_enq_fifo_full_thresh <= 0;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
@@ -540,6 +571,10 @@ endgenerate
                TASK_UNIT_START : tq_started <= reg_bus.wdata;
                TASK_UNIT_ALT_LOG : alt_log_word <= reg_bus.wdata;
                TASK_UNIT_THROTTLE_MARGIN : task_unit_throttle_margin <= reg_bus.wdata;
+               TASK_UNIT_PRE_ENQ_BUFFER_CONFIG : begin
+                  deq_tolerance <= reg_bus.wdata[15:0];
+                  pre_enq_fifo_full_thresh <= reg_bus.wdata[31:16];
+               end
 
             endcase
          end
