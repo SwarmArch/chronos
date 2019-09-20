@@ -385,7 +385,7 @@ always_comb begin
 end
 
 always_ff @(posedge clk) begin
-   if (reg_rvalid) begin
+   if (reg_rvalid & !out_valid) begin
       mem_last_word[rid_thread] <= out_data_word_0; 
    end
 end
@@ -778,21 +778,21 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
                                    remaining_words[4][3:0], remaining_words[3][3:0],
                                    remaining_words[2][3:0], remaining_words[1][3:0],
                                    remaining_words[0][3:0]};
-      //log_word.valid_words = {rid_mshr.valid_words[15:0], next_valid_words};
+      log_word.valid_words = {rid_mshr.valid_words[15:0], next_valid_words};
       if (N_SUB_TYPES >= 3) begin
          log_word.valid_words = log_app[3];
       end
-      log_word.rid_mshr_thread_id = rid_thread;
+      log_word.rid_mshr_thread_id = ro_mshr[s_rid[FREE_LIST_SIZE-1:0]].thread;
       log_word.out_data_word_valid = {out_data_word_0_valid, out_data_word_1_valid};
 
       log_word.arvalid = arvalid;
       log_word.arready = arready;
-      log_word.rvalid = rvalid;
-      log_word.rready = rready;
+      log_word.rvalid = s_rvalid;
+      log_word.rready = s_rready;
 
 
       log_word.arid = arid[7:0];
-      log_word.rid = rid[7:0];
+      log_word.rid = s_rid[7:0];
       log_word.thread_id = in_thread;
       log_word.thread_fifo_occ = thread_free_list_occ;
       
