@@ -38,28 +38,25 @@ package swarm;
    parameter CACHE_INDEX_WIDTH = 11; // index bits in cache
    parameter CACHE_NUM_WAYS = 4;     // number of cache ways
    parameter NON_SPEC = 1;  // Non-spec version. 
-
-
-   typedef enum {NONE, PSEUDO, STRICT} spill_type;
-   // NONE- Spilling is disabled. Use this to save some area if you know that
-   // TQ will not overflow. 
-   parameter spill_type SPILLING_METHOD = PSEUDO; 
+   
+   //If you kno that the TQ will not overflow, set this to save some area.
+   parameter NO_SPILLING = 0; 
 
    // Logging parameters. Used in debugging. The value of each parameter is
    // a bitmask specifying which tiles are being actively logged. 
    // eg: TASK_UNIT_LOGGING = 'hf means first four tiles' task units are being
    // logged.
-   parameter TASK_UNIT_LOGGING = 0;
-   parameter COMMIT_QUEUE_LOGGING = 0;
+   parameter TASK_UNIT_LOGGING = 1;
+   parameter COMMIT_QUEUE_LOGGING = 1;
    parameter SPLITTER_LOGGING = 1;
    parameter UNDO_LOG_LOGGING = 0;
-   parameter SERIALIZER_LOGGING = 0;
-   parameter L2_LOGGING = 0;
-   parameter CORE_LOGGING = 0; // deprecated
-   parameter READ_RW_LOGGING = 0;
-   parameter WRITE_RW_LOGGING = 0;
-   parameter READ_ONLY_STAGE_LOGGING = 0;
-   parameter PCI_LOGGING = 0;
+   parameter SERIALIZER_LOGGING = 1;
+   parameter L2_LOGGING = 1;
+   parameter CORE_LOGGING = 1; // deprecated
+   parameter READ_RW_LOGGING = 1;
+   parameter WRITE_RW_LOGGING = 1;
+   parameter READ_ONLY_STAGE_LOGGING = 1;
+   parameter PCI_LOGGING = 1;
 
    // Stats parameters. The value of each parameter is a bitmask specifying
    // which tiles' stats are being recorded. 
@@ -76,7 +73,7 @@ package swarm;
    // Number of DDR controllers (1, 2 or 4).  If your application is not memory bound,
    // reducing the number of controllers can save area. (Each DDR controllers takes roughly
    // the same area as a tile).
-   parameter N_DDR_CTRL = 2;
+   parameter N_DDR_CTRL = 1;
 
    // how many tiles go directly into the memory xbar. has to be a power of two
    // Increase this parameter if this xbar becomes the bottleneck.
@@ -88,8 +85,8 @@ package swarm;
    // both of the following should be changed together. Unfortunately cannot 
    // `define inside and if block in SV.
    parameter UNORDERED = 0;
-   `define TASK_UNIT_MODULE task_unit
-   //`define TASK_UNIT_MODULE task_unit_nonspec
+   //`define TASK_UNIT_MODULE task_unit
+   `define TASK_UNIT_MODULE task_unit_nonspec
    //`define TASK_UNIT_MODULE task_unit_unordered
 
    

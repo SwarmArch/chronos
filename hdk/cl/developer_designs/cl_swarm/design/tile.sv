@@ -241,7 +241,7 @@ assign cores_cm_enq_untied[2] = 1'b1;
 
 
 generate
-if (SPILLING_METHOD != NONE) begin
+if (!NO_SPILLING) begin
 coalescer 
 #(
    .TILE_ID(TILE_ID),
@@ -1468,6 +1468,12 @@ end else begin : riscv
 */
            .l1(l1_arb[i])
          );
+
+
+   end
+
+   if (!NON_SPEC) begin
+
 
    end
 

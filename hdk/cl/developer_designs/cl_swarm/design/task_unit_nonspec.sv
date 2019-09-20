@@ -145,7 +145,7 @@ module task_unit_nonspec
       if (!rstn) begin
          spills_remaining <= 0;
       end else begin
-         if ((spills_remaining==0)  & almost_full & (spill_heap_occ == 8'hff)) begin
+         if ((spills_remaining==0)  & almost_full & (spill_heap_occ == '1) & !NO_SPILLING) begin
             spills_remaining <= task_unit_spill_size;
          end else if (heap_in_op == DEQ_MAX) begin
             spills_remaining <= spills_remaining - 1;
@@ -332,7 +332,6 @@ module task_unit_nonspec
          end
       end
    end
-
    fifo #(
       .WIDTH( TQ_WIDTH ),
       .LOG_DEPTH(5) // Size should be enough to hold the results of all DEQ_MAX requeusts in flight.
@@ -355,6 +354,8 @@ module task_unit_nonspec
    logic spill_heap_out_valid;
    heap_op_t spill_heap_in_op;
 
+generate 
+if (!NO_SPILLING) begin
    min_heap #(
       .N_STAGES(LOG_TQ_SPILL_SIZE),
       .PRIORITY_WIDTH(TS_WIDTH),
@@ -375,6 +376,12 @@ module task_unit_nonspec
       .capacity(spill_heap_occ)
 
    );
+end else begin
+   assign spill_heap_occ = '1;
+   assign spill_heap_out_valid = 1'b0;
+
+end
+endgenerate
   
    assign overflow_valid = spill_heap_out_valid & (spills_remaining == 0) & (deq_max_propagation_delay ==0) ;
    assign overflow_data = spill_fifo_rd_data;
