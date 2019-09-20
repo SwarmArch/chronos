@@ -29,13 +29,13 @@ module splitter
    output ts_t lvt
 );
 
-localparam SPLITTER_HEAP_SIZE_STAGES = 3;
+localparam SPLITTER_HEAP_SIZE_STAGES = 4;
 
 typedef enum logic[3:0] {SPLITTER_IDLE,  
       SPLITTER_READ_MEM, SPLITTER_WAIT_MEMORY,
-      SPLITTER_ENQ_CHILD,
       SPLITTER_READ_SCRATCHPAD, SPLITTER_READ_SCRATCHPAD_WAIT,
       SPLITTER_WRITE_SCRATCHPAD, SPLITTER_WRITE_SCRATCHPAD_WAIT,
+      SPLITTER_WAIT_CHILD,
       SPLITTER_GRAB_LOCK,
       SPLITTER_READ_STACK_PTR, SPLITTER_READ_STACK_PTR_WAIT,
       SPLITTER_WRITE_STACK_PTR, SPLITTER_WRITE_STACK_PTR_WAIT,
@@ -48,7 +48,8 @@ logic start;
 logic s_splitter_valid;
 logic s_splitter_ready;
 task_t s_splitter_task;
-logic [SPLITTER_HEAP_SIZE_STAGES-1:0] heap_capacity;
+logic [SPLITTER_HEAP_SIZE_STAGES-1:0] heap_capacity, heap_free_space;
+
 
 splitter_state_t state, state_next;
 locale_t coal_id;
@@ -58,7 +59,7 @@ logic heap_can_enq;
 logic heap_can_deq; 
 logic heap_out_valid;
 
-assign heap_can_enq = splitter_valid & (heap_capacity != 0);
+assign heap_can_enq = splitter_valid & (heap_free_space > (2**SPLITTER_HEAP_SIZE_STAGES - 1 - heap_capacity));
 assign heap_can_deq = (state == SPLITTER_IDLE) & start & heap_out_valid;
 always_comb begin
    heap_in_op = NOP;
@@ -96,7 +97,7 @@ end
       .out_data(s_splitter_task),
       .out_valid(heap_out_valid),
    
-      .capacity(heap_capacity)
+      .capacity(heap_free_space)
 
    );
 
@@ -138,8 +139,34 @@ end
 logic [15:0] stack_ptr;
 
 logic [SPLITTERS_PER_CHUNK-1:0] scratchpad_entry;
-logic [TQ_WIDTH-1:0] next_enq_task;
-logic last_enq_task;
+
+
+logic task_fifo_wr_en, task_fifo_rd_en;
+logic task_fifo_full, task_fifo_empty;
+logic [TASKS_PER_SPLITTER-1:0] task_fifo_size;
+   
+   fifo #(
+      .WIDTH(TQ_WIDTH),
+      .LOG_DEPTH($clog2(TASKS_PER_SPLITTER))
+   ) SPLITTER_TASK_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(task_fifo_wr_en),
+      .wr_data(l1.rdata[TQ_WIDTH-1:0]),
+
+      .full(task_fifo_full),
+      .empty(task_fifo_empty),
+
+      .rd_en(task_fifo_rd_en),
+      .rd_data(task_wdata),
+
+      .size(task_fifo_size)
+
+   );
+
+assign task_fifo_wr_en = (l1.rvalid & l1.rready) & (state == SPLITTER_WAIT_MEMORY); 
+assign task_wvalid = !task_fifo_empty;
+assign task_fifo_rd_en = task_wvalid & task_wready;
 
 logic [31:0] ADDR_BASE_SPILL;
 logic [31:0] ADDR_BASE_SPLITTER_SCRATCHPAD; 
@@ -166,10 +193,6 @@ always_ff @(posedge clk) begin
       end
       if (state == SPLITTER_READ_STACK_PTR_WAIT & l1.rvalid) begin
          stack_ptr <= l1.rdata[15:0];
-      end
-      if (state == SPLITTER_WAIT_MEMORY & l1.rvalid) begin
-         next_enq_task <= l1.rdata[TQ_WIDTH-1:0];
-         last_enq_task <= l1.rlast;
       end
       if (s_splitter_valid & s_splitter_ready) begin
          cur_task_ts <= s_splitter_task.ts;
@@ -203,9 +226,6 @@ always_comb begin
    l1.wlast   = 1'b0;
    l1.wdata   = 'x;
    
-   task_wvalid = 1'b0;
-   task_wdata  = 'x;
-
    s_splitter_ready = 1'b0;
 
    state_next = state;
@@ -231,15 +251,8 @@ always_comb begin
             end
          end
          SPLITTER_WAIT_MEMORY: begin
-            if (l1.rvalid) begin
-               state_next = SPLITTER_ENQ_CHILD;
-            end
-         end
-         SPLITTER_ENQ_CHILD: begin
-            task_wvalid = 1'b1;
-            task_wdata = next_enq_task;
-            if (task_wready) begin
-               state_next = last_enq_task ? SPLITTER_READ_SCRATCHPAD : SPLITTER_WAIT_MEMORY;
+            if (l1.rvalid & l1.rlast) begin
+               state_next = SPLITTER_READ_SCRATCHPAD;
             end
          end
          SPLITTER_READ_SCRATCHPAD: begin
@@ -268,6 +281,11 @@ always_comb begin
                l1.wdata = scratchpad_entry;
             end
             if (l1.awready) begin
+               state_next = SPLITTER_WAIT_CHILD;
+            end
+         end
+         SPLITTER_WAIT_CHILD: begin
+            if (task_fifo_empty) begin
                state_next = SPLITTER_WRITE_SCRATCHPAD_WAIT;
             end
          end
@@ -374,6 +392,7 @@ end
 always_ff @(posedge clk) begin
    if (!rstn) begin
       start <= 1'b0;
+      heap_capacity <= 2**SPLITTER_HEAP_SIZE_STAGES - 2;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr[7:0]) 
@@ -451,7 +470,7 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       log_word = '0;
       log_word.s_splitter_ts = s_splitter_task.ts;
       log_word.s_splitter_locale = s_splitter_task.locale;
-      log_word.heap_size = (2**SPLITTER_HEAP_SIZE_STAGES-1-heap_capacity);
+      log_word.heap_size = (2**SPLITTER_HEAP_SIZE_STAGES-1-heap_free_space);
       log_word.lvt = lvt;
       log_word.rdata = l1.rdata;
       log_word.state = state;

@@ -86,6 +86,7 @@
    parameter CORE_DEBUG_WORD         = 8'h48;
 
    parameter COAL_STACK_PTR          = 8'h80;
+   parameter SPLITTER_BUFFER_SIZE    = 8'h84;
 
    parameter DES_SPARSE_OUTPUT       = 8'h80;
 

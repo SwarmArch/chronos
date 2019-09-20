@@ -202,7 +202,8 @@ module task_unit_nonspec
             reg_next_insert_elem.locale,
             reg_next_insert_elem.args,
             reg_next_insert_elem.no_write,
-            reg_next_insert_elem.no_read
+            reg_next_insert_elem.no_read,
+            reg_next_insert_elem.non_spec
             } ),
       .in_op(heap_in_op),
       .ready(heap_ready),
@@ -213,7 +214,8 @@ module task_unit_nonspec
             next_deque_elem.locale,
             next_deque_elem.args,
             next_deque_elem.no_write,
-            next_deque_elem.no_read
+            next_deque_elem.no_read,
+            next_deque_elem.non_spec
          }),
       .out_valid(heap_out_valid),
    
@@ -225,7 +227,8 @@ module task_unit_nonspec
             spill_fifo_wr_data.locale,
             spill_fifo_wr_data.args,
             spill_fifo_wr_data.no_write,
-            spill_fifo_wr_data.no_read
+            spill_fifo_wr_data.no_read,
+            spill_fifo_wr_data.non_spec
          }),
       .max_out_valid(spill_fifo_wr_en)
    );
