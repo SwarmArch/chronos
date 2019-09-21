@@ -37,7 +37,7 @@ package swarm;
    parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in locale serializer
    parameter CACHE_INDEX_WIDTH = 11; // index bits in cache
    parameter CACHE_NUM_WAYS = 4;     // number of cache ways
-   parameter NON_SPEC = 1;  // Non-spec version. 
+   parameter NON_SPEC = 0;  // Non-spec version. 
    
    //If you kno that the TQ will not overflow, set this to save some area.
    parameter NO_SPILLING = 0; 
@@ -85,8 +85,8 @@ package swarm;
    // both of the following should be changed together. Unfortunately cannot 
    // `define inside and if block in SV.
    parameter UNORDERED = 0;
-   //`define TASK_UNIT_MODULE task_unit
-   `define TASK_UNIT_MODULE task_unit_nonspec
+   `define TASK_UNIT_MODULE task_unit
+   //`define TASK_UNIT_MODULE task_unit_nonspec
    //`define TASK_UNIT_MODULE task_unit_unordered
 
    
@@ -134,7 +134,7 @@ package swarm;
    parameter LOG_CQ_TS_BANKS = LOG_CQ_SLICE_SIZE - LOG_GVT_PERIOD;
 
    parameter L2_BANKS = (1<<LOG_L2_BANKS);
-   parameter L2_PORTS = RISCV ? N_CORES + 2 : 4 ; // rw, ro, splitter, coal 
+   parameter L2_PORTS = RISCV ? N_CORES + 3 : 4 ; // rw, ro, splitter, coal (for RV undo_log) 
    
 
    parameter UNDO_LOG_THREADS = UNORDERED ? 1 : 4;

@@ -12,6 +12,7 @@
    parameter ID_CQ      = 10;
    parameter ID_CM      = 11;
    parameter ID_SERIALIZER    = 12;
+   parameter ID_UNDO_LOG = 13;
 
    parameter ID_LAST = RISCV ? 32: 13;
 
@@ -32,6 +33,7 @@
 
    parameter L2_ID_COAL = RISCV ? N_CORES : 2;
    parameter L2_ID_SPLITTER = RISCV ? N_CORES + 1 : 3;
+   parameter L2_ID_UNDO_LOG = N_CORES + 2;
 
    // CL Register Addresses OCL is only 32 MiB (25 bit)
    // [23:16] is tile, [15:8] component, [7:0] addr 

@@ -10,12 +10,16 @@ module undo_log
    input rstn,
 
    // Log interface
-   input                   [N_THREADS-1:0] undo_log_valid,
-   output logic            [N_THREADS-1:0] undo_log_ready,
-   input undo_id_t         [N_THREADS-1:0] undo_log_id,
-   input undo_log_addr_t   [N_THREADS-1:0] undo_log_addr,
-   input undo_log_data_t   [N_THREADS-1:0] undo_log_data,
-   input cq_slice_slot_t   [N_THREADS-1:0] undo_log_slot,
+   input                   [N_CORES-1:0] undo_log_valid,
+   output logic            [N_CORES-1:0] undo_log_ready,
+   input undo_id_t         [N_CORES-1:0] undo_log_id,
+   input undo_log_addr_t   [N_CORES-1:0] undo_log_addr,
+   input undo_log_data_t   [N_CORES-1:0] undo_log_data,
+   input cq_slice_slot_t   [N_CORES-1:0] undo_log_slot,
+
+   input                   finish_task_valid,
+   input cq_slice_slot_t   finish_task_slot,
+   input logic             finish_task_undo_log_write,
   
 
    // Restore interface - Connects to conflict serializer
@@ -23,10 +27,12 @@ module undo_log
    output task_type_t    [UNDO_LOG_THREADS-1:0] restore_araddr,
    input                 [UNDO_LOG_THREADS-1:0] restore_rvalid,
    input cq_slice_slot_t                        restore_cq_slot, 
+   input thread_id_t                            restore_thread_id,
 
    output logic          [UNDO_LOG_THREADS-1:0] restore_done_valid,
    input                 [UNDO_LOG_THREADS-1:0] restore_done_ready,
    output cq_slice_slot_t[UNDO_LOG_THREADS-1:0] restore_done_cq_slot,
+   output thread_id_t    [UNDO_LOG_THREADS-1:0] restore_done_thread_id,
    
    // L2
    axi_bus_t.slave      l2, 
@@ -58,11 +64,11 @@ if (NON_SPEC) begin
    assign l2.rready = 1'b1;
 end else begin
 
-logic [$clog2(N_THREADS)-1:0] undo_log_select_core;
+logic [$clog2(N_CORES)-1:0] undo_log_select_core;
 
 lowbit #(
-   .OUT_WIDTH($clog2(N_THREADS)),
-   .IN_WIDTH(N_THREADS)
+   .OUT_WIDTH($clog2(N_CORES)),
+   .IN_WIDTH(N_CORES)
 ) UNDO_LOG_SELECT (
    .in(undo_log_valid),
    .out(undo_log_select_core)
@@ -76,7 +82,7 @@ always_comb begin
 end
 
 genvar i;
-   for (i=0;i<N_THREADS;i++) begin
+   for (i=0;i<N_CORES;i++) begin
       assign undo_log_ready[i] = undo_log_select_valid & undo_log_select_ready & 
          (undo_log_select_core ==i);
    end
@@ -84,10 +90,17 @@ assign undo_log_select_ready = undo_log_select_valid;
 cq_slice_slot_t next_cq_slot;
 undo_id_t       next_id;
 
-undo_log_addr_t addr_log [0: 2**ENTRIES_PER_TASK * 2**LOG_CQ_SLICE_SIZE-1];
-undo_log_data_t data_log [0: 2**ENTRIES_PER_TASK * 2**LOG_CQ_SLICE_SIZE-1];
+undo_log_addr_t addr_log [0: ENTRIES_PER_TASK * 2**LOG_CQ_SLICE_SIZE-1];
+undo_log_data_t data_log [0: ENTRIES_PER_TASK * 2**LOG_CQ_SLICE_SIZE-1];
 
 undo_id_t last_word_id[0: 2**LOG_CQ_SLICE_SIZE - 1];
+   
+   logic undo_log_written[0:2**LOG_CQ_SLICE_SIZE-1];
+   always_ff @(posedge clk) begin
+      if (finish_task_valid) begin
+         undo_log_written[finish_task_slot] <= finish_task_undo_log_write;
+      end
+   end
 
 undo_log_addr_t addr_read;
 undo_log_data_t data_read;
@@ -118,9 +131,11 @@ end
 
 logic [UNDO_LOG_THREADS-1:0] thread_in_use;
 cq_slice_slot_t [UNDO_LOG_THREADS-1:0] thread_cq_slot;
+thread_id_t [UNDO_LOG_THREADS-1:0] thread_thread_id; 
+// BEWARE: different notions of thread here <undo_log>thread_<serializer>thread_id
 
 typedef logic [$clog2(UNDO_LOG_THREADS)-1:0] undo_log_thread_id;
-undo_log_thread_id arthread, rthread, reg_rthread, bthread;
+undo_log_thread_id arthread, reg_rthread, bthread;
 
 lowbit #(
    .OUT_WIDTH($clog2(UNDO_LOG_THREADS)),
@@ -130,7 +145,7 @@ lowbit #(
    .out(arthread)
 );
 
-typedef enum logic[1:0] {RESTORE_IDLE, RESTORE_READ_LOG, RESTORE_WRITE_MEM } restore_state_t;
+typedef enum logic[1:0] {RESTORE_IDLE, RESTORE_READ_LOG, RESTORE_WRITE_MEM, RESTORE_NO_UNDO_LOG_WRITE } restore_state_t;
 restore_state_t restore_state;
 
 typedef enum logic {RESTORE_ACK_IDLE, RESTORE_ACK_RECEIVED} restore_ack_state_t;
@@ -142,12 +157,19 @@ assign bthread = l2.bid[UNDO_LOG_THREADS-1:0];
 
 for (i=0;i<UNDO_LOG_THREADS;i++) begin
    assign restore_arvalid[i] = (arthread == i) & !thread_in_use[i] 
-         & (restore_state == RESTORE_IDLE) & !restore_rvalid[rthread];
+         & (restore_state == RESTORE_IDLE);
    assign restore_araddr[i] = TASK_TYPE_UNDO_LOG_RESTORE;
-
-   assign restore_done_valid[i] = (restore_ack_thread == i) 
-            & (restore_ack_state == RESTORE_ACK_RECEIVED);
+   
+   always_comb begin
+      restore_done_valid[i] = 0;
+      if (restore_ack_state == RESTORE_ACK_RECEIVED) begin
+         restore_done_valid[i] = (restore_ack_thread == i);
+      end else if (restore_state == RESTORE_NO_UNDO_LOG_WRITE) begin
+         restore_done_valid[i] = (reg_rthread == i);
+      end
+   end
    assign restore_done_cq_slot[i] = thread_cq_slot[i];
+   assign restore_done_thread_id[i] = thread_thread_id[i];
 
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -157,19 +179,19 @@ for (i=0;i<UNDO_LOG_THREADS;i++) begin
             thread_in_use[i] <= 1'b1;
          end else if ((restore_ack_state == RESTORE_ACK_RECEIVED) & (restore_done_ready[i])) begin
             thread_in_use[i] <= 1'b0;
+         end else if ((restore_state == RESTORE_NO_UNDO_LOG_WRITE) 
+                  & restore_done_valid[i] & restore_done_ready[i]) begin
+            thread_in_use[i] <= 1'b0;
          end
       end
    end
    always_ff @(posedge clk) begin
-      if ((restore_state == RESTORE_IDLE) & (i==rthread) & restore_rvalid[i]) begin
+      if ((restore_state == RESTORE_IDLE) & (i==arthread) & restore_rvalid[i]) begin
          restore_bvalid_remaining[i] <= last_word_id[restore_cq_slot] + 1;
       end else if ((restore_ack_state == RESTORE_ACK_IDLE) & l2.bvalid & (i==bthread)) begin
         restore_bvalid_remaining[i] <=  restore_bvalid_remaining[i] - 1;
      end
    end
-end
-always_ff @(posedge clk) begin
-   rthread <= arthread;
 end
 
 
@@ -179,12 +201,14 @@ always_ff @(posedge clk) begin
    end else begin
       case (restore_state) 
          RESTORE_IDLE: begin
-            if (restore_rvalid[rthread]) begin
-               restore_state <= RESTORE_READ_LOG;
+            if (restore_rvalid[arthread]) begin
+               restore_state <= (undo_log_written[restore_cq_slot]) ?
+                                 RESTORE_READ_LOG : RESTORE_NO_UNDO_LOG_WRITE;
                next_cq_slot <= restore_cq_slot;
                next_id <= 0;
-               reg_rthread <= rthread;
-               thread_cq_slot[rthread] <= restore_cq_slot;
+               reg_rthread <= arthread;
+               thread_cq_slot[arthread] <= restore_cq_slot;
+               thread_thread_id[arthread] <= restore_thread_id;
             end
          end
          RESTORE_READ_LOG: begin
@@ -198,6 +222,11 @@ always_ff @(posedge clk) begin
                end else begin
                   restore_state <= RESTORE_IDLE;
                end
+            end
+         end
+         RESTORE_NO_UNDO_LOG_WRITE: begin
+            if (restore_done_ready[reg_rthread]) begin
+               restore_state <= RESTORE_IDLE;
             end
          end
       endcase
@@ -236,6 +265,7 @@ assign l2.awaddr = addr_read;
 assign l2.wdata = data_read;
 assign l2.awid = ID_BASE | reg_rthread;
 assign l2.wid = ID_BASE | reg_rthread;
+assign l2.wlast = 1'b1;
 assign l2.wstrb = '1;
 assign l2.bready = (restore_ack_state == RESTORE_ACK_IDLE);
 

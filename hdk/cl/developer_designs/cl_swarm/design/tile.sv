@@ -63,6 +63,7 @@ logic finish_task_valid ;
 logic finish_task_ready ;
 cq_slice_slot_t finish_task_slot  ;
 child_id_t      finish_task_num_children ;
+logic finish_task_undo_log_write;
 logic finish_task_is_undo_log_restore;
 
 logic                   gvt_task_slot_valid;
@@ -1373,44 +1374,85 @@ end else begin : riscv
    
    logic [N_CORES-1:0] cc_cores_arvalid;
    logic [N_CORES-1:0] cc_cores_rvalid;
+   
+   logic [UNDO_LOG_THREADS-1:0] cc_undo_log_arvalid;
+   logic [UNDO_LOG_THREADS-1:0] cc_undo_log_rvalid;
 
 
-   logic [N_CORES-1:0] core_finish_task_valid;
-   logic [N_CORES-1:0] core_finish_task_ready;
-   cq_slice_slot_t [N_CORES-1:0] core_finish_task_slot;
-   thread_id_t [N_CORES-1:0] core_finish_task_thread;
-   child_id_t [N_CORES-1:0] core_finish_task_num_children;
-   logic [N_CORES-1:0] core_finish_task_undo_log_write;
+   logic [N_CORES + UNDO_LOG_THREADS -1:0] core_finish_task_valid;
+   logic [N_CORES + UNDO_LOG_THREADS -1:0] core_finish_task_ready;
+   cq_slice_slot_t [N_CORES + UNDO_LOG_THREADS -1:0] core_finish_task_slot;
+   thread_id_t [N_CORES + UNDO_LOG_THREADS -1:0] core_finish_task_thread;
+   child_id_t [N_CORES + UNDO_LOG_THREADS -1:0] core_finish_task_num_children;
+   logic [N_CORES + UNDO_LOG_THREADS -1:0] core_finish_task_undo_log_write;
 
-   logic [$clog2(N_CORES)-1:0] cc_cores_select, core_finish_task_select;
+   logic [$clog2(N_CORES)-1:0] cc_cores_select;
+   logic [$clog2(UNDO_LOG_THREADS)-1:0] cc_undo_log_select;
+   logic [$clog2(N_CORES+UNDO_LOG_THREADS)-1:0] core_finish_task_select;
+
+   logic [N_CORES-1:0]     undo_log_valid ;
+   logic [N_CORES-1:0]     undo_log_ready ;
+   undo_id_t       [N_CORES-1:0] undo_log_id;
+   undo_log_addr_t [N_CORES-1:0] undo_log_addr;
+   undo_log_data_t [N_CORES-1:0] undo_log_data;
+   cq_slice_slot_t [N_CORES-1:0] undo_log_slot  ;
 
    for (i=0;i<N_CORES;i++) begin
-      assign cc_cores_rvalid[i] = (cc_cores_select == i) & cc_cores_arvalid[i] & issue_task_valid;
-      assign core_finish_task_ready[i] = (core_finish_task_select == i) & finish_task_valid & finish_task_ready; 
+      assign cc_cores_rvalid[i] = (cc_cores_select == i) & cc_cores_arvalid[i] 
+         & issue_task_valid & (issue_task.ttype != TASK_TYPE_UNDO_LOG_RESTORE);
    end
+   for (i=0;i<UNDO_LOG_THREADS;i++) begin
+      assign cc_undo_log_rvalid[i] = (cc_undo_log_select == i) & cc_undo_log_arvalid[i] 
+         & issue_task_valid & (issue_task.ttype == TASK_TYPE_UNDO_LOG_RESTORE);
+   end
+   for (i=0;i<N_CORES+UNDO_LOG_THREADS;i++) begin
+      assign core_finish_task_ready[i] = (core_finish_task_select == i) & 
+         finish_task_valid & finish_task_ready; 
+   end
+
    always_comb begin
       finish_task_valid = core_finish_task_valid[core_finish_task_select];
       finish_task_slot = core_finish_task_slot[core_finish_task_select];
-      finish_task_is_undo_log_restore = 1'b0;
+      finish_task_is_undo_log_restore = (core_finish_task_select >= N_CORES);
       finish_task_num_children = core_finish_task_num_children[core_finish_task_select];
+      finish_task_undo_log_write = core_finish_task_undo_log_write[core_finish_task_select];
       unlock_thread = core_finish_task_thread[core_finish_task_select];
    end   
    assign unlock_thread_valid = (finish_task_valid & finish_task_ready);
-   assign issue_task_ready = issue_task_valid & |cc_cores_arvalid;
+   always_comb begin
+      issue_task_ready = 1'b0;
+      if (issue_task_valid) begin
+         if (issue_task.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
+            issue_task_ready = |cc_undo_log_arvalid;
+         end else begin
+            issue_task_ready = |cc_cores_arvalid;
+         end
+      end
+   end
          
    lowbit #(
-       .OUT_WIDTH($clog2(N_CORES)) 
+       .OUT_WIDTH($clog2(N_CORES)), 
+       .IN_WIDTH(N_CORES) 
    ) RV_DEQ_SELECT (
        .in(cc_cores_arvalid),
        .out(cc_cores_select)
    );
+   lowbit #(
+       .OUT_WIDTH($clog2(UNDO_LOG_THREADS)), 
+       .IN_WIDTH(UNDO_LOG_THREADS) 
+   ) RV_UNDO_SELECT (
+       .in(cc_undo_log_arvalid),
+       .out(cc_undo_log_select)
+   );
    
    lowbit #(
-       .OUT_WIDTH($clog2(N_CORES)) 
+       .OUT_WIDTH($clog2(N_CORES + UNDO_LOG_THREADS)),
+       .IN_WIDTH(N_CORES + UNDO_LOG_THREADS) 
    ) RV_FINISH_SELECT (
        .in(core_finish_task_valid),
        .out(core_finish_task_select)
    );
+
 
    for (i=0;i<N_CORES;i++) begin :core
 
@@ -1457,25 +1499,63 @@ end else begin : riscv
            .task_cq_slot   (cores_cm_cq_slot    [3+i]),
            .task_child_id  (cores_cm_child_id   [3+i]),
            
-           .undo_log_ready (1'b1),
-/*
            .undo_log_valid (undo_log_valid[i]),
            .undo_log_ready (undo_log_ready[i]),
            .undo_log_id    (undo_log_id   [i]),
            .undo_log_addr  (undo_log_addr [i]),
            .undo_log_data  (undo_log_data [i]),
            .undo_log_slot  (undo_log_slot [i]),
-*/
+
            .l1(l1_arb[i])
          );
 
 
    end
 
-   if (!NON_SPEC) begin
+   undo_log 
+   #(
+      .ID_BASE( L2_ID_UNDO_LOG << 12),
+      .TILE_ID(TILE_ID)
+   ) UNDO_LOG (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
 
+      .undo_log_valid (undo_log_valid),
+      .undo_log_ready (undo_log_ready),
+      .undo_log_id    (undo_log_id   ),
+      .undo_log_addr  (undo_log_addr ),
+      .undo_log_data  (undo_log_data ),
+      .undo_log_slot  (undo_log_slot ),
+    
+      .finish_task_valid (finish_task_valid & finish_task_ready),
+      .finish_task_slot (finish_task_slot),
+      .finish_task_undo_log_write (finish_task_undo_log_write),
 
+      // Restore interface - Connects to conflict serializer
+      .restore_arvalid (cc_undo_log_arvalid[0 +: UNDO_LOG_THREADS] ) ,
+      .restore_araddr  () , 
+      .restore_rvalid  (cc_undo_log_rvalid [0 +: UNDO_LOG_THREADS] ) , 
+      .restore_cq_slot (issue_task_cq_slot     ) , 
+      .restore_thread_id (issue_task_thread     ) , 
+
+      .restore_done_valid (core_finish_task_valid[N_CORES +: UNDO_LOG_THREADS]),
+      .restore_done_ready (core_finish_task_ready[N_CORES +: UNDO_LOG_THREADS]),
+      .restore_done_cq_slot(core_finish_task_slot[N_CORES +: UNDO_LOG_THREADS]),
+      .restore_done_thread_id(core_finish_task_thread[N_CORES +: UNDO_LOG_THREADS]),
+      
+      // L2
+      .l2(l1_arb[L2_ID_UNDO_LOG]),
+      .reg_bus(reg_bus[ID_UNDO_LOG]),
+
+      .pci_debug(pci_debug[ID_UNDO_LOG])
+
+   );
+
+   for (i=N_CORES;i<N_CORES+UNDO_LOG_THREADS;i++) begin
+      assign core_finish_task_num_children[i] = 0;
+      assign core_finish_task_undo_log_write[i] = 1'b0;
    end
+
 
 end
 
