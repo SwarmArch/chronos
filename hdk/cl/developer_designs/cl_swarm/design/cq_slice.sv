@@ -232,7 +232,13 @@ assign lvt_cycle = cur_cycle[LOG_GVT_PERIOD-1:0];
 
 // bitmap of tasks whose undo log tasks have not been sent out
 logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending; 
+// in the current iterations
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad; 
+
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_pending_diff; 
+logic [2**LOG_CQ_SLICE_SIZE-1:0] undo_log_abort_scratchpad_diff; 
 cq_slice_slot_t undo_log_abort_max_ts_index;
+cq_slice_slot_t undo_log_abort_next_cand;
 vt_t            undo_log_abort_max_ts;
    
 logic                           s_abort_children_valid;
@@ -332,6 +338,12 @@ logic [31:0] n_tasks_conflict_miss;
 // has same locale tasks which were real conflicts
 logic [31:0] n_tasks_real_conflict; 
 
+always_comb begin
+   undo_log_abort_pending_diff = undo_log_abort_pending;
+   undo_log_abort_pending_diff[out_task_slot] = 1'b0;
+   undo_log_abort_scratchpad_diff = undo_log_abort_scratchpad;
+   undo_log_abort_scratchpad_diff[undo_log_abort_next_cand] = 1'b0;
+end
 
 
 // Task currently in the FSM, dequeued from TQ but not enqueued to FIFOs
@@ -584,7 +596,13 @@ always_ff @(posedge clk) begin
          end
          DEQ_CHECK_TS: begin
             if (reg_conflict ==0) begin
-               state <= (undo_log_abort_max_ts < '1) ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
+               if (RISCV) begin
+                  state <= (undo_log_abort_pending != 0)   ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
+                  undo_log_abort_scratchpad <= undo_log_abort_pending;
+                  undo_log_abort_max_ts <= '0;
+               end else begin
+                  state <= (undo_log_abort_max_ts < '1) ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
+               end
             end else begin
                if (abort_ts_check_task) begin
                   if (cq_state[ts_check_id] == FINISHED) begin
@@ -594,9 +612,13 @@ always_ff @(posedge clk) begin
                   end else if (cq_state[ts_check_id] == RUNNING) begin
                      state <= ABORT_REQUEUE;
                   end
-                  if (check_vt < undo_log_abort_max_ts) begin
-                     undo_log_abort_max_ts <= check_vt;
-                     undo_log_abort_max_ts_index <= ts_check_id;
+                  if (RISCV) begin
+                     undo_log_abort_pending[ts_check_id] <= 1'b1;
+                  end else begin
+                     if (check_vt < undo_log_abort_max_ts) begin
+                        undo_log_abort_max_ts <= check_vt;
+                        undo_log_abort_max_ts_index <= ts_check_id;
+                     end
                   end
                end else begin
                   reg_conflict[ts_check_id] <= 1'b0;
@@ -616,9 +638,34 @@ always_ff @(posedge clk) begin
             end
          end
          UNDO_LOG_RESTORE: begin
-            if (out_task_valid & out_task_ready) begin
-               state <= DEQ_PUSH_TASK;
-            end
+            if (RISCV) begin
+               // double loop
+               // first check inner loop, if it is terminating check outer loop
+               if (undo_log_abort_scratchpad_diff == 0) begin
+                  // out_task_valid should be set
+                  if (out_task_valid & out_task_ready) begin
+                     if (undo_log_abort_pending_diff == 0) begin
+                        state <= DEQ_PUSH_TASK;
+                     end
+                     // start next outer loop iteration after removing current cand
+                     // element
+                     undo_log_abort_scratchpad <= undo_log_abort_pending_diff;
+                     undo_log_abort_max_ts <= '0;
+                     undo_log_abort_pending <= undo_log_abort_pending_diff;
+                  end
+               end else begin
+                  if (undo_log_abort_max_ts < check_vt) begin
+                     undo_log_abort_max_ts <= check_vt;
+                     undo_log_abort_max_ts_index <= undo_log_abort_next_cand;
+                  end
+                  undo_log_abort_scratchpad <= undo_log_abort_scratchpad_diff;
+               end
+            end else begin
+               if (out_task_valid & out_task_ready) begin
+                  state <= DEQ_PUSH_TASK;
+               end
+            end 
+            
          end
          DEQ_PUSH_TASK: begin
             if ((out_task_valid & out_task_ready) | in_tq_abort | in_resource_abort
@@ -640,7 +687,17 @@ always_comb begin
       out_task = cur_task;
       out_task_slot = cur_task_slot;
    end else if (state == UNDO_LOG_RESTORE) begin
-      out_task_valid = 1'b1; 
+      if (RISCV) begin
+         out_task_valid = (undo_log_abort_scratchpad_diff == 0);
+         if (undo_log_abort_max_ts < check_vt) begin
+            out_task_slot = undo_log_abort_next_cand;
+         end else begin
+            out_task_slot = undo_log_abort_max_ts_index;
+         end
+      end else begin
+         out_task_valid = 1'b1; 
+         out_task_slot = undo_log_abort_max_ts_index;
+      end
       out_task.ttype = TASK_TYPE_UNDO_LOG_RESTORE;
       out_task.locale = cur_task.locale;
       out_task.ts = 'x;
@@ -649,7 +706,6 @@ always_comb begin
       out_task.no_write = 1'b0;
       out_task.producer = 1'b0;
       // other fields doesn't matter
-      out_task_slot = undo_log_abort_max_ts_index;
    end else begin
       out_task_valid = 1'b0;
       out_task = 'x;
@@ -882,7 +938,9 @@ initial begin
 end
 always_ff @(posedge clk) begin
    if (state == UNDO_LOG_RESTORE) begin 
-      cq_undo_log_ack_pending[undo_log_abort_max_ts_index] <= 1'b1;
+      if (out_task_valid & out_task_ready) begin
+         cq_undo_log_ack_pending[out_task_slot] <= 1'b1;
+      end
    end else if (finish_task_valid & finish_task_ready & finish_task_is_undo_log_restore) begin
       cq_undo_log_ack_pending[finish_task_slot] <= 1'b0;
    end
@@ -929,6 +987,13 @@ fifo #(
 assign abort_children_valid = !abort_children_fifo_empty;
 assign s_abort_children_ready = !abort_children_fifo_full;
 
+lowbit #(
+   .OUT_WIDTH(LOG_CQ_SLICE_SIZE),
+   .IN_WIDTH(2**LOG_CQ_SLICE_SIZE)
+) UNDO_LOG_WALK_CAND (
+   .in(undo_log_abort_scratchpad),
+   .out(undo_log_abort_next_cand)
+);
 
 logic [31:0] cycles_in_resource_abort;
 logic [31:0] cycles_in_gvt_abort;
