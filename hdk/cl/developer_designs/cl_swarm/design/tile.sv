@@ -307,7 +307,7 @@ splitter #(
 
 axi_decoder #(
    .ID_BASE( L2_ID_SPLITTER << 12 ),
-   .MAX_ARSIZE( $clog2(TQ_WIDTH) -3 + 2),
+   .MAX_ARSIZE( ( ($clog2(TQ_WIDTH) -1) > 6) ? 6 : (($clog2(TQ_WIDTH) -1) )),
    .MAX_AWSIZE(2)
 ) SPLITTER_L1 (
   .clk(clk_main_a0),

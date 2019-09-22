@@ -147,7 +147,8 @@ package swarm;
    parameter C_N_TILES = (2**$clog2(N_TILES));
    parameter LOG_N_TILES = (N_TILES == 1) ? 1 : $clog2(N_TILES);
    parameter TQ_WIDTH = (TS_WIDTH + TASK_TYPE_WIDTH + LOCALE_WIDTH + ARG_WIDTH + 4);
-   //parameter TASK_WIDTH = (TS_WIDTH + HINT_WIDTH + ARG_WIDTH);
+   // TQ_WIDTH cannot be larger than cache line. TODO:Add assert
+   
    parameter CACHE_LOG_WAYS = (CACHE_NUM_WAYS == 1) ? 1 : $clog2(CACHE_NUM_WAYS);
    
    parameter TASK_ENQ_DATA_WIDTH = (TQ_WIDTH + 1 + LOG_TSB_SIZE + LOG_N_TILES);
