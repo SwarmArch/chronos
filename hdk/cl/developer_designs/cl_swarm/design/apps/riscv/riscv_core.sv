@@ -236,13 +236,15 @@ always_ff @(posedge clk) begin
       io_read_addr <= dBus_cmd_addr;
    end
 end
-logic [2:0] writes_left;
+logic [4:0] writes_left;
 always_ff @(posedge clk) begin
    if (!rstn) begin
       writes_left <= 0;
    end else begin
       if (state==NEXT_TASK) begin
          writes_left <= 0;
+      end else if (dBus_in.awvalid & dBus_in.awready & dBus_in.bvalid & dBus_in.bready) begin
+         // no change
       end else if (dBus_in.awvalid & dBus_in.awready) begin
          writes_left <= writes_left + 1;
       end else if (dBus_in.bvalid & dBus_in.bready) begin
