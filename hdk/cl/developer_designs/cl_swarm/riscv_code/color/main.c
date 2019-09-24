@@ -95,7 +95,7 @@ void calc_color_task(uint ts, uint vid, uint arg0, uint arg1) {
    // find first unset bit;
    vid = vid & 0xffffff;
    uint bit = 0;
-   uint vec = scratch[vid*4];
+   uint vec = scratch[vid];
    while (vec & 1) {
       vec >>= 1;
       bit++;
@@ -108,8 +108,8 @@ void calc_color_task(uint ts, uint vid, uint arg0, uint arg1) {
 void notify_neighbors_task(uint ts, uint vid, uint color, uint enq_start) {
    vid = vid & 0xffffff;
    if (enq_start ==0) {
-      undo_log_write(&(colors[vid]), colors[vid]);
-      colors[vid] = color;
+      undo_log_write(&(colors[vid*4]), colors[vid*4]);
+      colors[vid*4] = color;
    }
    uint eo_begin = edge_offset[vid] + enq_start;
    uint eo_end = edge_offset[vid+1];
@@ -130,10 +130,10 @@ void notify_neighbors_task(uint ts, uint vid, uint color, uint enq_start) {
 
 void receive_color_task(uint ts, uint vid, uint color, uint neighbor) {
    if (color < 32) {
-      uint vec = scratch[vid*4];
-      undo_log_write(&(scratch[vid*4]), vec);
+      uint vec = scratch[vid];
+      undo_log_write(&(scratch[vid]), vec);
       vec = vec | ( 1<<color);
-      scratch[vid*4] = vec;
+      scratch[vid] = vec;
       //enq_task_arg0(7, ts, neighbor*100 + color);
    } // else todo
 }

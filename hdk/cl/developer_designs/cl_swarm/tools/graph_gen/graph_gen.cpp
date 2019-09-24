@@ -154,7 +154,6 @@ void LoadGraphEdges(const char* file) {
    }
    int n =0;
    numV = 1157828; // hack: com-youtube
-   numV = 500000;
    graph = new Vertex[numV];
    while(!f.eof()) {
       std::getline(f, s);
@@ -245,7 +244,7 @@ void GenerateGridGraph(uint32_t n) {
    numV = n*n;
    numE = 2 * n * (n-1) ;
    graph = new Vertex[numV];
-   bool debug = true;//false;
+   bool debug = false;
    srand(0);
    for (uint32_t i=0;i<n;i++){
       for (uint32_t j=0;j<n;j++){
@@ -304,7 +303,7 @@ void GenerateGridGraphMaxflow(uint32_t r, uint32_t c, uint32_t num_connections) 
             uint32_t capacity = static_cast<uint32_t>(
                   rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
             addEdge(i*c+j, (i+1)*c+x, capacity);
-            printf("a %d %d %d\n", i * c + j, (i + 1) * c + x, capacity);
+            //printf("a %d %d %d\n", i * c + j, (i + 1) * c + x, capacity);
          }
       }
    }
@@ -403,7 +402,7 @@ void ComputeReference(){
       Node n = pq.top();
       uint32_t vid = n.vid;
       uint32_t dist = n.dist;
-      //printf(" %d %d\n", vid, dist);
+      //printf("visit %d %d\n", vid, dist);
       pq.pop();
       max_pq_size = pq.size() < max_pq_size ?  max_pq_size : pq.size();
       edges_traversed++;
@@ -491,13 +490,22 @@ void WriteOutput(FILE* fp) {
 void WriteOutputColor(FILE* fp) {
    // all offsets are in units of uint32_t. i.e 16 per cache line
    //int SIZE_COLOR =((numV+15)/16)*16;
+   //
+
+   // (The expected input format for the pipelined cores differs from the one
+   // for non-pipe/riscv versions. This generator is compatible with both.
+
    int SIZE_DATA = size_of_field(numV, 16);
+   int SIZE_EDGE_OFFSET = size_of_field(numV, 4) ;
    int SIZE_NEIGHBORS = size_of_field(numE, 4) ;
+   int SIZE_SCRATCH = size_of_field(numV, 4);
    int SIZE_GROUND_TRUTH = size_of_field(numV, 4);
 
    int BASE_DATA = 16;
-   int BASE_NEIGHBORS = BASE_DATA + SIZE_DATA;
-   int BASE_GROUND_TRUTH = BASE_NEIGHBORS + SIZE_NEIGHBORS;
+   int BASE_EDGE_OFFSET = BASE_DATA + SIZE_DATA;
+   int BASE_NEIGHBORS = BASE_EDGE_OFFSET + SIZE_EDGE_OFFSET;
+   int BASE_SCRATCH = BASE_NEIGHBORS + SIZE_NEIGHBORS;
+   int BASE_GROUND_TRUTH = BASE_SCRATCH + SIZE_SCRATCH;
    int BASE_END = BASE_GROUND_TRUTH + SIZE_GROUND_TRUTH;
 
    uint32_t* data = (uint32_t*) calloc(BASE_END, sizeof(uint32_t));
@@ -506,11 +514,11 @@ void WriteOutputColor(FILE* fp) {
    data[0] = MAGIC_OP;
    data[1] = numV;
    data[2] = numE;
-   data[3] = BASE_NEIGHBORS;
+   data[3] = BASE_EDGE_OFFSET;
    data[4] = BASE_NEIGHBORS;
    data[5] = BASE_DATA;
    data[6] = BASE_GROUND_TRUTH;
-   data[7] = 0;
+   data[7] = BASE_SCRATCH;
    data[8] = BASE_END;
    data[9] = enqueuer_size;
 
@@ -520,6 +528,11 @@ void WriteOutputColor(FILE* fp) {
    }
 
    for (uint32_t i=0;i<numV;i++) {
+
+      data[BASE_EDGE_OFFSET + i] = csr_offset[i];
+      data[BASE_SCRATCH + i*2 + 0] = 0;
+      data[BASE_SCRATCH + i*2 + 1] = 0;
+
       data[BASE_DATA+i*4] = (csr_offset[i+1]-csr_offset[i]) << 16 | 0xffff; // degree, color
       data[BASE_DATA+i*4+1] = 0; // scratch
       data[BASE_DATA+i*4+2] = (csr_offset[i+1]-csr_offset[i]) << 16 | 0; // ndp, ncp
@@ -527,6 +540,7 @@ void WriteOutputColor(FILE* fp) {
 
       //printf("gt %d %d\n", i, csr_dist[i]);
    }
+   data[BASE_EDGE_OFFSET + numV] = csr_offset[numV];
 
    for (uint32_t i=0;i<numE;i++) {
       data[ BASE_NEIGHBORS +i ] = csr_neighbors[i].n;

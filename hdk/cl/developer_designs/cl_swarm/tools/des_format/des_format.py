@@ -73,7 +73,7 @@ while (t<len(tokens)):
                 t += 5
             
             nodes[o_node] = [nid, gate, delay] 
-            #print (o_node, nid, gate, delay)
+            print (o_node, nid, gate, delay)
             nid += 1
             neighbors[o_node] = []
            
@@ -123,9 +123,9 @@ for n in nodes:
 #print "node_data"
 #print csr_data
 #print "csr_offset"
-#print csr_offset
+print csr_offset
 #print "csr_neighbors"
-#print csr_neighbors
+print csr_neighbors
 
 numO = len(outputs)
 numInit = sum( [len(initlist[i]) for i in initlist])
