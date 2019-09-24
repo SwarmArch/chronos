@@ -15,7 +15,7 @@
 
 #VPATH = src:include:$(HDK_DIR)/common/software/src:$(HDK_DIR)/common/software/include
 
-INCLUDES = -I$(SDK_DIR)/userspace/include
+INCLUDES = -I$(SDK_DIR)/userspace/include 
 
 CC = riscv-none-embed-gcc
 CFLAGS = -march=rv32i -mabi=ilp32 -T linker_script 

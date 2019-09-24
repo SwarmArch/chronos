@@ -1,60 +1,22 @@
+
+#include "../include/chronos.h"
+
+// The location pointing to the base of each of the arrays
 const int ADDR_BASE_DIST = 5 << 2;
 const int ADDR_BASE_EDGE_OFFSET = 3 << 2;
 const int ADDR_BASE_NEIGHBORS = 4 << 2;
 
-const int ADDR_DEQ_TASK = 0xc0000000;
-const int ADDR_DEQ_TASK_HINT = 0xc0000004;
-const int ADDR_DEQ_TASK_TTYPE = 0xc0000008;
-const int ADDR_FINISH_TASK = 0xc0000020;
-const int ADDR_UNDO_LOG_ADDR = 0xc0000030;
-const int ADDR_UNDO_LOG_DATA = 0xc0000034;
-const int ADDR_CUR_CYCLE = 0xc0000050;
-const int ADDR_PRINTF = 0xc0000040;
-const int ADDR_TILE_ID = 0xc0000060;
-const int ADDR_CORE_ID = 0xc0000064;
+int* dist;
+int* edge_offset;
+int* edge_neighbors;
 
-typedef unsigned int uint;
+#define VISIT_NODE_TASK  0
 
-void finish_task() {
-   *(volatile int *)( ADDR_FINISH_TASK) = 0;
-}
-void init() {
-
-   //__asm__( "li a0, 0x80000000;");
-   //__asm__( "csrw mtvec, a0;");
-   __asm__( "li a0, 0x800;");
-   __asm__( "csrw mie, a0;"); // external interrupts enabled
-   __asm__( "csrr a0, mstatus;");
-   __asm__( "ori a0, a0, 8;"); // interrupts enabled
-   __asm__( "csrw mstatus, a0;");
-
-}
-void undo_log_write(uint* addr, uint data) {
-   *(volatile int *)( ADDR_UNDO_LOG_ADDR) = (uint) addr;
-   *(volatile int *)( ADDR_UNDO_LOG_DATA) = data;
-}
-
-void main() {
-   init();
-
-   int* dist = (int*) ((*(int *) (ADDR_BASE_DIST))<<2) ;
-   int* edge_offset  =(int*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
-   int* edge_neighbors  =(int*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
-
-   *(volatile int *)( ADDR_DEQ_TASK_TTYPE) = 0;
-
-   while (1) {
-      uint cycle = *(volatile uint *)(ADDR_CORE_ID);
-      *(volatile int *)( ADDR_PRINTF) = cycle;
-      uint ts = *(volatile uint *)(ADDR_DEQ_TASK);
-      uint vid = *(volatile uint *)(ADDR_DEQ_TASK_HINT);
-
-
+void visit_node_task(uint ts, uint vid) {
 
       unsigned int cur_dist = (unsigned int) dist[vid];
       if (cur_dist <= ts) {
-         finish_task();
-         continue;
+         return;
       }
 
       undo_log_write(&(dist[vid]), cur_dist);
@@ -63,14 +25,32 @@ void main() {
          int neighbor = edge_neighbors[i*2];
          int weight = edge_neighbors[i*2+1];
 
-         *(volatile int *)( ADDR_DEQ_TASK_HINT) = (neighbor);
-         *(volatile int *)( ADDR_DEQ_TASK) = (ts+weight);
+         enq_task_arg0(VISIT_NODE_TASK, ts + weight, neighbor);
+      }
+}
 
+
+void main() {
+   chronos_init();
+
+   // Dereference the pointers to array base addresses.
+   // ( The '<<2' is because graph_gen writes the word number, not the byte)
+   dist = (int*) ((*(int *) (ADDR_BASE_DIST))<<2) ;
+   edge_offset  =(int*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
+   edge_neighbors  =(int*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
+
+   while (1) {
+      uint ttype, ts, locale, arg0, arg1;
+      deq_task(&ttype, &ts, &locale, &arg0, &arg1);
+      switch(ttype){
+          case VISIT_NODE_TASK:
+              visit_node_task(ts, locale);
+              break;
+          default:
+              break;
       }
 
       finish_task();
    }
 }
 
-void exit(int a) {
-}
