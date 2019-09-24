@@ -149,19 +149,17 @@ end
 
 logic abort_running_task;
 assign abort_running_task = (task_aborted[cq_slot]) & in_task &
-         ((state == WAIT_CORE) | (state == INFORM_CQ)); 
+         ((state == WAIT_CORE) | (state == INFORM_CQ)) & (state_next != FINISH_TASK); 
 
 
 always_ff @(posedge clk) begin
    if (!rstn ) begin
       abort_running_task_q <= 1'b0;
    end else begin
-      if (abort_running_task) begin
-         if (state == FINISH_TASK) begin
-            abort_running_task_q <= 1'b0;
-         end else begin
-            abort_running_task_q <= 1'b1;
-         end
+      if (state == FINISH_TASK) begin
+         abort_running_task_q <= 1'b0;
+      end else if (abort_running_task) begin
+         abort_running_task_q <= 1'b1;
       end else if ((state == ABORT_TASK & (debug_pc == 32'h80000000)) |
                    (state_next == NEXT_TASK) ) begin
          abort_running_task_q <= 1'b0;

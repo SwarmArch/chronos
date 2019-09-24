@@ -635,6 +635,26 @@ module free_list #(
       end
    end
 
+`ifdef XILINX_SIMULATOR
+   logic [2**LOG_DEPTH-1:0] used;
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         used <= 0;
+      end else begin
+         for (int i=0;i<2**LOG_DEPTH;i++) begin
+            if (wr_en & (wr_data == i)) begin
+               assert(used[i])  else $error("free list write when unused");
+               used[i] <= 1'b0;
+            end else if (rd_en & (rd_data == i) ) begin
+               assert(!used[i])  else $error("free list read when used");
+               used[i] <= 1'b1;
+            end
+         end
+      end
+   end
+
+`endif
+
 endmodule
 
 module free_list_bram #(
