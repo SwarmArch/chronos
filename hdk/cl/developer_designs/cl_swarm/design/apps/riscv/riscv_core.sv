@@ -44,8 +44,7 @@ module riscv_core
    output child_id_t       finish_task_num_children,
    output logic            finish_task_undo_log_write,
 
-   input                   abort_running_task,
-   input cq_slice_slot_t   abort_running_slot,
+   input [2**LOG_CQ_SLICE_SIZE-1:0] task_aborted,
    input                   gvt_task_slot_valid,
    input cq_slice_slot_t   gvt_task_slot,
    
@@ -133,6 +132,26 @@ always_ff @(posedge clk) begin
       finish_task_undo_log_write <= 1'b1;
    end
 end
+
+logic in_task;
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      in_task <= 1'b0;
+   end else begin
+      if (task_arvalid & task_rvalid) begin
+         in_task <= 1'b1;
+      end else if (finish_task_valid & finish_task_ready) begin
+         in_task <= 1'b0;
+      end
+   end
+end
+
+
+logic abort_running_task;
+assign abort_running_task = (task_aborted[cq_slot]) & in_task &
+         ((state == WAIT_CORE) | (state == INFORM_CQ)); 
+
+
 always_ff @(posedge clk) begin
    if (!rstn ) begin
       abort_running_task_q <= 1'b0;
@@ -331,6 +350,7 @@ end
 
 `ifdef DEBUG
 integer cycle;
+logic abort_running_task_d;
 always_ff @(posedge clk) begin
    if (!rstn) cycle <= 0;
    else cycle <= cycle + 1;
@@ -349,7 +369,8 @@ always_ff @(posedge clk) begin
             cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.locale, task_wdata.ttype,
             task_wdata.args[63:32], task_wdata[31:0]);
    end
-   if (abort_running_task & !abort_running_task_q) begin
+   abort_running_task_d <= abort_running_task;
+   if (abort_running_task & !abort_running_task_d) begin
          $display("[%5d][tile-%2d][core-%2d] \tabort running task", 
             cycle, TILE_ID, CORE_ID);
    end

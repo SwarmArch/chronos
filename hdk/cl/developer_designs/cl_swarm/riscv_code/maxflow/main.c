@@ -31,8 +31,8 @@ const int TX_ID_OFFSET_BITS = 8;
 #define GLOBAL_RELABEL_VISIT_TASK 4
 
 
-#define RO_OFFSET (1<<31)
-//#define RO_OFFSET 0
+//#define RO_OFFSET (1<<31)
+#define RO_OFFSET 0
 
 typedef unsigned int uint;
 
@@ -143,7 +143,7 @@ void discharge_start_task(uint ts, uint vid, uint enq_start, uint arg1) {
       if (ordered_edges) {
         neighbor_ts += (child_cnt + enq_start);
       }
-      enq_task_arg2(GET_HEIGHT_TASK, ts , neighbor | RO_OFFSET ,
+      enq_task_arg2(GET_HEIGHT_TASK, neighbor_ts , neighbor | RO_OFFSET ,
               vid, child_cnt + enq_start);
       child_cnt++;
    }

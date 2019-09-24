@@ -49,7 +49,7 @@ package swarm;
    parameter TASK_UNIT_LOGGING = 1;
    parameter COMMIT_QUEUE_LOGGING = 1;
    parameter SPLITTER_LOGGING = 1;
-   parameter UNDO_LOG_LOGGING = 0;
+   parameter UNDO_LOG_LOGGING = 1;
    parameter SERIALIZER_LOGGING = 1;
    parameter L2_LOGGING = 1;
    parameter CORE_LOGGING = 1; // deprecated

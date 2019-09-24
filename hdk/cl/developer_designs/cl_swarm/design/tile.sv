@@ -1485,10 +1485,7 @@ end else begin : riscv
            .finish_task_undo_log_write ( core_finish_task_undo_log_write [i]),
            .finish_task_ready( core_finish_task_ready[i]),
 
-           // aborting running tasks is not required anymore because CQ does not
-           // block on the abort to complete
-           .abort_running_task (1'b0), 
-           .abort_running_slot (),
+           .task_aborted(  task_aborted ),
            .gvt_task_slot_valid  (gvt_task_slot_valid ),
            .gvt_task_slot        (gvt_task_slot       ),
             

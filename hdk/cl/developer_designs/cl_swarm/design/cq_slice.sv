@@ -266,6 +266,8 @@ always_comb begin
          if (from_tq_abort_valid) begin
             ts_array_raddr = from_tq_abort_slot;
          end
+      end else if ((state == UNDO_LOG_RESTORE) & RISCV) begin
+         ts_array_raddr = undo_log_abort_next_cand;
       end
    end
 end
