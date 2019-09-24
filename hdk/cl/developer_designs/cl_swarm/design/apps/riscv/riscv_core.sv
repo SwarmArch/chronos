@@ -587,10 +587,16 @@ always_comb begin
             end
             // no writing to CORE_ID, TILE_ID
             default: begin
-               dBus_in.awvalid = 1'b1; 
-               dBus_in.wvalid = 1'b1; 
-               if (dBus_in.awready) begin
+               if (dBus_cmd_addr[31:30] == 2'b10) begin
+                  // Code region. Ack the core (task should abort)
+                  // but DO NOT send the write to L1.
                   dBus_cmd_ready = 1'b1;
+               end else begin
+                  dBus_in.awvalid = 1'b1; 
+                  dBus_in.wvalid = 1'b1; 
+                  if (dBus_in.awready) begin
+                     dBus_cmd_ready = 1'b1;
+                  end
                end
             end
          endcase
