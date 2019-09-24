@@ -498,7 +498,7 @@ void WriteOutputColor(FILE* fp) {
    int SIZE_DATA = size_of_field(numV, 16);
    int SIZE_EDGE_OFFSET = size_of_field(numV, 4) ;
    int SIZE_NEIGHBORS = size_of_field(numE, 4) ;
-   int SIZE_SCRATCH = size_of_field(numV, 4);
+   int SIZE_SCRATCH = size_of_field(numV, 8);
    int SIZE_GROUND_TRUTH = size_of_field(numV, 4);
 
    int BASE_DATA = 16;

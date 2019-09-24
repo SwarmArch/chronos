@@ -120,9 +120,9 @@ void calc_color_task(uint ts, uint vid, uint enq_start, uint arg1) {
           vec >>= 1;
           bit++;
        }
-       colors[vid] = bit;
+       colors[vid*4] = bit;
    } else {
-       bit = colors[vid];
+       bit = colors[vid*4];
    }
    uint eo_begin = edge_offset[vid];
    uint eo_end = edge_offset[vid+1];
