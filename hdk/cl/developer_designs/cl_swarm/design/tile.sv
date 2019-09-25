@@ -1396,7 +1396,7 @@ end
 
    for (i=0;i<N_CORES;i++) begin
       assign cc_cores_can_deq[i] = issue_task_valid & cc_cores_arvalid[i] & 
-            ( (issue_task.ttype == cc_cores_araddr[i]) | cc_cores_araddr == TASK_TYPE_ALL);
+            ( (issue_task.ttype == cc_cores_araddr[i]) | (cc_cores_araddr[i] == TASK_TYPE_ALL));
       assign cc_cores_rvalid[i] = (cc_cores_select == i) & cc_cores_can_deq[i] 
          & issue_task_valid & (issue_task.ttype != TASK_TYPE_UNDO_LOG_RESTORE);
    end

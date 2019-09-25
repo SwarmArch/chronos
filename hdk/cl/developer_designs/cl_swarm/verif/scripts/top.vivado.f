@@ -92,6 +92,7 @@ ${CL_ROOT}/design/apps/astar/astar.sv
 # ${CL_ROOT}/design/apps/astar/visit_vertex.sv
 ${CL_ROOT}/design/apps/riscv/riscv_core.sv
 ${CL_ROOT}/design/apps/maxflow/maxflow.sv
+${CL_ROOT}/design/apps/maxflow-pipe/maxflow.sv
 ${CL_ROOT}/design/apps/color/color.sv
 ${CL_ROOT}/design/cl_swarm.sv
 

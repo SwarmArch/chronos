@@ -168,6 +168,8 @@ end
 always_ff @(posedge clk) begin
    if (state==NEXT_TASK) begin
       writes_left <= 0;
+   end else if (l1.awvalid & l1.awready & l1.bvalid & l1.bready) begin
+      // no change
    end else if (l1.awvalid & l1.awready) begin
       writes_left <= writes_left + 1;
    end else if (l1.bvalid & l1.bready) begin
