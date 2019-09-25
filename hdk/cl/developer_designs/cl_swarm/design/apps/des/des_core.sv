@@ -3,6 +3,11 @@
 `endif
 import swarm::*;
 
+`ifndef DES_TYPES_DEFINED
+`define DES_TYPES_DEFINED
+typedef enum logic [2:0] { BUF, INV, NAND2, NOR2, AND2, OR2, XOR2, XNOR2 } gate_t;
+typedef enum logic [1:0] { LOGIC_0 =0, LOGIC_1=1, LOGIC_X=2, LOGIC_Z=3 } logic_val_t; 
+`endif
 module des_core
 #(
 ) (
