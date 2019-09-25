@@ -998,7 +998,7 @@ assign out_task_fifo_almost_full = (out_task_fifo_size >1);
 
 fifo #(
       .WIDTH( $bits(cq_out_task) + $bits(cq_out_task_slot)),
-      .LOG_DEPTH(4)
+      .LOG_DEPTH(6)
    ) OUT_TASK_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
