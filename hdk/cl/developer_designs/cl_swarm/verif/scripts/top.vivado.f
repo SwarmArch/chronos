@@ -92,6 +92,7 @@ ${CL_ROOT}/design/apps/riscv/riscv_core.sv
 ${CL_ROOT}/design/apps/maxflow/maxflow.sv
 ${CL_ROOT}/design/apps/maxflow/maxflow_pipe.sv
 ${CL_ROOT}/design/apps/color/color.sv
+${CL_ROOT}/design/apps/color/color_pipe.sv
 ${CL_ROOT}/design/cl_swarm.sv
 
 -f ${HDK_COMMON_DIR}/verif/tb/filelists/tb.${SIMULATOR}.f
