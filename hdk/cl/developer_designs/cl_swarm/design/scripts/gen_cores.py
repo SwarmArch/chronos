@@ -1,11 +1,18 @@
 import sys, os
 if len(sys.argv) < 2:
-    print("Usage gen_config.py app")
+    print("Usage gen_config.py app <pipe>")
     exit(0)
 app = sys.argv[1]
+pipe = 0
+if len(sys.argv) > 2:
+    if (sys.argv[2].find("pipe") >= 0):
+        pipe = 1;
 
 # Should be run from cl_swarm/design
-configs = open("apps/"+app+"/config.vh")
+if pipe:
+    configs = open("apps/"+app+"/config_pipe.vh")
+else:
+    configs = open("apps/"+app+"/config.vh")
 arg_width = 0
 app_id = 0
 data_width = 32
@@ -19,7 +26,7 @@ for line in configs:
     if (line.find('#') >=0):
         continue
     if ( line.find('USE_PIPELINED_TEMPLATE') >= 0):
-       cmd = "cp apps/"+app+"/config.vh app_config.vh";
+       cmd = "cp apps/"+app+"/config_pipe.vh app_config.vh";
        print(cmd)
        os.system(cmd)
        exit(0)
@@ -27,6 +34,8 @@ for line in configs:
         arg_width = int(line.split()[1])
     if (line.find("APP_ID") >=0):
         app_id = int(line.split()[1])
+    if (line.find("WARNING") >=0):
+        print(line)
     if (line.find("DATA_WIDTH") >=0):
         # AXI WDATA and RDATA only. undo-log-width is still configurable
         data_width = int(line.split()[1])

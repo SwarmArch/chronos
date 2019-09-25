@@ -74,9 +74,6 @@ ${CL_ROOT}/design/gvt_arbiter.sv
 ${CL_ROOT}/design/mem_arbiter.sv
 ${CL_ROOT}/design/tile.sv
 ${CL_ROOT}/design/core.sv
-#${CL_ROOT}/design/sssp_core.sv
-#${CL_ROOT}/design/des_core.sv
-#${CL_ROOT}/design/des_enqueuer.sv
 ${CL_ROOT}/design/coalescer.sv
 ${CL_ROOT}/design/splitter.sv
 ${CL_ROOT}/design/l2_arbiter.sv
@@ -84,15 +81,16 @@ ${CL_ROOT}/design/VexRiscv.v
 ${CL_ROOT}/design/apps/sssp_hls/sssp_hls.v
 ${CL_ROOT}/design/apps/sssp_hls/sssp_hls_l1_V_m_axi.v
 ${CL_ROOT}/design/apps/sssp/sssp_core.sv
-${CL_ROOT}/design/apps/sssp-pipe/sssp_core.sv
-${CL_ROOT}/design/apps/des-pipe/des.sv
+${CL_ROOT}/design/apps/sssp/sssp_pipe.sv
+${CL_ROOT}/design/apps/des/des_pipe.sv
 ${CL_ROOT}/design/apps/des/des_enqueuer.sv
 ${CL_ROOT}/design/apps/des/des_core.sv
-${CL_ROOT}/design/apps/astar/astar.sv
-# ${CL_ROOT}/design/apps/astar/visit_vertex.sv
+${CL_ROOT}/design/apps/astar/astar_pipe.sv
+${CL_ROOT}/design/apps/astar/visit_vertex.sv
+${CL_ROOT}/design/apps/astar/queue_vertex.sv
 ${CL_ROOT}/design/apps/riscv/riscv_core.sv
 ${CL_ROOT}/design/apps/maxflow/maxflow.sv
-${CL_ROOT}/design/apps/maxflow-pipe/maxflow.sv
+${CL_ROOT}/design/apps/maxflow/maxflow_pipe.sv
 ${CL_ROOT}/design/apps/color/color.sv
 ${CL_ROOT}/design/cl_swarm.sv
 

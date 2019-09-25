@@ -136,7 +136,7 @@ always_ff @(posedge clk) begin
    if (!rstn ) begin
       abort_running_task_q <= 1'b0;
    end else begin
-      if (state == NEXT_TASK) begin
+      if (state == FINISH_TASK) begin
          abort_running_task_q <= 1'b0;
       end else if (abort_running_task) begin
          abort_running_task_q <= 1'b1;

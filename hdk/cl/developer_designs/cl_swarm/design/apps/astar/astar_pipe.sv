@@ -103,7 +103,7 @@ end
 
 endmodule
 
-module astar_worker
+module astar_ro
 #(
    parameter SUBTYPE=0,
    parameter TILE_ID=0
