@@ -3,7 +3,9 @@ import swarm::*;
 module undo_log 
  #(
     parameter ID_BASE = 0,
-    parameter TILE_ID = 0
+    parameter TILE_ID = 0,
+    parameter N_CORES = 1,
+    parameter UNDO_LOG_THREADS = 1
  )
 (
    input clk,

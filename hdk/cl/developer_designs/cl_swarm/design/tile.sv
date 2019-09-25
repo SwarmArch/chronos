@@ -69,12 +69,6 @@ logic finish_task_is_undo_log_restore;
 logic                   gvt_task_slot_valid;
 cq_slice_slot_t         gvt_task_slot;
 
-logic [N_THREADS-1:0]     undo_log_valid ;
-logic [N_THREADS-1:0]     undo_log_ready ;
-undo_id_t       [N_THREADS-1:0] undo_log_id;
-undo_log_addr_t [N_THREADS-1:0] undo_log_addr;
-undo_log_data_t [N_THREADS-1:0] undo_log_data;
-cq_slice_slot_t [N_THREADS-1:0] undo_log_slot  ;
 
 logic coal_child_valid;
 logic coal_child_ready;
@@ -1058,7 +1052,7 @@ conflict_serializer #(
 logic ro_idle;
 
 generate 
-if (!RISCV) begin : core
+`ifdef USE_PIPELINED_TEMPLATE
 
 logic rw_read_out_fifo_full;
 logic rw_read_out_fifo_empty;
@@ -1355,7 +1349,8 @@ always_comb begin
    end
 end
 
-end else begin : riscv 
+`else
+
    assign cores_cm_wvalid[1] = 1'b0;
    assign ro_idle = 1'b1;
 
@@ -1373,7 +1368,9 @@ end else begin : riscv
    axi_bus_t core_l1[N_CORES]();
    
    logic [N_CORES-1:0] cc_cores_arvalid;
+   logic [N_CORES-1:0] cc_cores_can_deq;
    logic [N_CORES-1:0] cc_cores_rvalid;
+   task_type_t [N_CORES-1:0] cc_cores_araddr;
    
    logic [UNDO_LOG_THREADS-1:0] cc_undo_log_arvalid;
    logic [UNDO_LOG_THREADS-1:0] cc_undo_log_rvalid;
@@ -1395,10 +1392,12 @@ end else begin : riscv
    undo_id_t       [N_CORES-1:0] undo_log_id;
    undo_log_addr_t [N_CORES-1:0] undo_log_addr;
    undo_log_data_t [N_CORES-1:0] undo_log_data;
-   cq_slice_slot_t [N_CORES-1:0] undo_log_slot  ;
+   cq_slice_slot_t [N_CORES-1:0] undo_log_slot;
 
    for (i=0;i<N_CORES;i++) begin
-      assign cc_cores_rvalid[i] = (cc_cores_select == i) & cc_cores_arvalid[i] 
+      assign cc_cores_can_deq[i] = issue_task_valid & cc_cores_arvalid[i] & 
+            ( (issue_task.ttype == cc_cores_araddr[i]) | cc_cores_araddr == TASK_TYPE_ALL);
+      assign cc_cores_rvalid[i] = (cc_cores_select == i) & cc_cores_can_deq[i] 
          & issue_task_valid & (issue_task.ttype != TASK_TYPE_UNDO_LOG_RESTORE);
    end
    for (i=0;i<UNDO_LOG_THREADS;i++) begin
@@ -1425,7 +1424,7 @@ end else begin : riscv
          if (issue_task.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
             issue_task_ready = |cc_undo_log_arvalid;
          end else begin
-            issue_task_ready = |cc_cores_arvalid;
+            issue_task_ready = |cc_cores_can_deq;
          end
       end
    end
@@ -1434,7 +1433,7 @@ end else begin : riscv
        .OUT_WIDTH($clog2(N_CORES)), 
        .IN_WIDTH(N_CORES) 
    ) RV_DEQ_SELECT (
-       .in(cc_cores_arvalid),
+       .in(cc_cores_can_deq),
        .out(cc_cores_select)
    );
    lowbit #(
@@ -1454,6 +1453,8 @@ end else begin : riscv
    );
 
 
+   `include "gen_core_spec_tile.vh"
+   /*
    for (i=0;i<N_CORES;i++) begin :core
 
 
@@ -1508,11 +1509,13 @@ end else begin : riscv
 
 
    end
-
+*/
    undo_log 
    #(
       .ID_BASE( L2_ID_UNDO_LOG << 12),
-      .TILE_ID(TILE_ID)
+      .TILE_ID(TILE_ID),
+      .N_CORES(N_CORES),
+      .UNDO_LOG_THREADS(UNDO_LOG_THREADS)
    ) UNDO_LOG (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1554,8 +1557,7 @@ end else begin : riscv
    end
 
 
-end
-
+`endif
 endgenerate
 
 

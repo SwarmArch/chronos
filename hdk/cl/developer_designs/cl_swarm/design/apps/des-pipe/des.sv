@@ -177,7 +177,7 @@ end
 
 endmodule
 
-module des_worker
+module des_ro
 #(
    parameter SUBTYPE=0,
    parameter TILE_ID=0
@@ -330,8 +330,8 @@ always_ff @(posedge clk) begin
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr)
-            OFFSET_BASE_ADDR : offset_base_addr <= (reg_bus.wdata << 2);
-            NEIGHBOR_BASE_ADDR : neighbors_base_addr <= (reg_bus.wdata << 2);
+            8'd12 : offset_base_addr <= (reg_bus.wdata << 2);
+            8'd16 : neighbors_base_addr <= (reg_bus.wdata << 2);
             8'd32 : init_edge_offset <= (reg_bus.wdata << 2);
             8'd36 : init_edge_neighbors <= (reg_bus.wdata << 2);
             8'd52 : use_seq_number <= reg_bus.wdata[0];

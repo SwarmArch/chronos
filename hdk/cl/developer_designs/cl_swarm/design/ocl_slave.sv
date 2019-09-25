@@ -78,20 +78,20 @@ module ocl_slave
                   addr <= ocl.awaddr;
                   case (ocl.awaddr[15:8])
                      ID_ALL_CORES: begin
-                        if (RISCV) begin
-                           wr_comp_bit_vector [ID_CORE_BEGIN +: N_CORES] <= '1;
-                        end else begin
+                        `ifdef USE_PIPELINED_TEMPLATE
                            wr_comp_bit_vector[4:1] <= '1;
-                        end
+                        `else 
+                           wr_comp_bit_vector [ID_CORE_BEGIN +: N_CORES] <= '1;
+                        `endif
                         wr_comp_bit_vector[ID_COAL    ] <= 1;
                         wr_comp_bit_vector[ID_SPLITTER    ] <= 1;
                      end
                      ID_ALL_APP_CORES : begin
-                        if (RISCV) begin
-                           wr_comp_bit_vector [ID_CORE_BEGIN +: N_CORES] <= '1;
-                        end else begin
+                        `ifdef USE_PIPELINED_TEMPLATE
                            wr_comp_bit_vector[3:1] <= '1;
-                        end
+                        `else 
+                           wr_comp_bit_vector [ID_CORE_BEGIN +: N_CORES] <= '1;
+                        `endif
                      end
                      ID_COAL_AND_SPLITTER : begin 
                         wr_comp_bit_vector[ID_SPLITTER] <= 1;

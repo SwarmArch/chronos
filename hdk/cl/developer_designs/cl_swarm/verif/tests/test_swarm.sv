@@ -107,7 +107,7 @@ initial begin
    // GO !!
    for (int i=0;i<N_TILES;i++) begin 
       ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_START, 1);
-      ocl_poke(i, ID_ALL_CORES, CORE_START, 1);
+      ocl_poke(i, ID_ALL_CORES, CORE_START, '1);
    end
    #4us;
    //check_log(0, ID_COAL);
@@ -604,6 +604,7 @@ task initialize_spilling_structures;
          .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
 
 // Uncomment selectively to test task_spilling. 
+/*
       ocl_addr[15:8] = ID_TASK_UNIT;
       ocl_addr[7:0] = TASK_UNIT_SPILL_THRESHOLD;
       ocl_data = 64;
@@ -622,6 +623,7 @@ task initialize_spilling_structures;
       ocl_addr[15:8] = ID_TASK_UNIT;
       ocl_addr[7:0] = TASK_UNIT_TIED_CAPACITY;
       ocl_data = 32;
+*/
 /*
       tb.poke(.addr(ocl_addr), .data(ocl_data),
              .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL));
@@ -653,6 +655,14 @@ task initialize_spilling_structures;
       ocl_addr[15:8] = ID_COAL;
       ocl_addr [7:0] = CORE_START;
       ocl_data = '1;
+      tb.poke(.addr(ocl_addr), .data(ocl_data),
+                .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
+
+
+      // 
+      ocl_addr[15:8] = ID_TASK_UNIT;
+      ocl_addr [7:0] = TASK_UNIT_PRE_ENQ_BUFFER_CONFIG;
+      ocl_data = {16'd10, 16'd10};
       tb.poke(.addr(ocl_addr), .data(ocl_data),
                 .id(AXI_ID), .size(DataSize::UINT16), .intf(AxiPort::PORT_OCL)); 
    end

@@ -90,7 +90,7 @@ uint32_t numEdges;
 uint32_t startNode;
 uint32_t destNode;
 uint32_t actDist;
-std::string graph_name = "north-america";
+std::string graph_name = "monaco";
 
 uint32_t readU (std::ifstream& f){
       union U {
@@ -204,6 +204,7 @@ void WriteFile() {
 	data[9] = BASE_GROUND_TRUTH;
 	data[10] = BASE_END;
 
+
 	for (int i=0;i<numNodes;i++) {
 		fp_t fp_lat = graph[i].lat;
 		fp_t fp_lon = graph[i].lon;
@@ -212,7 +213,7 @@ void WriteFile() {
 	for (int i=0;i<=10;i++) {
 		printf("header %d: %d\n", i, data[i]);
 	}
-
+	uint64_t fp_factor = (1<<28)*2l;
 	uint32_t offset = 0;
 	for (int i=0;i<numNodes;i++) {
 		data[BASE_EDGE_OFFSET + i] = offset;
@@ -238,6 +239,7 @@ void WriteFile() {
 		data[BASE_LATLON + (i*2)+1] = d_lon;
 	}
 	data[BASE_EDGE_OFFSET + numNodes] = offset;
+
 	data[11] = data[BASE_LATLON + (destNode*2)];
 	data[12] = data[BASE_LATLON + (destNode*2 + 1)];
 
@@ -262,7 +264,7 @@ int main () {
 	//startNode = 12277337;
 	//destNode = 11049603;
 	startNode = 159;
-	destNode = 313;
+	destNode = 1543;
 	printf("Finding shortest path between nodes %d and %d\n", startNode, destNode);
 
 	Vertex* source = &graph[startNode];

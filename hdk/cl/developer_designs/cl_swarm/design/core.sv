@@ -19,6 +19,7 @@ module core
    input                   task_rvalid,
    input task_t            task_rdata,
    input cq_slice_slot_t   task_rslot, 
+   input thread_id_t       task_rthread, 
 
    // Task Enqueue
    output logic            task_wvalid,
@@ -37,13 +38,13 @@ module core
    output logic            finish_task_valid,
    input                   finish_task_ready,
    output cq_slice_slot_t  finish_task_slot,
+   output thread_id_t      finish_task_thread,
    // Informs the CQ of the number of children I have enqueued and whether
    // I have made a write that needs to be reversed on abort
    output child_id_t       finish_task_num_children,
    output logic            finish_task_undo_log_write,
 
-   input                   abort_running_task,
-   input cq_slice_slot_t   abort_running_slot,
+   input [2**LOG_CQ_SLICE_SIZE-1:0] task_aborted,
    input                   gvt_task_slot_valid,
    input cq_slice_slot_t   gvt_task_slot,
    
@@ -101,9 +102,11 @@ child_id_t child_id;
 assign finish_task_num_children = child_id;
 
 cq_slice_slot_t cq_slot;
+thread_id_t     thread_id;
 always_ff @(posedge clk) begin
    if ((state == NEXT_TASK) & task_rvalid) begin
       cq_slot <= task_rslot;
+      thread_id <= task_rthread;
    end
 end
 always_ff @(posedge clk) begin
@@ -113,6 +116,22 @@ always_ff @(posedge clk) begin
       finish_task_undo_log_write <= 1'b1;
    end
 end
+
+logic in_task;
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      in_task <= 1'b0;
+   end else begin
+      if (task_arvalid & task_rvalid) begin
+         in_task <= 1'b1;
+      end else if (finish_task_valid & finish_task_ready) begin
+         in_task <= 1'b0;
+      end
+   end
+end
+logic abort_running_task;
+assign abort_running_task = (task_aborted[cq_slot]) & in_task &
+         ((state == WAIT_CORE) | (state == INFORM_CQ)) & (state_next != FINISH_TASK); 
 always_ff @(posedge clk) begin
    if (!rstn ) begin
       abort_running_task_q <= 1'b0;
@@ -133,6 +152,7 @@ assign start_task_slot = cq_slot;
 
 assign finish_task_valid = (state == FINISH_TASK) & !task_wvalid & !undo_log_valid;
 assign finish_task_slot = cq_slot;
+assign finish_task_thread = thread_id;
 
 logic [2:0] reads_left;
 logic [2:0] writes_left;
@@ -254,6 +274,7 @@ end
 
 `ifdef DEBUG
 integer cycle;
+logic abort_running_task_d;
 always_ff @(posedge clk) begin
    if (!rstn) cycle <= 0;
    else cycle <= cycle + 1;
@@ -272,7 +293,8 @@ always_ff @(posedge clk) begin
             cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.locale, task_wdata.ttype,
             task_wdata.args[63:32], task_wdata[31:0]);
    end
-   if (abort_running_task & !abort_running_task_q) begin
+   abort_running_task_d <= abort_running_task;
+   if (abort_running_task & !abort_running_task_d) begin
          $display("[%5d][tile-%2d][core-%2d] \tabort running task", 
             cycle, TILE_ID, CORE_ID);
    end
@@ -313,7 +335,7 @@ always_ff @(posedge clk) begin
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
-            CORE_START: start <= reg_bus.wdata[CORE_ID];
+            CORE_START: start <= reg_bus.wdata[ID_CORE_BEGIN + CORE_ID];
             CORE_SET_QUERY_STATE: query_state <= reg_bus.wdata;
          endcase
       end
@@ -407,7 +429,10 @@ end
 always_ff @(posedge clk) begin
    if (!rstn) begin
       task_wvalid <= 1'b0;
-      task_wdata <= 'x;
+      task_wdata.producer <= 1'b0; 
+      task_wdata.no_write <= 1'b0; 
+      task_wdata.no_read <= 1'b0; 
+      task_wdata.non_spec <= 1'b0; 
    end else begin
       if (task_out_valid & task_out_ready) begin
          task_wvalid <= 1'b1;

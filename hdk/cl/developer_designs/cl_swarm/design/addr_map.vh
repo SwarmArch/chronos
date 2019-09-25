@@ -5,7 +5,6 @@
    parameter ID_SPLITTER = 4;
    parameter ID_COAL = 5;
    parameter ID_TASK_UNIT = 6; 
-   parameter CM_PORTS = RISCV ? 3 + N_CORES : 3;
    // end all modules with an L2 port
    parameter ID_L2 = 7;
    parameter ID_TSB     = 9;
@@ -13,8 +12,6 @@
    parameter ID_CM      = 11;
    parameter ID_SERIALIZER    = 12;
    parameter ID_UNDO_LOG = 13;
-
-   parameter ID_LAST = RISCV ? 32: 13;
 
    parameter ID_CORE_BEGIN = 16; // ony for RISCV cores
    
@@ -31,9 +28,19 @@
    parameter TASK_TYPE_SPLITTER = 14;
    parameter TASK_TYPE_UNDO_LOG_RESTORE = 15;
 
-   parameter L2_ID_COAL = RISCV ? N_CORES : 2;
-   parameter L2_ID_SPLITTER = RISCV ? N_CORES + 1 : 3;
+`ifdef USE_PIPELINED_TEMPLATE
+   parameter CM_PORTS = 3;
+   parameter L2_ID_COAL = 2;
+   parameter L2_ID_SPLITTER = 3;
+   parameter L2_ID_UNDO_LOG = 10; // does not matter
+   parameter ID_LAST = 13;
+`else
+   parameter CM_PORTS = 3 + N_CORES;
+   parameter L2_ID_COAL = N_CORES;
+   parameter L2_ID_SPLITTER = N_CORES + 1;
    parameter L2_ID_UNDO_LOG = N_CORES + 2;
+   parameter ID_LAST = 32;
+`endif
 
    // CL Register Addresses OCL is only 32 MiB (25 bit)
    // [23:16] is tile, [15:8] component, [7:0] addr 
