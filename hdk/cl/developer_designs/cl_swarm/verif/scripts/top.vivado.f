@@ -82,6 +82,7 @@ ${CL_ROOT}/design/apps/sssp_hls/sssp_hls.v
 ${CL_ROOT}/design/apps/sssp_hls/sssp_hls_l1_V_m_axi.v
 ${CL_ROOT}/design/apps/sssp/sssp_core.sv
 ${CL_ROOT}/design/apps/sssp/sssp_pipe.sv
+${CL_ROOT}/design/apps/des/des_common.sv
 ${CL_ROOT}/design/apps/des/des_pipe.sv
 ${CL_ROOT}/design/apps/des/des_enqueuer.sv
 ${CL_ROOT}/design/apps/des/des_core.sv
