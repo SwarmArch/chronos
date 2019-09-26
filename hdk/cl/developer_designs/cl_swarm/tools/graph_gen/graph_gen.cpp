@@ -311,12 +311,14 @@ void GenerateGridGraphMaxflow(uint32_t r, uint32_t c, uint32_t num_connections) 
       uint32_t capacity = static_cast<uint32_t>
          (rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
       addEdge(r*c, i, capacity);
+      //printf("a %d %d %d\n", r*c , i, capacity);
    }
 
    for (i = 0; i < c; ++i) {
       uint32_t capacity = static_cast<uint32_t>
          (rand() % (MAX_CAPACITY - MIN_CAPACITY) + MIN_CAPACITY);
       addEdge((r - 1) * c + i, c*r + 1, capacity);
+      //printf("a %d %d %d\n", (r-1)*c +i ,c*r+ 1, capacity);
    }
    startNode = numV-2;
    endNode = numV-1;
