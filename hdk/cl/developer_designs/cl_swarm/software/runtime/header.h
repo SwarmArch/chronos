@@ -63,6 +63,7 @@
 #define OCL_PARAM_LOG_TQ_HEAP_STAGES  0x54
 #define OCL_PARAM_LOG_TQ_SIZE         0x58
 #define OCL_PARAM_LOG_CQ_SIZE         0x5c
+#define OCL_PARAM_APP_ID              0x60
 #define OCL_PARAM_LOG_SPILL_Q_SIZE    0x64
 #define OCL_PARAM_NON_SPEC            0x68
 #define OCL_PARAM_LOG_READY_LIST_SIZE 0x6c
@@ -101,6 +102,7 @@
 #define TASK_UNIT_N_TIED_TASKS     0x18
 #define TASK_UNIT_STALL            0x20
 #define TASK_UNIT_START            0x24
+#define TASK_UNIT_PRE_ENQ_BUF      0x28
 #define TASK_UNIT_SPILL_THRESHOLD  0x30
 #define TASK_UNIT_CLEAN_THRESHOLD  0x34
 #define TASK_UNIT_SPILL_SIZE       0x38
@@ -226,6 +228,8 @@
 #define DEBUG_CAPACITY    0xf0 // For any component that does logging
 
 #define MEM_XBAR_NUM_CTRL 0x10
+
+#define RISCV_ID 256
 
 int log_sssp_core(pci_bar_handle_t pci_bar_handle, int fd, int cid, FILE* fw);
 int log_task_unit(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);

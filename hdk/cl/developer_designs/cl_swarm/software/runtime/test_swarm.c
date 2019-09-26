@@ -25,6 +25,7 @@ int dma_example(int slot_i);
 
 
 pci_bar_handle_t pci_bar_handle;
+uint32_t APP_ID;
 uint32_t N_TILES;
 uint32_t ID_OCL_SLAVE;
 uint32_t READY_LIST_SIZE;
@@ -36,7 +37,7 @@ uint32_t ID_RO_STAGE;
 uint32_t ID_SPLITTER;
 uint32_t ID_COALESCER;
 uint32_t ID_TASK_UNIT;
-uint32_t ID_L2_RW;
+uint32_t ID_L2_RW; // RW/ RO naming is for historical reasons. Both caches are read-write now.
 uint32_t ID_L2_RO;
 uint32_t ID_TSB;
 uint32_t ID_CQ;
@@ -46,6 +47,12 @@ uint32_t ID_LAST;
 uint32_t LOG_TQ_SIZE, LOG_CQ_SIZE;
 uint32_t TQ_STAGES, SPILLQ_STAGES;
 uint32_t NON_SPEC;
+
+uint32_t USING_PIPELINED_TEMPLATE;
+
+uint32_t active_tiles;
+uint32_t logging_phase_tasks = 0x100;
+
 uint16_t pci_vendor_id = 0x1D0F; /* Amazon PCI Vendor ID */
 uint16_t pci_device_id = 0xF000; /* PCI Device ID preassigned by Amazon for F1 applications */
 
@@ -85,6 +92,9 @@ void pci_poke(uint32_t tile, uint32_t comp, uint32_t addr, uint32_t data) {
 }
 void init_params() {
 
+    pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_APP_ID, &APP_ID);
+    USING_PIPELINED_TEMPLATE = (APP_ID >> 16) & 1;
+
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_N_TILES, &N_TILES);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_TQ_HEAP_STAGES, &TQ_STAGES);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_NON_SPEC, &NON_SPEC);
@@ -97,6 +107,8 @@ void init_params() {
     L2_BANKS = (1<<L2_BANKS);
     READY_LIST_SIZE = (1<<READY_LIST_SIZE);
     //L2_BANKS = 1; READY_LIST_SIZE = 8;
+
+    printf("APP_ID %x Pipelined:%d\n", APP_ID, USING_PIPELINED_TEMPLATE);
 
     printf("%d tiles\n", N_TILES);
     printf("Non spec %d\n", NON_SPEC);
@@ -399,7 +411,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
 
     // Change here if you want to reduce the system size
-    uint32_t active_tiles = 1;
+    active_tiles = 1;
     uint32_t max_threads = 1e10;
 
     if (N_TILES < active_tiles) {
@@ -461,7 +473,9 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     uint32_t numE = headers[2];;
     printf("File Len %d\n", n);
 
-
+    for (int i=0;i<16;i++) {
+        write_buffer[i*4] = headers[i];
+    }
 
     uint32_t startCycle, endCycle;
 
@@ -526,14 +540,13 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     FILE* fwrw = fopen("rw_log", "w");
     FILE* fwl2 = fopen("l2_rw", "w");
     FILE* fwl2ro = fopen("l2_ro", "w");
-    bool task_unit_logging_on = false;
+    FILE* fwrv_0 = fopen("riscv_log_0", "w");
+    bool logging_on = false;
     unsigned char* log_buffer = (unsigned char *)malloc(20000*64);
 
     sleep(1);
 
-           //log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
-           //            (N_TILES << 8) | ID_GLOBAL);
-           //exit(0);
+
     // OCL Initialization
 
     // Checking PCI latency;
@@ -547,8 +560,12 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     uint32_t clean_threshold = 40;
     uint32_t spill_threshold = (1<<LOG_TQ_SIZE) - 30;
     //tied_cap = 100;
+    //tied_cap = 0;
     //spill_threshold = 1500;
     uint32_t spill_size = 240;
+
+    uint32_t deq_tolerance = 3;
+    uint32_t pre_enq_fifo_thresh = 1;
 
 
     assert(spill_threshold > (tied_cap + (1<<LOG_CQ_SIZE) + spill_size));
@@ -595,7 +612,10 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_SIZE, spill_size);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_CHECK_LIMIT, spill_size * 2);
-        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 0); // get enq args instead of deq locale/ts
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq locale/ts
+
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_PRE_ENQ_BUF,
+                (pre_enq_fifo_thresh << 16) | deq_tolerance);
         // Do not dequeue a task with a timestamp larger by this much than the gvt
         if (NON_SPEC) {
             // astar - 900
@@ -710,14 +730,15 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     printf("PCI latency %d cycles\n", endCycle - startCycle);
     if (endCycle == startCycle) return -1;
 
-    if (task_unit_logging_on) {
+    if (logging_on) {
         // If we are in debugging mode, only allow a small number of tasks at a
         // time, lest the on-chip buffers fill up.
-        pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES ,0x130);
+        pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES ,0x230);
     }
     uint32_t core_mask = 0;
-    uint32_t active_cores = 10;
+    uint32_t active_cores = 8;
     core_mask = (1<<(active_cores+1))-1;
+    if (!USING_PIPELINED_TEMPLATE) core_mask <<= 16;
     core_mask |= (1<<ID_COALESCER);
     core_mask |= (1<<ID_SPLITTER);
     printf("mask %x\n", core_mask);
@@ -734,10 +755,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     usleep(200);
 
-    //log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
-    //log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
-    //log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
-    fflush(fwtu);
     printf("Waiting until app completes\n");
 
     // Stage 6: Wait until Application completes
@@ -752,104 +769,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        uint32_t gvt_tb;
        if (NON_SPEC) {
            pci_peek(0, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
-           uint32_t n_tasks, n_tied_tasks, heap_capacity;
-           uint32_t coal_tasks;
-           uint32_t coal_state;
-           uint32_t stack_ptr=0;
-           uint32_t cq_state;
-           uint32_t tq_debug;
-           uint32_t cycle;
-           uint32_t ser_debug;
-           uint32_t ser_locale =0;
-           uint32_t ser_ready;
-           uint32_t tsb_entry_valid;
-           uint32_t rw_read_fifo_occ;
-           uint32_t rw_write_fifo_occ;
-
-
-           //if (iters % 10 == 4)
-           for (int i=0;i<(active_tiles);i++) {
-               pci_peek(i, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_LVT, &gvt_tb);
-               pci_peek(i, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB       , &cycle);
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TASKS, &n_tasks);
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TIED_TASKS, &n_tied_tasks);
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_CAPACITY, &heap_capacity);
-               pci_peek(i, ID_COALESCER, CORE_NUM_DEQ, &coal_tasks);
-               pci_peek(i, ID_CQ, CQ_STATE, &cq_state );
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug );
-               pci_peek(i, ID_COALESCER, CORE_STATE, &coal_state );
-               pci_peek(i, ID_COALESCER, COAL_STACK_PTR, &stack_ptr );
-
-               pci_peek(i, ID_SERIALIZER, SERIALIZER_READY_LIST, &ser_ready);
-               pci_peek(i, ID_SERIALIZER, SERIALIZER_DEBUG_WORD, &ser_debug);
-               pci_peek(i, ID_SERIALIZER, SERIALIZER_S_LOCALE, &ser_locale);
-               pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_read_fifo_occ );
-               pci_peek(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_write_fifo_occ );
-
-               pci_peek(i, ID_TSB, TSB_ENTRY_VALID, &tsb_entry_valid );
-               printf(" [%4d][%1d][%8u] gvt:(%9x %9d) (%4d %4d %4d) %6d %4x stack_ptr:%4x | %8d %8x %8x | %x %2d %2d\n",
-                       iters, i, cycle, gvt, gvt_tb,
-                       n_tasks, n_tied_tasks, heap_capacity,
-                       cq_state, tq_debug, stack_ptr & 0xffff,
-                       ser_locale, ser_ready, ser_debug, tsb_entry_valid,
-                       rw_read_fifo_occ, rw_write_fifo_occ
-                       );
-                //cq_stats(0, ID_CQ);
-
-           }
-           if (iters > 2999){
-               uint32_t l2_debug;
-               uint32_t rw_read_debug, rw_write_debug;
-               uint32_t w_count;
-               uint32_t mshr_valid;
-               uint32_t ocl_l2_debug;
-               uint32_t fifo_size;
-               for (int i=0;i<active_tiles;i++) {
-                    pci_peek(i, ID_L2_RW, L2_DEBUG_WORD, &l2_debug);
-                    pci_peek(i, ID_RW_READ, CORE_DEBUG_WORD, &rw_read_debug);
-                    pci_peek(i, ID_RW_WRITE, CORE_DEBUG_WORD, &rw_write_debug);
-                    pci_peek(i, ID_L2_RW, L2_DEBUG_WORD + 4, &w_count);
-                    pci_peek(i, ID_L2_RW, L2_DEBUG_WORD + 8, &mshr_valid);
-                    pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &fifo_size);
-                    printf("%d RW %8x (%8x) rw_read:%8x write:%8x mshr:%8x fifo:%8x\n",
-                            i, l2_debug, w_count,
-                            rw_read_debug, rw_write_debug, mshr_valid,
-                            fifo_size);
-                    pci_peek(i, ID_L2_RO, L2_DEBUG_WORD, &l2_debug);
-                    pci_peek(i, ID_RO_STAGE, CORE_DEBUG_WORD, &rw_write_debug);
-                    pci_peek(i, ID_L2_RO, L2_DEBUG_WORD + 8, &mshr_valid);
-                    pci_peek(i, ID_OCL_SLAVE, OCL_L2_DEBUG, &ocl_l2_debug);
-                    pci_peek(i, ID_RO_STAGE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &fifo_size);
-                    printf("%d RO l2:%8x stage:%8x mshr:%8x ocl:%8x fifo:%8x\n",
-                            i, l2_debug, rw_write_debug, mshr_valid, ocl_l2_debug,
-                            fifo_size);
-                    //pci_peek(i, ID_RO_STAGE,
-                    //        CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &l2_debug);
-                    //printf("RO fifo %8x\n", l2_debug);
-
-               }
-               uint32_t ddr_status;
-               for (int i=0;i<=20;i+=4) {
-                    pci_peek(N_TILES, ID_GLOBAL, i, &ddr_status);
-                    printf("DDR status %d: %8x\n", i, ddr_status);
-               }
-               uint32_t ddr_stats[20];
-               for (int i=0;i<=20;i++) {
-                    pci_peek(N_TILES, ID_GLOBAL, 0x20 + 4*i, &ddr_stats[i]);
-               }
-               printf("DDR count\n");
-               for (int i=0;i<5;i++) {
-                 printf(" i: %d ", i);
-                 for (int j=0;j<4;j++) {
-                    printf("%8d ", ddr_stats[i*4+j]);
-                 }
-                 printf("\n");
-               }
-               //if (iters == 3000) break;
-           }
-           if (iters == 20000) break;
-
+           //loop_debuggin_nonspec(iters);
        } else {
            pci_peek(0, ID_CQ, CQ_GVT_TS, &gvt);
        }
@@ -867,8 +787,8 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                // Hence sample a few times before terminating
                for (int i=0;i<64;i++) {
                    usleep(1);
-                   if (task_unit_logging_on) {
-                       pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES ,0x130);
+                   if (logging_on) {
+                       pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES, logging_phase_tasks);
                    }
                    pci_peek(i%active_tiles, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
                    if (gvt != -1) done=false;
@@ -876,166 +796,28 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            }
            if (done) break;
        }
-       if (task_unit_logging_on) {
+       if (logging_on) {
            log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
                        (N_TILES << 8) | ID_GLOBAL);
            log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
-           //log_task_unit(pci_bar_handle, read_fd, fwtu1, log_buffer, 256 + ID_TASK_UNIT);
-           log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
-           log_rw_stage(pci_bar_handle, read_fd, fwrw, log_buffer, ID_RW_READ);
+           if (APP_ID == RISCV_ID) {
+              log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
+           } else if (USING_PIPELINED_TEMPLATE) {
+              log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
+              log_rw_stage(pci_bar_handle, read_fd, fwrw, log_buffer, ID_RW_READ) ;
+           }
+
            log_cache(pci_bar_handle, read_fd, fwl2, log_buffer, ID_L2_RW);
            log_cache(pci_bar_handle, read_fd, fwl2ro, log_buffer, ID_L2_RO);
-           log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
+           //log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
            log_coalescer(pci_bar_handle, read_fd, fwcoal, log_buffer, ID_COALESCER);
            log_splitter(pci_bar_handle, read_fd, fwsp, log_buffer, ID_SPLITTER);
            log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
-           fflush(fwtu);
-           fflush(fwro);
-           fflush(fwcq);
-           fflush(fwl2);
-           fflush(fwl2ro);
-           fflush(fwcoal);
-           fflush(fwsp);
+           fflush(fwtu); fflush(fwro); fflush(fwcq); fflush(fwl2); fflush(fwrv_0);
+           fflush(fwl2ro); fflush(fwcoal); fflush(fwsp);
            usleep(200);
 
-           if (app==APP_MAXFLOW && (iters % 1000) ==0) {
-               char s[50];
-               sprintf(s, "mf_state_%d", iters);
-               FILE* mf_state = fopen(s, "w");
-               results = (uint32_t*) malloc(64*(numV+100));
-                pci_poke(0, ID_L2_RW, L2_FLUSH , 1 );
-                pci_poke(0, ID_L2_RO, L2_FLUSH , 1 );
-                usleep(1000);
-               for (int i=0;i<numV/16 + 1;i++){
-                   fpga_dma_burst_read(read_fd, results + i*16*16, 16*64, 64 + i*64*16);
-               }
-               maxflow_edge_prop_t* edges =
-                   (maxflow_edge_prop_t *) (write_buffer + headers[4]*4);
-               maxflow_node_prop_t* nodes =
-                   (maxflow_node_prop_t *) (results);// (write_buffer + headers[5]*4);
-               for (int i=0;i <numV;i++) {
-                   fprintf(mf_state, "node:%3d excess:%3d height:%3d %s\n",
-                           i, nodes[i].excess, nodes[i].height,
-                           (nodes[i].excess>0)?"inflow" : "");
-                   uint32_t eo_begin =csr_offset[i];
-                   uint32_t eo_end =csr_offset[i+1];
-                   int32_t sum_flow =0;
-
-                   for (int j=eo_begin;j<eo_end;j++) {
-                        uint32_t n = edges[j].dest & 0xffffff;
-                        int32_t cap = edges[j].capacity;
-                        int32_t flow = nodes[i].flow[j-eo_begin];
-                        int32_t reverse_edge = edges[j].dest >> 24;
-                        int32_t reverse_flow = nodes[n].flow[
-                            reverse_edge];
-                        fprintf(mf_state,
-                                "\t%5d cap:%8d flow:%8d reverse_flow:%8d height:%6d %s\n",
-                                n, cap, flow, reverse_flow, nodes[n].height,
-                                (flow+reverse_flow != 0)?"mismatch":"");
-                        sum_flow += flow;
-                   }
-                   fprintf(mf_state, "\tsum_flow:%d %s\n",
-                           sum_flow, sum_flow != 0 ? "WHAT?" : "");
-
-               }
-               printf("node:%3d excess:%3d height:%3d\n", headers[9], nodes[headers[9]].excess, nodes[headers[9]].height);
-               fflush(mf_state);
-               free(results);
-           }
-
-           if (iters == 1000) break;
-
-
-           uint32_t n_tasks, n_tied_tasks, heap_capacity;
-           uint32_t coal_deq, coal_enq;
-           uint32_t coal_state;
-           uint32_t stack_ptr=0;
-           uint32_t cq_state;
-           uint32_t tq_debug;
-           uint32_t cycle;
-           uint32_t ser_debug;
-           uint32_t ser_locale =0;
-           uint32_t ser_ready;
-           uint32_t tsb_entry_valid;
-           uint32_t rw_read_fifo_occ;
-           uint32_t rw_write_fifo_occ;
-           for (int i=0;i<(active_tiles);i++) {
-               pci_peek(i, ID_CQ, CQ_GVT_TS, &gvt);
-               if (NON_SPEC) {
-                    pci_peek(i, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
-               }
-               pci_peek(i, ID_CQ, CQ_GVT_TB, &gvt_tb);
-               pci_peek(i, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB       , &cycle);
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TASKS, &n_tasks);
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TIED_TASKS, &n_tied_tasks);
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_CAPACITY, &heap_capacity);
-               pci_peek(i, ID_COALESCER, CORE_NUM_DEQ, &coal_deq);
-               pci_peek(i, ID_COALESCER, CORE_NUM_ENQ, &coal_enq);
-               pci_peek(i, ID_COALESCER, CORE_STATE, &coal_state);
-               pci_peek(i, ID_CQ, CQ_STATE, &cq_state );
-               pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug );
-               pci_peek(i, ID_COALESCER, CORE_STATE, &stack_ptr );
-
-               pci_peek(i, ID_SERIALIZER, SERIALIZER_READY_LIST, &ser_ready);
-               pci_peek(i, ID_SERIALIZER, SERIALIZER_DEBUG_WORD, &ser_debug);
-               pci_peek(i, ID_SERIALIZER, SERIALIZER_S_LOCALE, &ser_locale);
-               pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_read_fifo_occ );
-               pci_peek(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_write_fifo_occ );
-
-               pci_peek(i, ID_TSB, TSB_ENTRY_VALID, &tsb_entry_valid );
-               printf(" [%4d][%1d][%8u] gvt:(%9x %9d) (%4d %4d %4d) %6d %4x stack_ptr:%4x | %8d %8x %8x | %x %2d %2d\n",
-                       iters, i, cycle, gvt, gvt_tb,
-                       n_tasks, n_tied_tasks, heap_capacity,
-                       cq_state, tq_debug, stack_ptr,
-                       ser_locale, ser_ready, ser_debug, tsb_entry_valid,
-                       rw_read_fifo_occ, rw_write_fifo_occ
-                       );
-               printf(" coal state:%8x deq: %7d enq: %7d\n", coal_state, coal_deq, coal_enq);
-               fprintf(fwtu, "log [%4d][%1d][%8u] gvt:%9d (%4d %4d %4d) %6d %4x stack_ptr:%4d\n",
-                       iters, i, cycle, gvt,
-                       n_tasks, n_tied_tasks, heap_capacity,
-                       cq_state, tq_debug, stack_ptr);
-                pci_poke(i, ID_ALL_APP_CORES, CORE_N_DEQUEUES ,0x200);
-                //cq_stats(0, ID_CQ);
-               uint32_t l2_debug;
-               uint32_t rw_read_debug, rw_write_debug;
-               uint32_t w_count;
-               uint32_t mshr_valid;
-               uint32_t ocl_l2_debug;
-               uint32_t fifo_size;
-               for (int i=0;i<active_tiles;i++) {
-                    pci_peek(i, ID_L2_RW, L2_DEBUG_WORD, &l2_debug);
-                    pci_peek(i, ID_RW_READ, CORE_DEBUG_WORD, &rw_read_debug);
-                    pci_peek(i, ID_RW_WRITE, CORE_DEBUG_WORD, &rw_write_debug);
-                    pci_peek(i, ID_L2_RW, L2_DEBUG_WORD + 4, &w_count);
-                    pci_peek(i, ID_L2_RW, L2_DEBUG_WORD + 8, &mshr_valid);
-                    printf("%d RW %8x (%8x) rw_read:%8x write:%8x mshr:%8x \n",
-                            i, l2_debug, w_count,
-                            rw_read_debug, rw_write_debug, mshr_valid
-                            );
-                    pci_peek(i, ID_L2_RO, L2_DEBUG_WORD, &l2_debug);
-                    pci_peek(i, ID_RO_STAGE, CORE_DEBUG_WORD, &rw_write_debug);
-                    pci_peek(i, ID_L2_RO, L2_DEBUG_WORD + 8, &mshr_valid);
-                    pci_peek(i, ID_OCL_SLAVE, OCL_L2_DEBUG, &ocl_l2_debug);
-                    pci_peek(i, ID_RO_STAGE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &fifo_size);
-                    printf("%d RO l2:%8x stage:%8x mshr:%8x ocl:%8x \n",
-                            i, l2_debug, rw_write_debug, mshr_valid, ocl_l2_debug,
-                            fifo_size);
-
-                    pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &rw_read_debug);
-                    pci_peek(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &rw_write_debug);
-                    pci_peek(i, ID_RO_STAGE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &fifo_size);
-                    printf("%d fifo size rw_read:%4x rw_write:%4x ro:%8x\n", i,
-                            rw_read_debug, rw_write_debug, fifo_size);
-
-               }
-                if (iters==2999) {
-                    printf("ser debug %d %8x %x\n", ser_locale, ser_ready, ser_debug);
-                }
-
-           }
-
-           usleep(1000);
+           loop_debuggin_spec(iters);
        }
        iters++;
 
@@ -1047,12 +829,18 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    }
    usleep(2800);
    usleep(300000);
-   if (1 | task_unit_logging_on) {
+   if (logging_on) {
        log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
                    (N_TILES << 8) | ID_GLOBAL);
        log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
-       log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
-       log_rw_stage(pci_bar_handle, read_fd, fwrw, log_buffer, ID_RW_READ);
+       //log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
+       //log_rw_stage(pci_bar_handle, read_fd, fwrw, log_buffer, ID_RW_READ);
+       if (APP_ID == RISCV_ID) {
+          log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
+       } else if (USING_PIPELINED_TEMPLATE) {
+          log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
+          log_rw_stage(pci_bar_handle, read_fd, fwrw, log_buffer, ID_RW_READ) ;
+       }
        log_cache(pci_bar_handle, read_fd, fwl2, log_buffer, ID_L2_RW);
        log_cache(pci_bar_handle, read_fd, fwl2ro, log_buffer, ID_L2_RO);
        log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
@@ -1070,8 +858,8 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        if (i==0) {
            serializer_stats(i, ID_SERIALIZER);
            uint32_t ro_ar_valid_not_ready;
-           pci_peek(i, ID_RO_STAGE, CORE_DEBUG_WORD + 4, &ro_ar_valid_not_ready);
-           printf("ro read stall %d\n", ro_ar_valid_not_ready);
+           //pci_peek(i, ID_RO_STAGE, CORE_DEBUG_WORD + 4, &ro_ar_valid_not_ready);
+           //printf("ro read stall %d\n", ro_ar_valid_not_ready);
        }
    }
 
@@ -1273,7 +1061,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                if (error) num_errors++;
                ref_count++;
                if (app == APP_SSSP) {
-                   if ( ( error & (num_errors < 100)) || i==numV-1) {
+                   if ( ( error & (num_errors < 10)) || i==numV-1) {
                        printf("vid:%3d dist:%5d, ref:%5d, %s, num_errors:%2d\n",
                                i, act_dist, ref_dist,
                                act_dist == ref_dist ? "MATCH" : "FAIL", num_errors);
@@ -1295,7 +1083,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                }
            }
            printf("Total Errors %d / %d\n", num_errors, ref_count);
-           printf("Earliest Fail %d (%x) / %d\n", astar_low_fail_node, astar_low_fail_node, astar_low_fail_ref);
+           //printf("Earliest Fail %d (%x) / %d\n", astar_low_fail_node, astar_low_fail_node, astar_low_fail_ref);
            break;
        case APP_COLOR:
            results = (uint32_t*) malloc(16*(numV+100));
@@ -1473,4 +1261,192 @@ out:
     return (rc != 0 ? 1 : 0);
 }
 
+int loop_debuggin_nonspec(uint32_t iters){
 
+    uint32_t gvt, gvt_tb;
+    uint32_t n_tasks, n_tied_tasks, heap_capacity;
+    uint32_t coal_tasks;
+    uint32_t coal_state;
+    uint32_t stack_ptr=0;
+    uint32_t cq_state;
+    uint32_t tq_debug;
+    uint32_t cycle;
+    uint32_t ser_debug;
+    uint32_t ser_locale =0;
+    uint32_t ser_ready;
+    uint32_t tsb_entry_valid;
+    uint32_t rw_read_fifo_occ;
+    uint32_t rw_write_fifo_occ;
+
+    for (int i=0;i<(active_tiles);i++) {
+        pci_peek(i, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_LVT, &gvt_tb);
+        pci_peek(i, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB       , &cycle);
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TASKS, &n_tasks);
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TIED_TASKS, &n_tied_tasks);
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_CAPACITY, &heap_capacity);
+        pci_peek(i, ID_COALESCER, CORE_NUM_DEQ, &coal_tasks);
+        pci_peek(i, ID_CQ, CQ_STATE, &cq_state );
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug );
+        pci_peek(i, ID_COALESCER, CORE_STATE, &coal_state );
+        pci_peek(i, ID_COALESCER, COAL_STACK_PTR, &stack_ptr );
+
+        pci_peek(i, ID_SERIALIZER, SERIALIZER_READY_LIST, &ser_ready);
+        pci_peek(i, ID_SERIALIZER, SERIALIZER_DEBUG_WORD, &ser_debug);
+        pci_peek(i, ID_SERIALIZER, SERIALIZER_S_LOCALE, &ser_locale);
+        pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_read_fifo_occ );
+        pci_peek(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_write_fifo_occ );
+
+        pci_peek(i, ID_TSB, TSB_ENTRY_VALID, &tsb_entry_valid );
+        printf(" [%4d][%1d][%8u] gvt:(%9x %9d) (%4d %4d %4d) %6d %4x stack_ptr:%4x | %8d %8x %8x | %x %2d %2d\n",
+                iters, i, cycle, gvt, gvt_tb,
+                n_tasks, n_tied_tasks, heap_capacity,
+                cq_state, tq_debug, stack_ptr & 0xffff,
+                ser_locale, ser_ready, ser_debug, tsb_entry_valid,
+                rw_read_fifo_occ, rw_write_fifo_occ
+              );
+        //cq_stats(0, ID_CQ);
+
+    }
+    if (iters > 2999){
+        uint32_t l2_debug;
+        uint32_t rw_read_debug, rw_write_debug;
+        uint32_t w_count;
+        uint32_t mshr_valid;
+        uint32_t ocl_l2_debug;
+        uint32_t fifo_size;
+        for (int i=0;i<active_tiles;i++) {
+            pci_peek(i, ID_L2_RW, L2_DEBUG_WORD, &l2_debug);
+            pci_peek(i, ID_RW_READ, CORE_DEBUG_WORD, &rw_read_debug);
+            pci_peek(i, ID_RW_WRITE, CORE_DEBUG_WORD, &rw_write_debug);
+            pci_peek(i, ID_L2_RW, L2_DEBUG_WORD + 4, &w_count);
+            pci_peek(i, ID_L2_RW, L2_DEBUG_WORD + 8, &mshr_valid);
+            pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &fifo_size);
+            printf("%d RW %8x (%8x) rw_read:%8x write:%8x mshr:%8x fifo:%8x\n",
+                    i, l2_debug, w_count,
+                    rw_read_debug, rw_write_debug, mshr_valid,
+                    fifo_size);
+            pci_peek(i, ID_L2_RO, L2_DEBUG_WORD, &l2_debug);
+            pci_peek(i, ID_RO_STAGE, CORE_DEBUG_WORD, &rw_write_debug);
+            pci_peek(i, ID_L2_RO, L2_DEBUG_WORD + 8, &mshr_valid);
+            pci_peek(i, ID_OCL_SLAVE, OCL_L2_DEBUG, &ocl_l2_debug);
+            pci_peek(i, ID_RO_STAGE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &fifo_size);
+            printf("%d RO l2:%8x stage:%8x mshr:%8x ocl:%8x fifo:%8x\n",
+                    i, l2_debug, rw_write_debug, mshr_valid, ocl_l2_debug,
+                    fifo_size);
+            //pci_peek(i, ID_RO_STAGE,
+            //        CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &l2_debug);
+            //printf("RO fifo %8x\n", l2_debug);
+
+        }
+        uint32_t ddr_status;
+        for (int i=0;i<=20;i+=4) {
+            pci_peek(N_TILES, ID_GLOBAL, i, &ddr_status);
+            printf("DDR status %d: %8x\n", i, ddr_status);
+        }
+        uint32_t ddr_stats[20];
+        for (int i=0;i<=20;i++) {
+            pci_peek(N_TILES, ID_GLOBAL, 0x20 + 4*i, &ddr_stats[i]);
+        }
+        printf("DDR count\n");
+        for (int i=0;i<5;i++) {
+            printf(" i: %d ", i);
+            for (int j=0;j<4;j++) {
+                printf("%8d ", ddr_stats[i*4+j]);
+            }
+            printf("\n");
+        }
+        //if (iters == 3000) break;
+    }
+}
+
+int loop_debuggin_spec(uint32_t iters){
+
+    uint32_t gvt, gvt_tb;
+    uint32_t n_tasks, n_tied_tasks, heap_capacity;
+    uint32_t coal_deq, coal_enq;
+    uint32_t coal_state;
+    uint32_t stack_ptr=0;
+    uint32_t cq_state;
+    uint32_t tq_debug;
+    uint32_t cycle;
+    uint32_t ser_debug;
+    uint32_t ser_locale =0;
+    uint32_t ser_ready;
+    uint32_t tsb_entry_valid;
+    uint32_t rw_read_fifo_occ =0;
+    uint32_t rw_write_fifo_occ = 0;
+    for (int i=0;i<(active_tiles);i++) {
+        pci_peek(i, ID_CQ, CQ_GVT_TS, &gvt);
+        if (NON_SPEC) {
+            pci_peek(i, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
+        }
+        pci_peek(i, ID_CQ, CQ_GVT_TB, &gvt_tb);
+        pci_peek(i, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB       , &cycle);
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TASKS, &n_tasks);
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_N_TIED_TASKS, &n_tied_tasks);
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_CAPACITY, &heap_capacity);
+        pci_peek(i, ID_COALESCER, CORE_NUM_DEQ, &coal_deq);
+        pci_peek(i, ID_COALESCER, CORE_NUM_ENQ, &coal_enq);
+        pci_peek(i, ID_COALESCER, CORE_STATE, &coal_state);
+        pci_peek(i, ID_CQ, CQ_STATE, &cq_state );
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug );
+        pci_peek(i, ID_COALESCER, CORE_STATE, &stack_ptr );
+
+        pci_peek(i, ID_SERIALIZER, SERIALIZER_READY_LIST, &ser_ready);
+        pci_peek(i, ID_SERIALIZER, SERIALIZER_DEBUG_WORD, &ser_debug);
+        pci_peek(i, ID_SERIALIZER, SERIALIZER_S_LOCALE, &ser_locale);
+        //pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_read_fifo_occ );
+        //pci_peek(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_write_fifo_occ );
+
+        pci_peek(i, ID_TSB, TSB_ENTRY_VALID, &tsb_entry_valid );
+        printf(" [%4d][%1d][%8u] gvt:(%9x %9d) (%4d %4d %4d) %6d %4x stack_ptr:%4x | %8d %8x %8x | %x %2d %2d\n",
+                iters, i, cycle, gvt, gvt_tb,
+                n_tasks, n_tied_tasks, heap_capacity,
+                cq_state, tq_debug, stack_ptr,
+                ser_locale, ser_ready, ser_debug, tsb_entry_valid,
+                rw_read_fifo_occ, rw_write_fifo_occ
+              );
+        printf(" coal state:%8x deq: %7d enq: %7d\n", coal_state, coal_deq, coal_enq);
+        pci_poke(i, ID_ALL_APP_CORES, CORE_N_DEQUEUES, logging_phase_tasks);
+        //cq_stats(0, ID_CQ);
+        /*
+           uint32_t l2_debug;
+           uint32_t rw_read_debug, rw_write_debug;
+           uint32_t w_count;
+           uint32_t mshr_valid;
+           uint32_t ocl_l2_debug;
+           uint32_t fifo_size;
+           for (int i=0;i<active_tiles;i++) {
+           pci_peek(i, ID_L2_RW, L2_DEBUG_WORD, &l2_debug);
+           pci_peek(i, ID_RW_READ, CORE_DEBUG_WORD, &rw_read_debug);
+           pci_peek(i, ID_RW_WRITE, CORE_DEBUG_WORD, &rw_write_debug);
+           pci_peek(i, ID_L2_RW, L2_DEBUG_WORD + 4, &w_count);
+           pci_peek(i, ID_L2_RW, L2_DEBUG_WORD + 8, &mshr_valid);
+           printf("%d RW %8x (%8x) rw_read:%8x write:%8x mshr:%8x \n",
+           i, l2_debug, w_count,
+           rw_read_debug, rw_write_debug, mshr_valid
+           );
+           pci_peek(i, ID_L2_RO, L2_DEBUG_WORD, &l2_debug);
+           pci_peek(i, ID_RO_STAGE, CORE_DEBUG_WORD, &rw_write_debug);
+           pci_peek(i, ID_L2_RO, L2_DEBUG_WORD + 8, &mshr_valid);
+           pci_peek(i, ID_OCL_SLAVE, OCL_L2_DEBUG, &ocl_l2_debug);
+           pci_peek(i, ID_RO_STAGE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &fifo_size);
+           printf("%d RO l2:%8x stage:%8x mshr:%8x ocl:%8x \n",
+           i, l2_debug, rw_write_debug, mshr_valid, ocl_l2_debug,
+           fifo_size);
+
+           pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &rw_read_debug);
+           pci_peek(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &rw_write_debug);
+           pci_peek(i, ID_RO_STAGE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, &fifo_size);
+           printf("%d fifo size rw_read:%4x rw_write:%4x ro:%8x\n", i,
+           rw_read_debug, rw_write_debug, fifo_size);
+
+           }
+           if (iters==2999) {
+           printf("ser debug %d %8x %x\n", ser_locale, ser_ready, ser_debug);
+           }
+           */
+    }
+    usleep(1000);
+}

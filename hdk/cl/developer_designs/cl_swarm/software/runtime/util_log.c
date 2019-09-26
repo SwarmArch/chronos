@@ -122,14 +122,14 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
          if (enq_task.valid & enq_task.ready) {
              if (NON_SPEC) {
 
-                fprintf(fw,"[%6d][%10u][] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%4d locale:%6d ttype:%1d arg0:%5d arg1:%5d\n",
+                fprintf(fw,"[%6d][%10u][] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%6x locale:%6x ttype:%1d arg0:%5d arg1:%8x\n",
                    seq, cycle,
                  //  gvt_ts, gvt_tb,
                    n_tasks, n_tied_tasks, heap_capacity,
                    enq_task.slot, enq_ts, enq_locale, enq_ttype,
                    deq_locale, deq_ts);
              } else {
-                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%4d locale:%4d ttype:%1d arg0:%8x arg1:%4d tied:%d epoch:%3d\n",
+                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%6x locale:%6x ttype:%1d arg0:%8x arg1:%4x tied:%d epoch:%3d\n",
      //resp:(ack:%d tile:%2d tsb:%2d)
                    seq, cycle,
                    gvt_ts, gvt_tb,
@@ -294,7 +294,7 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
             fprintf(fw, "[%6d][%10u][%2x:%2x] %s %s %1d %2d %8llx"
                     "(tag:%4x index:%3x) %2d wstrb:%8x_%8x"
                    // "| (%d %2d %d %d) (%d %2d %d %d) (%d %2d %d %d) (%d %2d %d %d)"
-                    "| %1d%1d %8llx %4x | %1d%1d%1d%1d %2d %2d | %2d %d %3d \n ",
+                    "| %1d%1d %8llx %4x | %1d%1d%1d%1d %2d %2d | %2d %d %3d \n",
                     seq, cycle, id >> 8, id & 0xff,  ops[op],
                     hit ? "H": "M",
                     retry, repl_way,
@@ -344,11 +344,17 @@ int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
             unsigned int coal_id = buf[i*16+2]>>16;
             unsigned int num_deq = buf[i*16+3];
             unsigned int state = buf[i*16+4] & 0xff;
-            unsigned int heap_size = buf[i*16+4] >> 8;
+            unsigned int heap_size = (buf[i*16+4] >> 8) & 0xffff;
 
             unsigned int rdata_locale = buf[i*16+5] >> 5;
             unsigned int rdata_ts = buf[i*16+6] >> 5;
             unsigned int rdata_ttype = buf[i*16+7] >> 5;
+
+            if (state == 6) {
+                rdata_locale = 0;
+                rdata_ts = 0;
+                rdata_ttype = 0;
+            }
 
             unsigned int lvt = buf[i*16+9];
             unsigned int s_task_locale = buf[i*16+10];
@@ -361,10 +367,12 @@ int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
                 coal_id_seq++;
             }
 
-            fprintf(fw, "[%6d][%12u][%x] [%8d]  [%d] coal_id:%4x entry:%8x heap:%2d (%8x %8d) \n",
+            fprintf(fw, "[%6d][%12u][%x] [%8d]  [%d] coal_id:%4x entry:%8x heap:%2d (%8x %8d)"
+                      " rdata: (%x %5d %8d)\n",
                     seq, cycle,
                     state, lvt, coal_id_seq, coal_id,  scratchpad_entry,
-                    heap_size, s_task_locale, s_task_ts
+                    heap_size, s_task_locale, s_task_ts,
+                    rdata_ttype, rdata_ts, rdata_locale
                    );
         }
     }
@@ -985,9 +993,10 @@ int log_ro_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
 
            unsigned int rid_mshr_valid_words = (buf[i*16+13] );
 
-           unsigned int remaining_words = (buf[i*16+15])& 0xf00fffff;
-           unsigned int rid_thread = (buf[i*16+15] >> 23) & 0x1f;
-           unsigned int out_data_word_valid = (buf[i*16+15] >> 20) & 0x3;
+           unsigned int remaining_words = (buf[i*16+14])& 0xf00fffff;
+           unsigned int out_data_word_valid = (buf[i*16+14] >> 20) & 0x3;
+           unsigned int rid_thread = (buf[i*16+14] >> 23) & 0x1f;
+           unsigned int remaining_words_cur_rid = (buf[i*16+14] >> 28);
 
            bool f = false;
            if (mem_subtype_valid) {
@@ -1002,14 +1011,15 @@ int log_ro_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
            }
 
            if (non_mem_subtype_valid | (task_in_ready & 0x8)) {
-               fprintf(fw,"[%6d][%10u] [%2x][%1d%1d%1d%1d][%d %x%x] non-mem task_in subtype:%d ts:%5d locale:%5d slot %d finish:%d ab:%x - child: valid:%x untied:%x id:%d %d %d\n",
+               fprintf(fw,"[%6d][%10u] [%2x][%1d%1d%1d%1d][%d %x%x] non-mem task_in subtype:%d ts:%5d locale:%5d slot %d finish:%d ab:%x - child: valid:%x untied:%x id:%d %d %d rem:%2x %x %x\n",
                    seq, cycle,
                    thread_id,
                    s_arready, s_out_ready_untied, s_out_ready_tied, s_finish_task_ready,
                    non_mem_subtype_valid, task_in_valid, task_in_ready,
                    non_mem_subtype, non_mem_ts, non_mem_locale, non_mem_cq_slot, non_mem_task_finish, sched_task_aborted,
                    s_out_task_is_child, s_out_child_untied, out_child_id,
-                   out_ts, out_locale
+                   out_ts, out_locale,
+                   rid_thread, out_data_word_valid, remaining_words_cur_rid
                   );
                f = true;
            }
@@ -1381,10 +1391,12 @@ printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW       
     pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_HEAP_DEQ, &heap_op_deq);
     pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_HEAP_REPLACE, &heap_op_replace);
     printf("heap enq:%9d deq:%9d replace:%9d\n", heap_op_enq, heap_op_deq, heap_op_replace);
+    printf("Total heap ops: %d\n", heap_op_enq + heap_op_deq + heap_op_replace + stat_TASK_UNIT_STAT_N_OVERFLOW);
 
     printf("cycles deq_valid:%9d\n", n_cycles_deq_valid);
 
     // RW_Read stats;
+    /*
     uint32_t rw_read_stats[10] = {0};
     uint32_t rw_write_stats[10] = {0};
     uint32_t ro_stats[10] = {0};
@@ -1397,6 +1409,7 @@ printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW       
         printf("%2x: %9d %9d %9d\n", 0x80 + (i*4),
                 rw_read_stats[i], rw_write_stats[i], ro_stats[i] );
     }
+    */
 
 }
 
@@ -1427,13 +1440,14 @@ void cq_stats (uint32_t tile, uint32_t tot_cycles) {
                idle_cq_full, idle_cc_full, idle_no_task);
 
     uint32_t ttype_stat_deq, ttype_stat_commit;
+    /*
     for (int i=0;i<16;i++) {
         pci_poke(tile, ID_CQ, CQ_LOOKUP_ENTRY, i);
         pci_peek(tile, ID_CQ, CQ_DEQ_TASK_STATS, &ttype_stat_deq);
         pci_peek(tile, ID_CQ, CQ_COMMIT_TASK_STATS, &ttype_stat_commit);
         printf("ttype:%d deq:%9d commit:%9d\n",i, ttype_stat_deq, ttype_stat_commit);
 
-    }
+    }*/
 
     uint32_t conflict_none, conflict_bypassed, conflict_miss, conflict_real;
     pci_peek(tile, ID_CQ, CQ_N_TASK_NO_CONFLICT, &conflict_none);
