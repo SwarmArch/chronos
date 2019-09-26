@@ -10,21 +10,27 @@ module sssp_rw
    input logic             task_in_valid,
    output logic            task_in_ready,
 
-   input task_t            in_task, 
-   input object_t          in_data,
+   input task_t            in_task,  
+   input object_t          in_data, // The data corresponding to the task's locale (i.e distance)
    input cq_slice_slot_t   in_cq_slot,
-   
+  
+   // Data write
    output logic            wvalid,
    output logic [31:0]     waddr,
    output object_t         wdata,
 
+   // Data to be passed to the RO stage
    output logic            out_valid,
    output task_t           out_task,
    output data_t           out_data,
 
-   output logic            sched_task_valid,
+   // The following denotes that the RW portion of the current task has been completed 
+   // For now this is the same as task_in_valid/ready. But may not be if the RW
+   // portion takes multiple cycles
+   output logic            sched_task_valid, 
    input logic             sched_task_ready,
 
+   // Config and Debug bus
    reg_bus_t               reg_bus
 
 );
@@ -75,8 +81,26 @@ end
    end 
 `endif
 
-
 endmodule
+
+/*
+ For SSSP, the RO module needs to the following:
+ 1. Read offsets array
+ 2. Once the offsets are returned, index into the neighbor array and read neighbors.
+ 3. For each neighbor, create a new child task. 
+
+ These 3 steps are implemented as 3 separate sub-tasks. 
+ Each subtask can only do a single memory read (may be of multiple words). 
+ When this read returns, the template would create a new subtask ('resp_task') for 
+ each returned word of the type 'resp_subtype' 
+ In addition, each subtask may create a new sub-task (out_task_is_child=0)
+ OR enqueue a new child ('out_task_is_child=1') via the 'out_task' port.
+
+ The number of subtasks an application has is specified as a config parameter.
+ Chronos maitains a FIFO of tasks of each subtype. One task of each subtype is evaluated at every cycle,
+ and those with non-conflicting resource requirements are scheduled in parallel.
+
+*/ 
 
 module sssp_ro
 #(
@@ -101,7 +125,7 @@ module sssp_ro
    output logic [31:0]     araddr,
    output logic [2:0]      arsize,
    output logic [7:0]      arlen,
-   output task_t           resp_task, //each mem resp will create a new task with this parameters
+   output task_t           resp_task, //each mem resp will create a new sub-task with this parameters
    output subtype_t        resp_subtype,
    output logic            resp_mark_last, // mark the last resp task as last
 
