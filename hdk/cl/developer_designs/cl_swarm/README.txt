@@ -7,6 +7,7 @@ Contents:
 2. Getting started - A tutorial on configuring and running sssp
 3. Chronos software interface
 4. Debugging Chronos
+5. September 2019 update changelog
 
 Directory Structure
 ===================
@@ -246,19 +247,19 @@ to explicitly perform accesses to Chronos hardware registers anymore.
 
 3) Pipelined cores: A new template for specifying Chronos tasks in hardware.
 Tasks coded with this template are higher throughput, takes less area, and
-requires less lines of coding than writing specialize cores for each task.
+requires less lines of coding than writing specialized cores for each task.
 
 All five existing applications have already been mapped to this template,
-proving around ~2X speedup. To try it out, add the 'pipe' option to the
+each proving around ~2X speedup. To try it out, add the 'pipe' option to the
 gen_cores script. 
 e.g,: To generate pipelined sssp cores, run './scripts/gen_cores sssp pipe' at
 step 2 in the tutorial above.
 
 This template requires each task be mapped to a read-write
 (RW) portion followed by a read-only (RO) portion. The RW portion can only
-access the data belonging to the task's locale, while the RO portion can access
+access the data belonging to the task's locale, while the RO portion can read
 any arbitrary read-only data.
 
 e.g,: For SSSP, the RW portion corresponds to reading current distance to the
 node, and then updating it. The RO portion reads the offsets, neighbors and
-creates new tasks. See 'design/apps/sssp/sssp_pipe.sv'.
+creates new tasks. See 'design/apps/sssp/sssp_pipe.sv' for more documentation.
