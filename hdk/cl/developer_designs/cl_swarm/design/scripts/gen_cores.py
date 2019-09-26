@@ -29,6 +29,10 @@ for line in configs:
        cmd = "cp apps/"+app+"/config_pipe.vh app_config.vh";
        print(cmd)
        os.system(cmd)
+       # place an empty file in gen_core_spec.vh, since core.sv fails
+       # compilation without it
+       core_spec = open('gen_core_spec.vh','w')
+       core_spec.write("")
        exit(0)
     if (line.find("ARG_WIDTH") >=0):
         arg_width = int(line.split()[1])

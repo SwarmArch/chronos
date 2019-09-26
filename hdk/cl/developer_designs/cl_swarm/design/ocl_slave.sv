@@ -252,7 +252,11 @@ module ocl_slave
                      end
                      OCL_PARAM_APP_ID : begin
                         state <= OCL_SEND_R;
-                        data <= APP_ID;
+                        `ifdef USE_PIPELINED_TEMPLATE 
+                           data <= APP_ID;
+                        `else 
+                           data <= APP_ID | (1<<16);
+                        `endif
                      end
                      OCL_DONE: begin
                         state <= OCL_SEND_R;
