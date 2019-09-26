@@ -1,7 +1,7 @@
 `define USE_PIPELINED_TEMPLATE
 
 parameter APP_NAME = "color";
-parameter APP_ID = 5;
+parameter APP_ID = 4;
 parameter RISCV = 0;
 
 parameter ARG_WIDTH = 80;
