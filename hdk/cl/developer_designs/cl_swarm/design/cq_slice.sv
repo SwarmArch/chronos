@@ -266,8 +266,10 @@ always_comb begin
          if (from_tq_abort_valid) begin
             ts_array_raddr = from_tq_abort_slot;
          end
-      end else if ((state == UNDO_LOG_RESTORE) & RISCV) begin
-         ts_array_raddr = undo_log_abort_next_cand;
+      end else if (state == UNDO_LOG_RESTORE) begin
+         `ifndef USE_PIPELINED_TEMPLATE
+            ts_array_raddr = undo_log_abort_next_cand;
+         `endif
       end
    end
 end
@@ -598,13 +600,13 @@ always_ff @(posedge clk) begin
          end
          DEQ_CHECK_TS: begin
             if (reg_conflict ==0) begin
-               if (RISCV) begin
+               `ifndef USE_PIPELINED_TEMPLATE
                   state <= (undo_log_abort_pending != 0)   ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
                   undo_log_abort_scratchpad <= undo_log_abort_pending;
                   undo_log_abort_max_ts <= '0;
-               end else begin
+               `else
                   state <= (undo_log_abort_max_ts < '1) ? UNDO_LOG_RESTORE : DEQ_PUSH_TASK;
-               end
+               `endif
             end else begin
                if (abort_ts_check_task) begin
                   if (cq_state[ts_check_id] == FINISHED) begin
@@ -614,14 +616,14 @@ always_ff @(posedge clk) begin
                   end else if (cq_state[ts_check_id] == RUNNING) begin
                      state <= ABORT_REQUEUE;
                   end
-                  if (RISCV) begin
+                  `ifndef USE_PIPELINED_TEMPLATE
                      undo_log_abort_pending[ts_check_id] <= 1'b1;
-                  end else begin
+                  `else
                      if (check_vt < undo_log_abort_max_ts) begin
                         undo_log_abort_max_ts <= check_vt;
                         undo_log_abort_max_ts_index <= ts_check_id;
                      end
-                  end
+                  `endif
                end else begin
                   reg_conflict[ts_check_id] <= 1'b0;
                   state <= DEQ_CHECK_TS;
@@ -640,7 +642,7 @@ always_ff @(posedge clk) begin
             end
          end
          UNDO_LOG_RESTORE: begin
-            if (RISCV) begin
+            `ifndef USE_PIPELINED_TEMPLATE
                // double loop
                // first check inner loop, if it is terminating check outer loop
                if (undo_log_abort_scratchpad_diff == 0) begin
@@ -662,11 +664,11 @@ always_ff @(posedge clk) begin
                   end
                   undo_log_abort_scratchpad <= undo_log_abort_scratchpad_diff;
                end
-            end else begin
+            `else
                if (out_task_valid & out_task_ready) begin
                   state <= DEQ_PUSH_TASK;
                end
-            end 
+            `endif
             
          end
          DEQ_PUSH_TASK: begin
@@ -689,17 +691,17 @@ always_comb begin
       out_task = cur_task;
       out_task_slot = cur_task_slot;
    end else if (state == UNDO_LOG_RESTORE) begin
-      if (RISCV) begin
+      `ifndef USE_PIPELINED_TEMPLATE
          out_task_valid = (undo_log_abort_scratchpad_diff == 0);
          if (undo_log_abort_max_ts < check_vt) begin
             out_task_slot = undo_log_abort_next_cand;
          end else begin
             out_task_slot = undo_log_abort_max_ts_index;
          end
-      end else begin
+      `else
          out_task_valid = 1'b1; 
          out_task_slot = undo_log_abort_max_ts_index;
-      end
+      `endif
       out_task.ttype = TASK_TYPE_UNDO_LOG_RESTORE;
       out_task.locale = cur_task.locale;
       out_task.ts = 'x;
