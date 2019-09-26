@@ -713,8 +713,11 @@ int main(int argc, char *argv[]) {
    char out_file[50];
    char dimacs_file[50];
    char edgesFile[50];
-   int  type = atoi(argv[2]);
    char ext[50];
+   if (argc < 3) {
+      printf("Usage: graph_gen app type=<latlon,grid,gr,color> type_args\n");
+      exit(0);
+   }
    if (strcmp(argv[1], "sssp") ==0) {
       app = APP_SSSP;
       sprintf(ext, "%s", "sssp");
@@ -729,7 +732,7 @@ int main(int argc, char *argv[]) {
    }
 
    startNode = 0;
-   if (type == 0) {
+   if (strcmp(argv[2], "latlon") ==0) {
       // astar type
       LoadGraph(argv[3]);
       int strStart = 0;
@@ -738,7 +741,7 @@ int main(int argc, char *argv[]) {
          if (argv[3][i] == '/') strStart = i+1;
       }
       sprintf(out_file, "%s.%s", argv[3] +strStart, ext);
-   } else if (type == 1) {
+   } else if (strcmp(argv[2], "grid") == 0) {
       int r, c;
       if (app==APP_MAXFLOW) {
          r = atoi(argv[3]);
@@ -752,7 +755,7 @@ int main(int argc, char *argv[]) {
       }
       sprintf(out_file, "grid_%dx%d.%s", r,c, ext);
       sprintf(dimacs_file, "grid_%dx%d.dimacs", r,c);
-   }  else if (type == 2) {
+   } else if (strcmp(argv[2], "gr") == 0) {
       LoadGraphGR(argv[3]);
       int strStart = 0;
       // strip out filename from path
@@ -761,7 +764,7 @@ int main(int argc, char *argv[]) {
       }
       sprintf(out_file, "%s.%s", argv[3] +strStart, ext);
       sprintf(edgesFile, "%s.edges", argv[3] +strStart);
-   }  else if (type == 3) {
+   } else if (strcmp(argv[2], "color") == 0) {
       // coloring type : eg: com-youtube
       LoadGraphEdges(argv[3]);
       int strStart = 0;
