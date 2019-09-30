@@ -164,7 +164,7 @@ logic [TASKS_PER_SPLITTER-1:0] task_fifo_size;
 
    );
 
-assign task_fifo_wr_en = (l1.rvalid & l1.rready) & (state == SPLITTER_WAIT_MEMORY); 
+assign task_fifo_wr_en = (l1.rvalid & l1.rready) & (state == SPLITTER_WAIT_MEMORY) & (l1.rdata[TQ_WIDTH] == 1'b0); 
 assign task_wvalid = !task_fifo_empty;
 assign task_fifo_rd_en = task_wvalid & task_wready;
 
@@ -472,7 +472,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       log_word.s_splitter_locale = s_splitter_task.locale;
       log_word.heap_size = (2**SPLITTER_HEAP_SIZE_STAGES-1-heap_free_space);
       log_word.lvt = lvt;
-      log_word.rdata = l1.rdata;
+      log_word.rdata[126:0] = l1.rdata;
+      log_word.rdata[127] = l1.rdata[TQ_WIDTH];
       log_word.state = state;
       log_word.num_dequeues = num_dequeues;
       log_word.coal_id = coal_id;

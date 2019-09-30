@@ -25,6 +25,8 @@ module coalescer
 
    output logic stack_lock_out,
    input stack_lock_in,
+
+   output ts_t    lvt,
    
    pci_debug_bus_t.master pci_debug
     
@@ -91,6 +93,21 @@ always_ff @(posedge clk) begin
    end else begin
       state <= state_next;
       tasks_remaining <= tasks_remaining_next;
+   end
+end
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      lvt <= '1;
+   end else begin
+      if (!spill_fifo_empty & (lvt > spill_fifo_rd_data.ts)) begin
+         lvt <= spill_fifo_rd_data.ts;
+      end else if (spill_fifo_empty & free_list_full) begin
+         // It is not possible to (cheaply) track the lowest ts coal_child
+         // that hasn't completed yet. So be conservative and do not reset lvt
+         // until coalescer becomes idle.
+         lvt <= '1;
+      end
    end
 end
 
@@ -198,6 +215,19 @@ assign coal_child_task.producer = 1'b1;
 assign coal_child_task.no_write = 1'b1;
 assign coal_child_task.no_read = 1'b0;
 
+logic [3:0] cycles_since_last_deq;
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      cycles_since_last_deq <= 0;
+   end else begin
+      if (spill_fifo_empty & !l1.wvalid) begin
+         cycles_since_last_deq <= cycles_since_last_deq + 1;
+      end else begin
+         cycles_since_last_deq <= 0;
+      end
+   end
+end
+
 always_comb begin
    state_next = state;
    tasks_remaining_next = tasks_remaining;
@@ -294,13 +324,17 @@ always_comb begin
          end
       end
       COAL_WRITE_TASK: begin
-         if (!spill_fifo_empty) begin
+         if (!spill_fifo_empty | (cycles_since_last_deq == '1)) begin
             l1.wvalid = 1'b1;
-            l1.wdata[TQ_WIDTH-1:0] = spill_fifo_rd_data;  
+            if (!spill_fifo_empty) begin
+               l1.wdata[TQ_WIDTH-1:0] = spill_fifo_rd_data;  
+            end else begin
+               l1.wdata[TQ_WIDTH] = 1'b1;
+            end
             l1.wlast = (tasks_remaining == 1);
             l1.wid = reg_awid;
             if (l1.wready) begin
-               spill_fifo_rd_en = 1'b1;
+               spill_fifo_rd_en = !spill_fifo_empty;
                tasks_remaining_next = tasks_remaining - 1;
                if (tasks_remaining == 1) begin
                   state_next = COAL_WRITE_TASK_WAIT; 
@@ -453,7 +487,8 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
       log_word.wid = l1.wid;
       log_word.bid = l1.bid;
       log_word.awaddr = l1.awaddr;
-      log_word.wdata = l1.wdata;
+      log_word.wdata[126:0] = l1.wdata;
+      log_word.wdata[127] = l1.wdata[TQ_WIDTH];
       log_word.tasks_remaining = tasks_remaining;
    end
 

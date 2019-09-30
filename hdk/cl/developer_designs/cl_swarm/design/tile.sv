@@ -112,7 +112,7 @@ pci_debug_bus_t pci_debug[ID_LAST]();
 
 logic coal_stack_lock;
 logic splitter_stack_lock;
-ts_t  splitter_lvt_out;
+ts_t  splitter_lvt_out, coal_lvt_out;
 
 logic [63:0] cur_cycle;
 
@@ -259,6 +259,8 @@ coalescer
 
   .stack_lock_out(coal_stack_lock),
   .stack_lock_in (splitter_stack_lock),
+  .lvt (coal_lvt_out),
+
   .pci_debug(pci_debug[ID_COAL])
 );
 axi_decoder #(
@@ -331,7 +333,8 @@ end else begin
    assign splitter_deq_ready = 1'b0;
 
    assign splitter_lvt_out = '1;
-   
+   assign coal_lvt_out = '1;
+
 end
 
 endgenerate
@@ -651,8 +654,9 @@ ts_t lvt_cm_out; // 0 cycle delay
 vt_t lvt_cm_fixed;
 ts_t lvt_cm_rolling; // 0 cycle delay
 vt_t lvt_tsb_out; // (LOG_TSB_SIZE) cycle delay
-vt_t lvt_splitter_fixed; 
-ts_t lvt_splitter_rolling; 
+ts_t lvt_splitter_fixed, lvt_coal_fixed; 
+ts_t lvt_splitter_rolling, lvt_coal_rolling; 
+vt_t lvt_coal_splitter;
 
 vt_t lvt_tq_cq, lvt_cm_tsb;
 vt_t lvt_tq_cq_cm_tsb;
@@ -662,7 +666,7 @@ assign cur_tb[TB_WIDTH-1: LOG_GVT_PERIOD] = cur_cycle[TB_WIDTH-1:LOG_GVT_PERIOD]
 assign cur_tb[LOG_GVT_PERIOD-1:0] = 0;
 assign lvt_tq_fixed.tb =  cur_tb;
 assign lvt_cm_fixed.tb =  cur_tb; 
-assign lvt_splitter_fixed.tb =  cur_tb; 
+assign lvt_coal_splitter.tb =  cur_tb; 
 assign lvt_tsb_out.tb =  cur_tb; 
 
 
@@ -678,8 +682,11 @@ always_ff @(posedge clk_main_a0) begin
       lvt_cm_tsb <= 0;
       lvt_tq_cq_cm_tsb <= 0;
 
-      lvt_splitter_fixed.ts <= 0;
+      lvt_splitter_fixed <= 0;
+      lvt_coal_fixed <= 0;
       lvt_splitter_rolling <= 0;
+      lvt_coal_rolling <= 0;
+      lvt_coal_splitter.ts <= 0;
 
       lvt <= 0;
    end else begin 
@@ -702,11 +709,19 @@ always_ff @(posedge clk_main_a0) begin
       end
       
       if (cur_cycle[LOG_GVT_PERIOD-1:0] == 0) begin
-         lvt_splitter_fixed.ts <= lvt_splitter_rolling;
+         lvt_splitter_fixed <= lvt_splitter_rolling;
          lvt_splitter_rolling <= splitter_lvt_out;
       end else begin
          if (splitter_lvt_out < lvt_splitter_rolling) begin
             lvt_splitter_rolling <= splitter_lvt_out;
+         end
+      end
+      if (cur_cycle[LOG_GVT_PERIOD-1:0] == 0) begin
+         lvt_coal_fixed <= lvt_coal_rolling;
+         lvt_coal_rolling <= coal_lvt_out;
+      end else begin
+         if (coal_lvt_out < lvt_coal_rolling) begin
+            lvt_coal_rolling <= coal_lvt_out;
          end
       end
       
@@ -717,8 +732,11 @@ always_ff @(posedge clk_main_a0) begin
       if (cur_cycle[LOG_GVT_PERIOD-1:0] == 9) begin
          lvt_tq_cq_cm_tsb <= (lvt_tq_cq < lvt_cm_tsb) ? lvt_tq_cq : lvt_cm_tsb;
       end
+      if (cur_cycle[LOG_GVT_PERIOD-1:0] == 9) begin
+         lvt_coal_splitter.ts <= (lvt_coal_fixed < lvt_splitter_fixed) ? lvt_coal_fixed : lvt_splitter_fixed;
+      end
       if (cur_cycle[LOG_GVT_PERIOD-1:0] == 10) begin
-         lvt <= (lvt_tq_cq_cm_tsb < lvt_splitter_fixed) ? lvt_tq_cq_cm_tsb : lvt_splitter_fixed;
+         lvt <= (lvt_tq_cq_cm_tsb < lvt_coal_splitter) ? lvt_tq_cq_cm_tsb : lvt_coal_splitter;
       end
       
    end

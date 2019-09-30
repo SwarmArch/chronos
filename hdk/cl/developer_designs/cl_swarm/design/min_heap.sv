@@ -25,7 +25,7 @@ module min_heap #(
    parameter N_STAGES = 10,
    parameter PRIORITY_WIDTH = 32,
    parameter DATA_WIDTH = 33,
-   parameter PSEUDO_SORTED = 1 // pseudo-sort such that large elememnts go in the right branch
+   parameter DETERMINISTIC = 0 
 ) (
    input clk,
    input rstn,
@@ -148,7 +148,7 @@ module min_heap #(
          .STAGE_ID(i),
          .PRIORITY_WIDTH(PRIORITY_WIDTH),
          .DATA_WIDTH(DATA_WIDTH),
-         .PSEUDO_SORTED(PSEUDO_SORTED)
+         .DETERMINISTIC(DETERMINISTIC)
       ) HEAP_STAGE (
          .clk(clk),
          .rstn(rstn),
@@ -272,7 +272,7 @@ module heap_stage
    parameter N_STAGES,
    parameter PRIORITY_WIDTH,
    parameter DATA_WIDTH,
-   parameter PSEUDO_SORTED
+   parameter DETERMINISTIC
 ) (
    input clk,
    input rstn,
@@ -307,11 +307,20 @@ module heap_stage
    logic [PRIORITY_WIDTH-1:0] cur_ts;
    logic [DATA_WIDTH-1:0] cur_data;
 
+   logic [1:0] random;
+
    always_ff @(posedge clk) begin
        cur_op <= in_op;
        cur_pos <= in_pos;
        cur_ts <= in_ts;
        cur_data <= in_data;
+   end
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         random <= 0;
+      end else begin
+         random <= random+1;
+      end
    end
 
    always_comb begin
@@ -359,7 +368,7 @@ module heap_stage
                wr_en_c = 1'b1;
                waddr_c = cur_pos;
             end
-            if (PSEUDO_SORTED) begin
+            if (DETERMINISTIC) begin
                if ((rdata_0_n.capacity ==0) | 
                      (rdata_1_n.active & (rdata_1_n.capacity > 0) & (cur_ts > rdata_1_n.ts) ) ) begin
                   out_pos = cur_pos * 2 + 1;
@@ -367,8 +376,10 @@ module heap_stage
                   out_pos = cur_pos * 2; 
                end
             end else begin
-               // always try to go left
-               if (rdata_0_n.capacity > 0) begin
+               // if can both ways, randomize
+               if ( (rdata_0_n.capacity > 0) & (rdata_1_n.capacity > 0)) begin
+                  out_pos = cur_pos * 2 + random[1]; // chose bit 1 because bit 0 may never change at full rate 
+               end else if (rdata_0_n.capacity > 0) begin
                   out_pos = cur_pos * 2; 
                end else begin
                   out_pos = cur_pos * 2 + 1;
@@ -461,6 +472,8 @@ module heap_stage
 
          end
          DEQ_MAX: begin
+            // Can we do DEQ_MAX operations on successive cycles?
+            // No. No bypass from wr_data of stage n to rd_data of stage n-1
             out_op = DEQ_MAX;
             if (!rdata_c.active) begin
                // pass it down on the token pipeline
@@ -470,7 +483,9 @@ module heap_stage
                wr_en_c = 1'b1;
                waddr_c = cur_pos;
                wdata_c.capacity = rdata_c.capacity + 1;
-               if (rdata_1_n.active) begin
+               if ( (rdata_1_n.active & rdata_0_n.active) & !DETERMINISTIC) begin
+                  out_pos = cur_pos * 2 + random[1];
+               end else if (rdata_1_n.active) begin
                   out_pos = cur_pos * 2 + 1;
                end else if (rdata_0_n.active) begin
                   out_pos = cur_pos * 2;

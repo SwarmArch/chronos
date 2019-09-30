@@ -129,11 +129,8 @@ module task_unit
 
 );
 
-   enum logic [2:0] {TQ_NORMAL, 
-      TQ_SPILL_ENQ_READ_ARRAY, TQ_SPILL_ENQ,
-      TQ_SPILL_DEQ, TQ_SPILL_OVERFLOW, 
-      TQ_HEAP_CLEAN, TQ_HEAP_ENQ_READ_ARRAY, TQ_HEAP_ENQ} tq_state;
 
+   enum logic [1:0] {TQ_NORMAL, TQ_DEQ_MAX, TQ_OVERFLOW} tq_state;
 
    // 1. Tied bitvector
    logic       tied_task [0:2**LOG_TQ_SIZE-1];
@@ -171,19 +168,6 @@ module task_unit
       end 
    end
   
-   // Task was aborted or spilled before it was dequeued,
-   // Prevents such tasks from being considered for spilling
-   logic             invalid_before_deq [0:2**LOG_TQ_SIZE-1];
-   logic             invalid_before_deq_wr_en;
-   tq_slot_t         invalid_before_deq_wr_addr;
-   logic             invalid_before_deq_wr_data;
-
-   always_ff @(posedge clk) begin
-      if (invalid_before_deq_wr_en) begin
-         invalid_before_deq[invalid_before_deq_wr_addr] <= invalid_before_deq_wr_data;
-      end 
-   end
-
    // 3. Epoch
    epoch_t     epoch [0:2**LOG_TQ_SIZE-1];
    logic       epoch_wr_en;
@@ -195,7 +179,6 @@ module task_unit
          epoch[i] = 0;
          tied_task[i] = 0;
          dequeued_task[i] = 0;
-         invalid_before_deq[i] = 1;
       end
    end
 
@@ -237,19 +220,25 @@ module task_unit
    
    tq_heap_elem_t reg_next_insert_elem ;
    logic          reg_next_insert_elem_valid;
+
+   logic          heap_re_enq_elem_valid; // when deq_max returns a tied task
+   tq_heap_elem_t heap_re_enq_elem;
+
+   tq_heap_elem_t heap_enq_elem;
+
    
    logic heap_ready;
    logic heap_out_valid;
    heap_op_t heap_in_op;
 
    tq_heap_elem_t next_deque_elem;
+   tq_heap_elem_t next_max_elem, reg_spill_heap_enq;
+   logic next_max_elem_valid, reg_spill_heap_enq_valid;
    logic deq_task;
+   logic spill_heap_deq_task;
    logic [TQ_STAGES-1:0] heap_capacity;
 
-   logic heap_clean_enq;
-   logic heap_clean_deq;
-
-   logic unused_bit;
+   logic unused_1, unused_2;
    
    min_heap #(
       .N_STAGES(TQ_STAGES),
@@ -259,20 +248,20 @@ module task_unit
       .clk(clk),
       .rstn(rstn),
 
-      .in_ts({reg_next_insert_elem.ts, reg_next_insert_elem.producer}),
-      .in_data( {reg_next_insert_elem.slot, reg_next_insert_elem.splitter, reg_next_insert_elem.epoch, reg_next_insert_elem.non_spec} ),
+      .in_ts({heap_enq_elem.ts, heap_enq_elem.producer}),
+      .in_data( {heap_enq_elem.slot, heap_enq_elem.splitter, heap_enq_elem.epoch, heap_enq_elem.non_spec} ),
       .in_op(heap_in_op),
       .ready(heap_ready),
 
-      .out_ts({next_deque_elem.ts, unused_bit}),  
+      .out_ts({next_deque_elem.ts, unused_1}),  
       .out_data( {next_deque_elem.slot, next_deque_elem.splitter, next_deque_elem.epoch, next_deque_elem.non_spec} ),
       .out_valid(heap_out_valid),
    
       .capacity(heap_capacity),
 
-      .max_out_ts(),
-      .max_out_data(),
-      .max_out_valid()
+      .max_out_ts({next_max_elem.ts, next_max_elem.producer} ),
+      .max_out_data( {next_max_elem.slot, next_max_elem.splitter, next_max_elem.epoch, next_max_elem.non_spec}),
+      .max_out_valid(next_max_elem_valid)
    );
 
    // 6. Spill heap
@@ -289,6 +278,10 @@ module task_unit
    tq_slot_t spill_next_deque_elem_slot;
    logic [LOG_TQ_SPILL_SIZE-1:0] spill_heap_capacity;
 
+   logic overflow_epoch_fifo_full, overflow_epoch_fifo_empty;
+   tq_slot_t overflow_epoch_fifo_rd_data;
+   logic overflow_epoch_fifo_rd_en;
+
 generate
 if (!NO_SPILLING) begin
    min_heap #(
@@ -304,7 +297,7 @@ if (!NO_SPILLING) begin
       .in_op(spill_heap_in_op),
       .ready(spill_heap_ready),
 
-      .out_ts(spill_next_deque_elem_ts), // unused 
+      .out_ts(spill_next_deque_elem_ts),  
       .out_data(spill_next_deque_elem_slot),
       .out_valid(spill_heap_out_valid),
    
@@ -321,6 +314,23 @@ end else begin
    assign spill_heap_capacity = 0;
 end   
 endgenerate
+   
+   fifo #(
+      .LOG_DEPTH(2)
+   ) OVERFLOW_EPOCH_UPDATE (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wr_en(spill_heap_deq_task),
+      .rd_en(overflow_epoch_fifo_rd_en),
+      .wr_data(spill_next_deque_elem_slot),
+
+      .full(overflow_epoch_fifo_full), 
+      .empty(overflow_epoch_fifo_empty),
+      .rd_data(overflow_epoch_fifo_rd_data),
+
+      .size()
+   );
 
    // 7. Free List
    
@@ -360,11 +370,6 @@ endgenerate
 
    tq_slot_t n_tied_tasks;
    tq_slot_t n_tasks;
-
-   tq_slot_t tq_walk_addr;
-   tq_slot_t spill_check_tasks_limit; // number of task array entries to check for spilling
-   tq_slot_t spill_check_tasks_cur; // number of tasks checked in the current spilling run
-   tq_slot_t spill_check_tasks_end;
 
    logic tq_stall;
    logic tq_started;
@@ -418,97 +423,68 @@ endgenerate
          task_unit_throttle_ts <= gvt.ts + task_unit_throttle_margin;
       end
    end
+
+   logic can_issue_deq_max;
+   logic [15:0] deq_max_count;
+
+   logic deq_max_propagation_delay_inc;
+   assign can_issue_deq_max = (tq_state == TQ_DEQ_MAX) & !empty & (deq_max_count != 2 * task_unit_spill_size);
+   assign deq_max_propagation_delay_inc =  (empty | (deq_max_count == 2*task_unit_spill_size) | 
+               (spill_heap_capacity < ( 2**LOG_TQ_SPILL_SIZE -1 - task_unit_spill_size)) );
+
+   logic [3:0] deq_max_propagation_delay;
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         deq_max_propagation_delay <= 0;
+      end else begin
+         if (deq_max_propagation_delay_inc) begin
+            deq_max_propagation_delay <= deq_max_propagation_delay + 1;
+         end else begin
+            deq_max_propagation_delay <=0;
+         end
+      end
+   end
    
    // tq_state FSM
    always_ff @(posedge clk) begin
       if (!rstn) begin
          tq_state <= TQ_NORMAL;
-         tq_walk_addr <= 0;
       end else if (!tq_stall) begin
          case (tq_state) 
             TQ_NORMAL: begin
-            // if the same enq triggers both spill and clean, do spill first and
-            // then check for clean. This might cause capacity to overshoot
-            // clean_threshold, hence do a '<' comparison 
-               if (n_tasks == task_spill_threshold & (!NO_SPILLING)) begin
-                  tq_state <= TQ_SPILL_ENQ_READ_ARRAY;
-                  //tq_walk_addr <= 0; // do not reset counter for fairness of high-index entries
-                  spill_check_tasks_cur <= 0;
-                  spill_check_tasks_end <= tq_walk_addr - 1;
-               end else if (heap_capacity < task_unit_clean_threshold) begin
-                  tq_state <= TQ_HEAP_CLEAN;
+               if ( ((n_tasks >= task_spill_threshold) | (heap_capacity < 16)) & (!NO_SPILLING)) begin
+                  tq_state <= TQ_DEQ_MAX;
+                  deq_max_count <= 0;
                end
             end
-            TQ_SPILL_ENQ_READ_ARRAY: begin
-               tq_state <= TQ_SPILL_ENQ;
+            TQ_DEQ_MAX: begin
+               if ( deq_max_propagation_delay_inc & (deq_max_propagation_delay == '1)) begin
+                   tq_state <= TQ_OVERFLOW;
+                end
+                if (heap_in_op == DEQ_MAX) begin
+                  deq_max_count <= deq_max_count + 1;
+                end
             end
-            TQ_SPILL_ENQ: begin
-               //if (tq_walk_addr == (2**LOG_TQ_SIZE) -1) begin  
-               if ( (spill_check_tasks_cur == spill_check_tasks_limit) 
-                     || (tq_walk_addr == (spill_check_tasks_end) )) begin
-                  tq_state <= TQ_SPILL_DEQ;
-               end else begin
-                  if (spill_heap_in_op != NOP) begin
-                     tq_state <= TQ_SPILL_ENQ_READ_ARRAY;
-                     spill_check_tasks_cur <= spill_check_tasks_cur + 1;
-                  end
-                  tq_walk_addr <= tq_walk_addr + 1;
-               end
-            end
-            TQ_SPILL_DEQ: begin
-               // While in a spilling phase, the task unit should be able to
-               // accept coalecer children. Coalescer will deadlock otherwise
-               if (!coal_child_ready & spill_heap_ready) begin
-                  tq_state <= TQ_SPILL_OVERFLOW;
-               end
-            end
-            TQ_SPILL_OVERFLOW: begin
-               if (overflow_valid & overflow_ready) begin
-                  if (spill_heap_capacity == (2**LOG_TQ_SPILL_SIZE-1) ) begin
-                     tq_state <= TQ_NORMAL;
-                  end else begin
-                     tq_state <= TQ_SPILL_DEQ;
-                  end
-               end
-            end
-            TQ_HEAP_CLEAN: begin
-               if (empty) begin
-                  tq_state <= TQ_HEAP_ENQ_READ_ARRAY;
-                  tq_walk_addr <= 0;
-               end
-            end
-            TQ_HEAP_ENQ_READ_ARRAY: begin
-               if (!invalid_before_deq[tq_walk_addr] & !dequeued_task[tq_walk_addr]) begin
-                  tq_state <= TQ_HEAP_ENQ;
-               end else begin
-                  tq_walk_addr <= tq_walk_addr + 1;
-                  if (tq_walk_addr == (2**LOG_TQ_SIZE) -1) begin
-                     tq_state <= TQ_NORMAL;
-                  end
-               end
-            end
-            TQ_HEAP_ENQ: begin
-               if (tq_walk_addr == (2**LOG_TQ_SIZE) -1) begin
+            TQ_OVERFLOW: begin
+               if (spill_heap_capacity == ( 2**LOG_TQ_SPILL_SIZE - 1)) begin
                   tq_state <= TQ_NORMAL;
-               end else begin
-                  tq_state <= TQ_HEAP_ENQ_READ_ARRAY;
-                  tq_walk_addr <= tq_walk_addr +1;
                end
             end
          endcase
       end
-
    end
 
    tq_slot_t tq_read_addr_q;
    tq_slot_t splitter_deq_slot;
+
+   logic spill_heap_deq_task_q;
    
    //did we take a abort_child msg last cycle; 
    //if so the value read from the array is not of the next_deque_elem 
    logic abort_child_ready_q;  
 
    logic cut_ties_epoch_match;
-   logic deq_epoch_match;
+   logic deq_epoch_match, max_epoch_match;
    assign cut_ties_epoch_match = (epoch[cut_ties_tq_slot] == cut_ties_epoch);
    
    // Scheduler
@@ -519,114 +495,69 @@ endgenerate
       commit_task_ready = 1'b0;
       abort_child_ready = 1'b0;
       abort_task_ready = 1'b0;
-      spill_heap_in_op = NOP;
-      overflow_valid = 1'b0;
-      heap_clean_enq = 1'b0;
-      heap_clean_deq = 1'b0;
 
       deq_task = 1'b0;
+      spill_heap_deq_task = 1'b0;
 
       tq_read_addr = 'x;
       if (!tq_stall) begin
-         case (tq_state) 
-         TQ_NORMAL: begin
-            tq_read_addr = next_deque_elem.slot;
-            // commit OR abort_child
-            if (commit_task_valid) begin
-               commit_task_ready = 1'b1;
-            end else if (abort_child_valid & !cq_child_abort_valid & !abort_resp_valid &
-                  // If a task that is waiting to be accepted by the CQ 
-                  // receives an abort msg, wait until CQ accepts it 
-                  // (OR until n cycles have elapsed, so deq_valid could be
-                  // temperorily pulled down) before processing the abort.
-                     !(task_deq_valid_reg & task_deq_valid &
-                        (task_deq_tq_slot == abort_child_tq_slot))      
-                     ) begin
-               // epoch checking unnecessary. there is no op that can increase
-               // the epoch before an abort_child msg
-               abort_child_ready = 1'b1;
-               tq_read_addr = abort_child_tq_slot; // to read the ts: hold back lvt
-            end
-            // enq OR (cut_tie AND (deq (if not abort_child) OR abort_requeue))
-            if ( coal_child_valid & !reg_next_insert_elem_valid &
-                !(abort_child_ready & !(dequeued_task[abort_child_tq_slot])) ) begin
-               // cannot take enq_task if aborting a non-dequeued child. 
-               // conflict in the invalid_before_deq write
-               coal_child_ready = 1'b1;   
-            end else if (task_enq_valid & !reg_next_insert_elem_valid & !task_resp_valid &
-                !(abort_child_ready & !(dequeued_task[abort_child_tq_slot])) & !almost_full ) begin
-               task_enq_ready = 1'b1;
-            end else begin
-               if (cut_ties_valid) begin
-                  cut_ties_ready = 1'b1;
-               end
-               if (abort_task_valid & !reg_next_insert_elem_valid) begin
-                  abort_task_ready = 1'b1;
-               end else if (heap_ready & heap_out_valid & tq_started & !abort_child_ready
-                   &  (next_deque_elem.ts < task_unit_throttle_ts)
-                   &  (!next_deque_elem.non_spec | (next_deque_elem.ts == gvt.ts))
-                  ) begin 
-                  tq_read_addr = next_deque_elem.slot;
-                  if (next_deque_elem.splitter) begin
-                     deq_task = !splitter_deq_valid & !commit_task_ready; 
-                  end else begin
-                     deq_task = !task_deq_valid_reg | !deq_epoch_match; 
-                  end
-               end
-            end
+         tq_read_addr = next_deque_elem.slot;
+         // commit OR abort_child
+         if (commit_task_valid) begin
+            commit_task_ready = 1'b1;
+         end else if (abort_child_valid & !cq_child_abort_valid & !abort_resp_valid &
+               // If a task that is waiting to be accepted by the CQ 
+               // receives an abort msg, wait until CQ accepts it 
+               // (OR until n cycles have elapsed, so deq_valid could be
+               // temperorily pulled down) before processing the abort.
+                  !(task_deq_valid_reg & task_deq_valid &
+                     (task_deq_tq_slot == abort_child_tq_slot))      
+                  ) begin
+            // epoch checking unnecessary. there is no op that can increase
+            // the epoch before an abort_child msg
+            abort_child_ready = 1'b1;
+            tq_read_addr = abort_child_tq_slot; // to read the ts: hold back lvt
          end
-         TQ_SPILL_ENQ_READ_ARRAY: begin
-            tq_read_addr = tq_walk_addr; 
-         end
-         TQ_SPILL_ENQ: begin
-            if (!tied_task[tq_walk_addr] & !dequeued_task[tq_walk_addr] 
-                  & !invalid_before_deq[tq_walk_addr]) begin
-               if (spill_heap_capacity > ( 2**LOG_TQ_SPILL_SIZE -1 - task_unit_spill_size)) begin
-                  spill_heap_in_op = ENQ;
-               end else if (tq_read_data.ts > spill_next_deque_elem_ts) begin
-                  spill_heap_in_op = REPLACE;
+         // enq OR (cut_tie AND (deq (if not abort_child) OR abort_requeue))
+         if ( coal_child_valid & !reg_next_insert_elem_valid) begin
+            coal_child_ready = 1'b1;   
+         end else if (task_enq_valid & !reg_next_insert_elem_valid & !task_resp_valid & !almost_full) begin
+            task_enq_ready = 1'b1;
+         end else begin
+            if (cut_ties_valid) begin
+               cut_ties_ready = 1'b1;
+            end
+            if (abort_task_valid & !reg_next_insert_elem_valid) begin
+               abort_task_ready = 1'b1;
+            end else if (heap_ready & heap_out_valid & tq_started & !abort_child_ready 
+                &  (next_deque_elem.ts < task_unit_throttle_ts)
+                &  (!next_deque_elem.non_spec | (next_deque_elem.ts == gvt.ts))
+               ) begin 
+               tq_read_addr = next_deque_elem.slot;
+               if (next_deque_elem.splitter) begin
+                  deq_task = !splitter_deq_valid & !commit_task_ready; 
+               end else begin
+                  deq_task = !task_deq_valid_reg | !deq_epoch_match; 
                end
-            end
-            if (spill_heap_in_op == NOP) begin
-               tq_read_addr = tq_walk_addr + 1;
-            end
-         end
-         TQ_SPILL_DEQ: begin
-            if (coal_child_valid & !reg_next_insert_elem_valid) begin
-               coal_child_ready = 1'b1;   
-            end else if (spill_heap_ready) begin
-               // deq from the spill_heap, read the array entry and set
-               // overflow_valid next cycle
+            end else if (!abort_child_ready & (tq_state == TQ_OVERFLOW)  
+                  & overflow_ready // Ideally, this check should be done next cycle, but it not change until then
+                  & spill_heap_ready & !overflow_epoch_fifo_full & (spill_heap_capacity != '1)) begin
                tq_read_addr = spill_next_deque_elem_slot;
-               spill_heap_in_op = DEQ_MIN;
+               spill_heap_deq_task = 1'b1;
             end
          end
-         TQ_SPILL_OVERFLOW: begin
-            if (coal_child_valid & !reg_next_insert_elem_valid) begin
-               coal_child_ready = 1'b1;   
-            end else begin
-               overflow_valid = 1'b1;
-            end
-            tq_read_addr = tq_read_addr_q; 
-         end
-         TQ_HEAP_CLEAN: begin
-            if (heap_ready) deq_task = 1'b1;
-         end
-         TQ_HEAP_ENQ_READ_ARRAY: begin
-            tq_read_addr = tq_walk_addr;
-         end
-         TQ_HEAP_ENQ: begin
-            heap_clean_enq = 1'b1;
-         end
-         endcase
       end
    end
 
    always_ff @(posedge clk) begin
       tq_read_addr_q <= tq_read_addr;
       abort_child_ready_q <= abort_child_ready;
+      spill_heap_deq_task_q <= spill_heap_deq_task;
    end
-   
+
+   assign overflow_valid = spill_heap_deq_task_q;
+  
+   assign max_epoch_match = (epoch[next_max_elem.slot] == next_max_elem.epoch);
    assign deq_epoch_match = (epoch[next_deque_elem.slot] == next_deque_elem.epoch); 
    logic deq_splitter, deq_non_splitter;
    logic deq_splitter_q, deq_non_splitter_q;
@@ -634,7 +565,7 @@ endgenerate
    always_comb begin
       deq_splitter = 1'b0;
       deq_non_splitter = 1'b0;
-      if ( (tq_state == TQ_NORMAL) & deq_task & deq_epoch_match) begin
+      if (deq_task & deq_epoch_match) begin
          if (next_deque_elem.splitter) begin
             deq_splitter = 1'b1;
          end else begin
@@ -642,12 +573,40 @@ endgenerate
          end
       end
    end
+
+   logic max_elem_is_tied;
+   always_comb begin
+      assign max_elem_is_tied = tied_task[next_max_elem.slot];
+   end
+
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         heap_re_enq_elem_valid <= 1'b0;
+         reg_spill_heap_enq_valid <= 1'b0;
+      end else begin
+         if (next_max_elem_valid & max_epoch_match & max_elem_is_tied) begin
+            heap_re_enq_elem_valid <= 1'b1;
+            heap_re_enq_elem <= next_max_elem;
+         end else if (heap_ready) begin
+            // heap has priority for taking this
+            heap_re_enq_elem_valid <= 1'b0;
+         end
+         if (next_max_elem_valid & max_epoch_match & !max_elem_is_tied ) begin
+            reg_spill_heap_enq_valid <= 1'b1;
+            reg_spill_heap_enq <= next_max_elem;
+         end else begin
+            // No need to ensure spill_heap is ready. it should be given the
+            // 2 cycles/task throughput of both heaps.
+            reg_spill_heap_enq_valid <= 1'b0;
+         end
+      end
+   end
+
    
    logic [2:0] deq_valid_cycle_count; 
    // If the CQ did not accept the task even after 7 cycles, temperorily set
    // deq_valid = 0, so that deq_task can be checked for a child abort msg
-   assign task_deq_valid = (task_deq_valid_reg & (deq_valid_cycle_count != 7)) &
-            (!NON_SPEC | (tq_state == TQ_NORMAL)) ;
+   assign task_deq_valid = (task_deq_valid_reg & (deq_valid_cycle_count != 7));
    // if non_spec, cannot accept commit_task msgs if spilling
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -689,7 +648,7 @@ endgenerate
             ) begin
             // The condition on cq_max_vt_ts is necessary because otherwise cq
             // might resource-abort a task that has a lower vt than any
-            // unfinished task in the tile; causing the GVT to temperoritly 
+            // unfinished task in the tile; causing the GVT to temperorily 
             // go back while the abort is being completed
             task_deq_force <= 1'b1;
          end else begin
@@ -757,47 +716,25 @@ endgenerate
    assign cq_slot_wr_addr = task_deq_tq_slot;
    assign cq_slot_wr_data = task_deq_cq_slot;
 
-      // invalid_before_deq 
-   initial begin
-      for (int i=0;i<2**LOG_TQ_SIZE;i++) begin
-         invalid_before_deq[i] = 1'b1;
-      end
-   end
-   always_comb begin
-      invalid_before_deq_wr_en  = 1'b0;
-      invalid_before_deq_wr_addr = 'x;
-      invalid_before_deq_wr_data = 'x;
-      if (coal_child_ready | task_enq_ready) begin
-         invalid_before_deq_wr_en = 1'b1;
-         invalid_before_deq_wr_addr = next_free_tq_slot;
-         invalid_before_deq_wr_data = 1'b0;
-      end else if (abort_child_ready & !dequeued_task[abort_child_tq_slot]) begin
-         invalid_before_deq_wr_en = 1'b1;
-         invalid_before_deq_wr_addr = abort_child_tq_slot;
-         invalid_before_deq_wr_data = 1'b1;
-      end else if ( overflow_valid & overflow_ready) begin
-         invalid_before_deq_wr_en = 1'b1;
-         invalid_before_deq_wr_addr = tq_read_addr_q;
-         invalid_before_deq_wr_data = 1'b1;
-      end
-   end
 
    // 3. epoch write / free_list enq
    always_comb begin 
       epoch_wr_en = 1'b0;
       epoch_wr_addr = 'x;
+      overflow_epoch_fifo_rd_en = 1'b0;
       if (commit_task_ready) begin
          epoch_wr_en = 1'b1;
          epoch_wr_addr = commit_task_slot;
       end else if (abort_child_ready) begin
          epoch_wr_en = 1'b1;
          epoch_wr_addr = abort_child_tq_slot;
-      end else if (overflow_valid & overflow_ready) begin
-         epoch_wr_en = 1'b1;
-         epoch_wr_addr = tq_read_addr_q;
       end else if (deq_splitter) begin
          epoch_wr_en = 1'b1;
          epoch_wr_addr = next_deque_elem.slot;
+      end else if (!overflow_epoch_fifo_empty) begin
+         epoch_wr_en = 1'b1;
+         epoch_wr_addr = overflow_epoch_fifo_rd_data;
+         overflow_epoch_fifo_rd_en = 1'b1;
       end
       epoch_wr_data = epoch[epoch_wr_addr]+1;
       add_free_tq_slot_valid = epoch_wr_en;
@@ -806,8 +743,19 @@ endgenerate
    end
 
    // 4. spill_heap enq
-   assign spill_next_insert_elem_ts = tq_read_data.ts;
-   assign spill_next_insert_elem_slot = tq_walk_addr;
+   assign spill_next_insert_elem_ts = reg_spill_heap_enq.ts;
+   assign spill_next_insert_elem_slot = reg_spill_heap_enq.slot;
+   always_comb begin
+      spill_heap_in_op = NOP;
+      if (spill_heap_ready) begin
+         if (reg_spill_heap_enq_valid) begin
+            spill_heap_in_op = ENQ;
+         end else if (spill_heap_deq_task) begin
+            spill_heap_in_op = DEQ_MIN;
+         end
+      end
+
+   end
 
    // Task_heap enq / task_array write / free_list deq
    always_comb begin
@@ -851,13 +799,6 @@ endgenerate
          next_insert_elem.slot = abort_task_slot;
          next_insert_elem.splitter = 1'b0;
          next_insert_elem.producer = 1'b0;
-      end else if (heap_clean_enq) begin
-         next_insert_elem_set = 1'b1;
-         next_insert_elem.ts = tq_read_data.ts;
-         next_insert_elem.epoch = epoch[tq_read_addr_q];
-         next_insert_elem.slot = tq_read_addr_q;
-         next_insert_elem.splitter = (tq_read_data.ttype == TASK_TYPE_SPLITTER);
-         next_insert_elem.producer = tq_read_data.producer;
       end
    end
 
@@ -940,17 +881,22 @@ endgenerate
    always_comb begin
       heap_in_op = NOP;
       next_insert_elem_clear = 1'b0;
+      heap_enq_elem = 'x;
       if (!rstn) begin
       end else begin
          if (heap_ready) begin // cannot start if started last cycle
-            if (reg_next_insert_elem_valid & deq_task) begin
+            if ( (reg_next_insert_elem_valid | heap_re_enq_elem_valid) & deq_task)  begin
                heap_in_op = REPLACE;
-               next_insert_elem_clear = 1'b1;
-            end else if (reg_next_insert_elem_valid) begin
+               next_insert_elem_clear = !heap_re_enq_elem_valid;
+               heap_enq_elem = (heap_re_enq_elem_valid ? heap_re_enq_elem : reg_next_insert_elem);
+            end else if (reg_next_insert_elem_valid | heap_re_enq_elem_valid) begin
                heap_in_op = ENQ;
-               next_insert_elem_clear = 1'b1;
+               next_insert_elem_clear = !heap_re_enq_elem_valid;
+               heap_enq_elem = (heap_re_enq_elem_valid ? heap_re_enq_elem : reg_next_insert_elem);
             end else if (deq_task) begin
                heap_in_op = DEQ_MIN;
+            end else if (can_issue_deq_max) begin
+               heap_in_op = DEQ_MAX;
             end
          end
       end
@@ -1008,6 +954,11 @@ endgenerate
 
    assign lvt_deq_task = (task_deq_valid ? task_deq_data.ts : '1);
    assign lvt_splitter_task = (splitter_deq_valid ? splitter_deq_task.ts : '1);
+
+   ts_t lvt_main_heap, lvt_spill_heap;
+   assign lvt_main_heap = heap_out_valid? next_deque_elem.ts : '1;
+   assign lvt_spill_heap = spill_heap_out_valid ? spill_next_deque_elem_ts : '1; 
+
    
    // A replace op can temperorily set the heap top to be new insert element
    // Therefore take the minimum value of last two cycles
@@ -1022,10 +973,10 @@ endgenerate
                                  lvt_deq_task : lvt_splitter_task;
          if (!tq_started) begin
             lvt_heap_1 <= 0;
-         end else if (heap_out_valid) begin
-            lvt_heap_1 <= next_deque_elem.ts;
-         end else if (empty) begin
-            lvt_heap_1 <= '1;
+         end else if (lvt_main_heap < lvt_spill_heap) begin
+            lvt_heap_1 <= lvt_main_heap;
+         end else begin
+            lvt_heap_1 <= lvt_spill_heap;
          end
          lvt_heap_2 <= (lvt_heap_1 < lvt_deq_splitter) ? lvt_heap_1 : lvt_deq_splitter;
       end
@@ -1070,7 +1021,7 @@ endgenerate
          end
          if (overflow_valid & overflow_ready) begin
             $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d:%4d) overflow     slot:%4d ts:%8x locale:%8x \n",
-               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, add_free_tq_slot,
+               cycle, TILE_ID, new_n_tasks, new_n_tied_tasks, heap_capacity, tq_read_addr_q,
                overflow_data.ts, overflow_data.locale) ;
          end
          if (task_deq_valid & task_deq_ready) begin
@@ -1215,7 +1166,7 @@ if(TQ_STATS[TILE_ID]) begin // Approximate cost: 1000 LUTs/500 FFs
          if (splitter_deq_valid & splitter_deq_ready) begin
             n_splitter_deq <= n_splitter_deq + 1;
          end
-         if (deq_task & !deq_epoch_match & (tq_state == TQ_NORMAL)) begin
+         if (deq_task & !deq_epoch_match ) begin
             n_deq_epoch_mismatch <= n_deq_epoch_mismatch + 1;
          end
          if (cut_ties_valid & cut_ties_ready) begin
@@ -1271,13 +1222,12 @@ if(TQ_STATS[TILE_ID]) begin // Approximate cost: 1000 LUTs/500 FFs
 end 
 endgenerate
 
-   logic alt_log_word;
+   logic [1:0] alt_log_word; // 0-enq_args, 1-deq_ts,locale, 2-heap_ops
 
    always_ff @(posedge clk) begin
       if (!rstn) begin
          task_unit_throttle_margin <= NON_SPEC ? 1000 : 0;
          task_spill_threshold <= SPILL_THRESHOLD;
-         spill_check_tasks_limit <= 64;
          task_unit_tied_capacity <= (2**(LOG_TQ_SIZE-2) -1 );
          task_unit_clean_threshold <= 40;
          task_unit_spill_size <= 32; // has to be muliple of 8
@@ -1297,9 +1247,7 @@ endgenerate
                TASK_UNIT_CLEAN_THRESHOLD : task_unit_clean_threshold <= reg_bus.wdata;
                TASK_UNIT_SPILL_SIZE   : begin 
                      task_unit_spill_size <= reg_bus.wdata;
-                     spill_check_tasks_limit <= reg_bus.wdata * 2; 
                   end
-               TASK_UNIT_SPILL_CHECK_LIMIT   : spill_check_tasks_limit <= reg_bus.wdata; 
                TASK_UNIT_STALL : tq_stall <= reg_bus.wdata;
                TASK_UNIT_START : tq_started <= reg_bus.wdata;
                TASK_UNIT_ALT_LOG : alt_log_word <= reg_bus.wdata;
@@ -1451,10 +1399,10 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.enq_task_coal_child.ready = task_enq_ready;
         log_word.enq_task_coal_child.slot  = next_free_tq_slot;
         log_word.enq_task_coal_child.epoch_1 = epoch[next_free_tq_slot];
-        if (alt_log_word & ARG_WIDTH >= 32) begin
+        if ( (alt_log_word==1) & ARG_WIDTH >= 32) begin
            log_word.deq_locale = task_enq_data.args[31:0] ;
         end
-        if (alt_log_word & ARG_WIDTH >= 64) begin
+        if ( (alt_log_word==1) & ARG_WIDTH >= 64) begin
            log_word.deq_ts   = task_enq_data.args[63:32];
         end
         if (alt_log_word & ARG_WIDTH >= 65) begin
@@ -1476,14 +1424,14 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.deq_task.slot    = task_deq_tq_slot;
         log_word.deq_task.tied    = tied_task[task_deq_tq_slot];
 
-        if (!alt_log_word) begin
+        if (alt_log_word == 0) begin
            log_word.deq_locale = task_deq_data.locale;
            log_word.deq_ts   = task_deq_data.ts;
         end
         log_valid = 1;
      end else if (splitter_deq_valid & splitter_deq_ready) begin
         log_word.deq_task.slot    =  splitter_deq_slot;
-        if (!alt_log_word) begin
+        if (alt_log_word ==0) begin
           log_word.deq_locale = splitter_deq_task.locale;
           log_word.deq_ts   = splitter_deq_task.ts;
         end
@@ -1523,6 +1471,15 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_valid = 1'b1;
      end
      if (overflow_valid & overflow_ready) begin
+        log_valid = 1'b1;
+     end
+     if ((alt_log_word == 2) & next_max_elem_valid) begin
+        log_word.deq_ts[7:0] = next_max_elem.epoch; 
+        log_word.deq_ts[15:8] = epoch[next_max_elem.slot];
+        log_word.deq_ts[28:16] = next_max_elem.slot;
+        log_word.deq_ts[29] = max_elem_is_tied;
+        log_word.deq_ts[30] = 1'b1;
+        log_word.deq_ts[31] = next_max_elem_valid;
         log_valid = 1'b1;
      end
 
