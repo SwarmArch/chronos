@@ -576,7 +576,7 @@ endgenerate
 
    logic max_elem_is_tied;
    always_comb begin
-      assign max_elem_is_tied = tied_task[next_max_elem.slot];
+      max_elem_is_tied = tied_task[next_max_elem.slot];
    end
 
    always_ff @(posedge clk) begin
