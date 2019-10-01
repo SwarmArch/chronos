@@ -40,7 +40,8 @@
    } task_t;
 
 
-   typedef enum logic[2:0] {NOP, ENQ, DEQ_MIN, REPLACE ,DEQ_MAX } heap_op_t;
+   typedef enum logic[2:0] {NOP, ENQ, DEQ_MIN, REPLACE, DEQ_MAX, DEQ_MAX_ENQ,
+   DEQ_MAX_DEQ_MIN, DEQ_MAX_REPLACE } heap_op_t;
    
    typedef logic [511:0] cache_line_t;
    

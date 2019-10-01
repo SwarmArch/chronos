@@ -238,6 +238,8 @@ module task_unit
    logic spill_heap_deq_task;
    logic [TQ_STAGES-1:0] heap_capacity;
 
+   logic heap_deq_max_enq_allowed, heap_deq_max_replace_allowed;
+
    logic unused_1, unused_2;
    
    min_heap #(
@@ -316,7 +318,8 @@ end
 endgenerate
    
    fifo #(
-      .LOG_DEPTH(2)
+      .LOG_DEPTH(2),
+      .WIDTH(LOG_TQ_SIZE)
    ) OVERFLOW_EPOCH_UPDATE (
       .clk(clk),
       .rstn(rstn),
@@ -428,11 +431,12 @@ endgenerate
    logic [15:0] deq_max_count;
 
    logic deq_max_propagation_delay_inc;
-   assign can_issue_deq_max = (tq_state == TQ_DEQ_MAX) & !empty & (deq_max_count != 2 * task_unit_spill_size);
+   assign can_issue_deq_max = (tq_state == TQ_DEQ_MAX) & !empty & (deq_max_count != 2 * task_unit_spill_size) &
+            (deq_max_propagation_delay == 0);
    assign deq_max_propagation_delay_inc =  (empty | (deq_max_count == 2*task_unit_spill_size) | 
                (spill_heap_capacity < ( 2**LOG_TQ_SPILL_SIZE -1 - task_unit_spill_size)) );
 
-   logic [3:0] deq_max_propagation_delay;
+   logic [4:0] deq_max_propagation_delay;
    always_ff @(posedge clk) begin
       if (!rstn) begin
          deq_max_propagation_delay <= 0;
@@ -449,6 +453,7 @@ endgenerate
    always_ff @(posedge clk) begin
       if (!rstn) begin
          tq_state <= TQ_NORMAL;
+         deq_max_count <= 0;
       end else if (!tq_stall) begin
          case (tq_state) 
             TQ_NORMAL: begin
@@ -461,7 +466,7 @@ endgenerate
                if ( deq_max_propagation_delay_inc & (deq_max_propagation_delay == '1)) begin
                    tq_state <= TQ_OVERFLOW;
                 end
-                if (heap_in_op == DEQ_MAX) begin
+                if ((heap_in_op == DEQ_MAX) | (heap_in_op == DEQ_MAX_ENQ) | (heap_in_op == DEQ_MAX_REPLACE)) begin
                   deq_max_count <= deq_max_count + 1;
                 end
             end
@@ -886,11 +891,11 @@ endgenerate
       end else begin
          if (heap_ready) begin // cannot start if started last cycle
             if ( (reg_next_insert_elem_valid | heap_re_enq_elem_valid) & deq_task)  begin
-               heap_in_op = REPLACE;
+               heap_in_op = (can_issue_deq_max & heap_deq_max_replace_allowed) ? DEQ_MAX_REPLACE : REPLACE;
                next_insert_elem_clear = !heap_re_enq_elem_valid;
                heap_enq_elem = (heap_re_enq_elem_valid ? heap_re_enq_elem : reg_next_insert_elem);
             end else if (reg_next_insert_elem_valid | heap_re_enq_elem_valid) begin
-               heap_in_op = ENQ;
+               heap_in_op = (can_issue_deq_max & heap_deq_max_enq_allowed) ? DEQ_MAX_ENQ : ENQ;
                next_insert_elem_clear = !heap_re_enq_elem_valid;
                heap_enq_elem = (heap_re_enq_elem_valid ? heap_re_enq_elem : reg_next_insert_elem);
             end else if (deq_task) begin
@@ -1080,6 +1085,7 @@ endgenerate
 
    logic [31:0] state_stats [0:7];
 
+   logic [31:0] heap_op_stats [0:7];
    logic [31:0] n_heap_enq;
    logic [31:0] n_heap_replace;
    logic [31:0] n_heap_deq;
@@ -1091,11 +1097,13 @@ if(TQ_STATS[TILE_ID]) begin // Approximate cost: 1000 LUTs/500 FFs
    initial begin
       for (integer i=0;i<8;i++) begin
          state_stats[i] = 0;
+         heap_op_stats[i] = 0;
       end
    end
    always_ff @(posedge clk) begin
       if (n_tasks != 0) begin
          state_stats[tq_state] <= state_stats[tq_state] + 1;
+         heap_op_stats[heap_in_op] <= heap_op_stats[heap_in_op] + 1;
       end
    end
    always_ff @(posedge clk) begin
@@ -1223,6 +1231,7 @@ end
 endgenerate
 
    logic [1:0] alt_log_word; // 0-enq_args, 1-deq_ts,locale, 2-heap_ops
+   logic [7:0] stat_id;
 
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -1238,6 +1247,9 @@ endgenerate
          is_transactional <= 1'b0;
          maxflow_global_relabel_trigger_mask <= '1;
          maxflow_global_relabel_trigger_inc <= 1;
+         stat_id <= 0;
+         heap_deq_max_enq_allowed <= 1;
+         heap_deq_max_replace_allowed <= 1;
       end else begin
          if (reg_bus.wvalid) begin
             case (reg_bus.waddr) 
@@ -1251,6 +1263,9 @@ endgenerate
                TASK_UNIT_STALL : tq_stall <= reg_bus.wdata;
                TASK_UNIT_START : tq_started <= reg_bus.wdata;
                TASK_UNIT_ALT_LOG : alt_log_word <= reg_bus.wdata;
+               TASK_UNIT_SET_STAT_ID : stat_id <= reg_bus.wdata;
+               TASK_UNIT_SET_ALLOWED_HEAP_OPS : 
+                  {heap_deq_max_enq_allowed, heap_deq_max_replace_allowed} <= reg_bus.wdata[1:0];
 
                TASK_UNIT_IS_TRANSACTIONAL: is_transactional <= reg_bus.wdata;
                TASK_UNIT_GLOBAL_RELABEL_START_MASK : maxflow_global_relabel_trigger_mask <= reg_bus.wdata;
@@ -1303,6 +1318,9 @@ endgenerate
             
             TASK_UNIT_STATS_0_BEGIN : reg_bus.rdata <= state_stats[{1'b0, reg_bus.araddr[3:2]}];
             TASK_UNIT_STATS_1_BEGIN : reg_bus.rdata <= state_stats[{1'b1, reg_bus.araddr[3:2]}];
+
+            TASK_UNIT_HEAP_OP_STAT_READ : reg_bus.rdata <= heap_op_stats[stat_id];
+            TASK_UNIT_STATE_STAT_READ : reg_bus.rdata <= state_stats[stat_id];
 
             TASK_UNIT_MISC_DEBUG : reg_bus.rdata <= {overflow_valid, overflow_ready, abort_child_valid, task_enq_valid, cut_ties_valid, cq_child_abort_valid, abort_task_valid, abort_resp_valid, task_deq_valid_reg, commit_task_valid, task_deq_ready};
          endcase

@@ -124,6 +124,12 @@ module min_heap #(
          next_heap_entry.active = 1'b1;
          next_heap_entry.ts = in_ts;
          next_heap_entry.data = in_data;
+      end else if (pipe_op[0] == DEQ_MAX_REPLACE) begin
+         stage_0_wr_en = 1'b1;
+         next_heap_entry.active = 1'b1;
+         next_heap_entry.ts = in_ts;
+         next_heap_entry.data = in_data;
+         next_heap_entry.capacity = min_entry.capacity + 1;
       end else if (pipe_op[0] == DEQ_MIN) begin
          stage_0_wr_en = 1'b1;
          next_heap_entry.capacity = min_entry.capacity + 1;
@@ -342,13 +348,15 @@ module heap_stage
       wr_en_n = 1'b0;
 
       case(cur_op)
-         ENQ: begin
+         ENQ, DEQ_MAX_ENQ: begin
             if (!rdata_c.active) begin
-               wdata_c.active = 1'b1;
+               wdata_c.active = (cur_op == ENQ);
                wdata_c.ts = cur_ts;
                wdata_c.data = cur_data;
-               wdata_c.capacity = rdata_c.capacity -1;
-               out_op = NOP;
+               wdata_c.capacity = rdata_c.capacity -1 + ((cur_op==DEQ_MAX_ENQ) ? 1 :0);
+               out_op = (cur_op == ENQ) ? NOP : DEQ_MAX;
+               out_ts = cur_ts;
+               out_data = cur_data;
                wr_en_c = 1'b1;
                waddr_c = cur_pos;
             end else if (cur_ts < rdata_c.ts) begin
@@ -358,13 +366,13 @@ module heap_stage
                wdata_c.ts = cur_ts;
                wdata_c.data = cur_data;
                wdata_c.active = 1'b1;
-               wdata_c.capacity = rdata_c.capacity -1;
+               wdata_c.capacity = rdata_c.capacity -1 + ((cur_op==DEQ_MAX_ENQ) ? 1 :0);
                wr_en_c = 1'b1;
                waddr_c = cur_pos;
             end else begin
                out_ts = cur_ts;
                out_data = cur_data;
-               wdata_c.capacity = rdata_c.capacity -1;
+               wdata_c.capacity = rdata_c.capacity -1 + ((cur_op==DEQ_MAX_ENQ) ? 1 :0);
                wr_en_c = 1'b1;
                waddr_c = cur_pos;
             end
@@ -421,20 +429,37 @@ module heap_stage
                end
             end
          end
-         REPLACE: begin
-            //assert(rdata_c.active) else $error("REPLACE: head should be inactive");
+         REPLACE, DEQ_MAX_REPLACE: begin
             if (
                // both children are inactive
                (!rdata_0_n.active & !rdata_1_n.active) |
                // or lower than both children
-               ( (rdata_c.ts < rdata_0_n.ts) &
+               ( rdata_0_n.active & rdata_1_n.active &
+                     (rdata_c.ts < rdata_0_n.ts) &
                      (rdata_c.ts < rdata_1_n.ts)) |
                // or lower than the single active child
                ( !rdata_1_n.active & (rdata_c.ts < rdata_0_n.ts) ) |
                ( !rdata_0_n.active & (rdata_c.ts < rdata_1_n.ts) ) )
                
             begin
-               out_op = NOP;
+               if (cur_op == DEQ_MAX_REPLACE) begin
+                  out_op = DEQ_MAX;
+                  if ( (rdata_1_n.active & rdata_0_n.active) & !DETERMINISTIC) begin
+                     out_pos = cur_pos * 2 + random[1];
+                  end else if (rdata_1_n.active) begin
+                     out_pos = cur_pos * 2 + 1;
+                  end else if (rdata_0_n.active) begin
+                     out_pos = cur_pos * 2;
+                  end else begin
+                     out_ts = rdata_c.ts;
+                     out_data = rdata_c.data;
+                     wdata_c.active = 1'b0;
+                     wr_en_c = 1'b1;
+                     waddr_c = cur_pos;
+                  end
+               end else begin
+                  out_op = NOP;
+               end
             end else begin
                wdata_c.active = 1'b1;
                wr_en_c = 1'b1;
@@ -451,7 +476,7 @@ module heap_stage
                   wdata_n.ts = rdata_c.ts;
                   wdata_n.data = rdata_c.data;
                   wdata_n.active = 1'b1;
-                  wdata_n.capacity = rdata_0_n.capacity;
+                  wdata_n.capacity = rdata_0_n.capacity + ((cur_op==DEQ_MAX_REPLACE) ? 1 :0);
                   out_pos = cur_pos * 2;
                   waddr_n = cur_pos * 2;
                end else if (
@@ -464,7 +489,7 @@ module heap_stage
                   wdata_n.ts = rdata_c.ts;
                   wdata_n.data = rdata_c.data;
                   wdata_n.active = 1'b1;
-                  wdata_n.capacity = rdata_1_n.capacity;
+                  wdata_n.capacity = rdata_1_n.capacity + ((cur_op==DEQ_MAX_REPLACE) ? 1 :0);
                   out_pos = cur_pos * 2 + 1;
                   waddr_n = cur_pos * 2 + 1;
                end
@@ -497,7 +522,7 @@ module heap_stage
             end
             
          end
-         NOP: begin
+         default: begin
 
          end
       endcase

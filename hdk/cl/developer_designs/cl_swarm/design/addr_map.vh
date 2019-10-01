@@ -104,6 +104,8 @@
    parameter SPILL_BASE_SCRATCHPAD   = 8'h68;
    parameter SPILL_ADDR_STACK_PTR    = 8'h6c;
 
+   parameter TASK_UNIT_SET_STAT_ID         = 8'h0c;
+
    parameter TASK_UNIT_HEAP_CAPACITY   = 8'h10;
    parameter TASK_UNIT_N_TASKS         = 8'h14;
    parameter TASK_UNIT_N_TIED_TASKS    = 8'h18;
@@ -147,17 +149,20 @@
    parameter TASK_UNIT_STAT_N_ABORT_CHILD_MISMATCH = 8'ha8;
    parameter TASK_UNIT_STAT_N_ABORT_TASK           = 8'hb0;
 
-   parameter TASK_UNIT_STAT_N_HEAP_ENQ             = 8'hb4;
-   parameter TASK_UNIT_STAT_N_HEAP_DEQ             = 8'hb8;
-   parameter TASK_UNIT_STAT_N_HEAP_REPLACE         = 8'hbc;
-
+   parameter TASK_UNIT_STAT_N_HEAP_ENQ             = 8'hb4; // deprecated
+   parameter TASK_UNIT_STAT_N_HEAP_DEQ             = 8'hb8; // deprecated
+   parameter TASK_UNIT_STAT_N_HEAP_REPLACE         = 8'hbc; // deprecated
 
    parameter TASK_UNIT_STAT_N_COAL_CHILD           = 8'hc0;
    parameter TASK_UNIT_STAT_N_OVERFLOW             = 8'hc4;
    parameter TASK_UNIT_STAT_N_CYCLES_DEQ_VALID     = 8'hc8;
 
-   parameter TASK_UNIT_STATS_0_BEGIN               = 8'hdx;
-   parameter TASK_UNIT_STATS_1_BEGIN               = 8'hex;
+   parameter TASK_UNIT_HEAP_OP_STAT_READ           = 8'hcc;
+   parameter TASK_UNIT_STATE_STAT_READ             = 8'hfc;
+
+   parameter TASK_UNIT_SET_ALLOWED_HEAP_OPS        = 8'hd0;
+   parameter TASK_UNIT_STATS_0_BEGIN               = 8'hdx; // deprecated
+   parameter TASK_UNIT_STATS_1_BEGIN               = 8'hex; // deprecated
 
    parameter TASK_UNIT_MISC_DEBUG                  = 8'hf4;
    parameter TASK_UNIT_ALT_LOG                     = 8'hf8;
