@@ -43,7 +43,9 @@ module min_heap #(
 
    output logic [PRIORITY_WIDTH-1:0] max_out_ts,
    output logic [DATA_WIDTH-1:0] max_out_data,
-   output logic max_out_valid
+   output logic max_out_valid,
+
+   output addr_t max_out_pos
 );
    
    //allocate in excess so as to make indexing easier
@@ -146,6 +148,7 @@ module min_heap #(
    assign max_out_valid = (pipe_op[N_STAGES] == DEQ_MAX);
    assign max_out_ts  = pipe_ts[N_STAGES];
    assign max_out_data  = pipe_data[N_STAGES];
+   assign max_out_pos = pipe_pos[N_STAGES];
 
    generate genvar i;
    for (i=0;i <N_STAGES; i=i+1)
@@ -313,20 +316,22 @@ module heap_stage
    logic [PRIORITY_WIDTH-1:0] cur_ts;
    logic [DATA_WIDTH-1:0] cur_data;
 
-   logic [1:0] random;
+   logic [7:0] lfsr;
+   logic lfsr_new_bit;
+   assign lfsr_new_bit = ^(lfsr & ((STAGE_ID * 7)));
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         lfsr <= STAGE_ID;
+      end else begin
+         lfsr <= { lfsr[6:0], lfsr_new_bit };
+      end
+   end
 
    always_ff @(posedge clk) begin
        cur_op <= in_op;
        cur_pos <= in_pos;
        cur_ts <= in_ts;
        cur_data <= in_data;
-   end
-   always_ff @(posedge clk) begin
-      if (!rstn) begin
-         random <= 0;
-      end else begin
-         random <= random+1;
-      end
    end
 
    always_comb begin
@@ -386,7 +391,7 @@ module heap_stage
             end else begin
                // if can both ways, randomize
                if ( (rdata_0_n.capacity > 0) & (rdata_1_n.capacity > 0)) begin
-                  out_pos = cur_pos * 2 + random[1]; // chose bit 1 because bit 0 may never change at full rate 
+                  out_pos = cur_pos * 2 + lfsr[1]; // chose bit 1 because bit 0 may never change at full rate 
                end else if (rdata_0_n.capacity > 0) begin
                   out_pos = cur_pos * 2; 
                end else begin
@@ -445,7 +450,7 @@ module heap_stage
                if (cur_op == DEQ_MAX_REPLACE) begin
                   out_op = DEQ_MAX;
                   if ( (rdata_1_n.active & rdata_0_n.active) & !DETERMINISTIC) begin
-                     out_pos = cur_pos * 2 + random[1];
+                     out_pos = cur_pos * 2 + lfsr[1];
                   end else if (rdata_1_n.active) begin
                      out_pos = cur_pos * 2 + 1;
                   end else if (rdata_0_n.active) begin
@@ -504,12 +509,13 @@ module heap_stage
                // pass it down on the token pipeline
                out_ts = cur_ts;
                out_data = cur_data;
+               out_pos = cur_pos;
             end else begin
                wr_en_c = 1'b1;
                waddr_c = cur_pos;
                wdata_c.capacity = rdata_c.capacity + 1;
                if ( (rdata_1_n.active & rdata_0_n.active) & !DETERMINISTIC) begin
-                  out_pos = cur_pos * 2 + random[1];
+                  out_pos = cur_pos * 2 + lfsr[1];
                end else if (rdata_1_n.active) begin
                   out_pos = cur_pos * 2 + 1;
                end else if (rdata_0_n.active) begin

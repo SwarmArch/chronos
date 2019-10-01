@@ -234,6 +234,7 @@ module task_unit
    tq_heap_elem_t next_deque_elem;
    tq_heap_elem_t next_max_elem, reg_spill_heap_enq;
    logic next_max_elem_valid, reg_spill_heap_enq_valid;
+   logic [TQ_STAGES:0] next_max_elem_pos;
    logic deq_task;
    logic spill_heap_deq_task;
    logic [TQ_STAGES-1:0] heap_capacity;
@@ -263,7 +264,8 @@ module task_unit
 
       .max_out_ts({next_max_elem.ts, next_max_elem.producer} ),
       .max_out_data( {next_max_elem.slot, next_max_elem.splitter, next_max_elem.epoch, next_max_elem.non_spec}),
-      .max_out_valid(next_max_elem_valid)
+      .max_out_valid(next_max_elem_valid),
+      .max_out_pos(next_max_elem_pos)
    );
 
    // 6. Spill heap
@@ -429,6 +431,7 @@ endgenerate
 
    logic can_issue_deq_max;
    logic [15:0] deq_max_count;
+   logic [4:0] deq_max_propagation_delay;
 
    logic deq_max_propagation_delay_inc;
    assign can_issue_deq_max = (tq_state == TQ_DEQ_MAX) & !empty & (deq_max_count != 2 * task_unit_spill_size) &
@@ -436,7 +439,6 @@ endgenerate
    assign deq_max_propagation_delay_inc =  (empty | (deq_max_count == 2*task_unit_spill_size) | 
                (spill_heap_capacity < ( 2**LOG_TQ_SPILL_SIZE -1 - task_unit_spill_size)) );
 
-   logic [4:0] deq_max_propagation_delay;
    always_ff @(posedge clk) begin
       if (!rstn) begin
          deq_max_propagation_delay <= 0;
@@ -895,7 +897,7 @@ endgenerate
                next_insert_elem_clear = !heap_re_enq_elem_valid;
                heap_enq_elem = (heap_re_enq_elem_valid ? heap_re_enq_elem : reg_next_insert_elem);
             end else if (reg_next_insert_elem_valid | heap_re_enq_elem_valid) begin
-               heap_in_op = (can_issue_deq_max & heap_deq_max_enq_allowed) ? DEQ_MAX_ENQ : ENQ;
+               heap_in_op = (can_issue_deq_max & heap_deq_max_enq_allowed & !heap_re_enq_elem_valid) ? DEQ_MAX_ENQ : ENQ;
                next_insert_elem_clear = !heap_re_enq_elem_valid;
                heap_enq_elem = (heap_re_enq_elem_valid ? heap_re_enq_elem : reg_next_insert_elem);
             end else if (deq_task) begin
@@ -1322,7 +1324,19 @@ endgenerate
             TASK_UNIT_HEAP_OP_STAT_READ : reg_bus.rdata <= heap_op_stats[stat_id];
             TASK_UNIT_STATE_STAT_READ : reg_bus.rdata <= state_stats[stat_id];
 
-            TASK_UNIT_MISC_DEBUG : reg_bus.rdata <= {overflow_valid, overflow_ready, abort_child_valid, task_enq_valid, cut_ties_valid, cq_child_abort_valid, abort_task_valid, abort_resp_valid, task_deq_valid_reg, commit_task_valid, task_deq_ready};
+            TASK_UNIT_MISC_DEBUG : begin
+               if (stat_id == 0) begin
+                  reg_bus.rdata <= {
+                     tq_state, 
+                     1'b0, overflow_valid, overflow_ready, abort_child_valid, 
+                     task_enq_valid, cut_ties_valid, cq_child_abort_valid, abort_task_valid, 
+                     abort_resp_valid, task_deq_valid_reg, commit_task_valid, task_deq_ready};
+               end else begin
+                  reg_bus.rdata[15:0] <= spill_heap_capacity;
+                  reg_bus.rdata[31:16] <= deq_max_count;
+               end
+            end
+               
          endcase
       end else begin
          reg_bus.rvalid <= 1'b0;
@@ -1498,6 +1512,8 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
         log_word.deq_ts[29] = max_elem_is_tied;
         log_word.deq_ts[30] = 1'b1;
         log_word.deq_ts[31] = next_max_elem_valid;
+        log_word.deq_locale [15:0] = next_max_elem_pos; 
+        log_word.deq_locale [31:16] = spill_heap_capacity; 
         log_valid = 1'b1;
      end
 

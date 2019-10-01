@@ -128,7 +128,7 @@ always_ff @(posedge clk) begin
       if (tasks_remaining == TASKS_PER_SPLITTER) begin
          coal_ts <= spill_fifo_rd_data.ts;
       end else begin
-         if (coal_ts > spill_fifo_rd_data.ts) begin
+         if ( (coal_ts > spill_fifo_rd_data.ts) & !spill_fifo_empty) begin
             coal_ts <= spill_fifo_rd_data.ts;
          end
       end
