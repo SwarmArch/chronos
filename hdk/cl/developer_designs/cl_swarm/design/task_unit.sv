@@ -950,8 +950,9 @@ endgenerate
    always_ff @(posedge clk) 
       last_op_was_enq <= (heap_in_op==ENQ);
    assign empty = (heap_capacity ==  2**(TQ_STAGES) -1) & !last_op_was_enq;
-   assign full =  (heap_capacity == 0);
-   assign almost_full = ((heap_capacity < 10) & task_enq_tied) | (full & !task_enq_tied);
+   assign full =  (heap_capacity == 0) | free_list_empty;
+   assign almost_full =   ( ((heap_capacity < 10) | (n_tasks > (2**LOG_TQ_SIZE - 10))) & task_enq_tied) 
+                        | (full & !task_enq_tied);
 
    ts_t lvt_heap;
    ts_t lvt_abort;
