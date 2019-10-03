@@ -509,7 +509,6 @@ module heap_stage
                // pass it down on the token pipeline
                out_ts = cur_ts;
                out_data = cur_data;
-               out_pos = cur_pos;
             end else begin
                wr_en_c = 1'b1;
                waddr_c = cur_pos;

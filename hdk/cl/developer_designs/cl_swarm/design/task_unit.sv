@@ -536,6 +536,11 @@ endgenerate
             end
             if (abort_task_valid & !reg_next_insert_elem_valid) begin
                abort_task_ready = 1'b1;
+            end else if (!abort_child_ready & (tq_state == TQ_OVERFLOW)  
+                  & overflow_ready // Ideally, this check should be done next cycle, but it not change until then
+                  & spill_heap_ready & !overflow_epoch_fifo_full & (spill_heap_capacity != '1)) begin
+               tq_read_addr = spill_next_deque_elem_slot;
+               spill_heap_deq_task = 1'b1;
             end else if (heap_ready & heap_out_valid & tq_started & !abort_child_ready 
                 &  (next_deque_elem.ts < task_unit_throttle_ts)
                 &  (!next_deque_elem.non_spec | (next_deque_elem.ts == gvt.ts))
@@ -546,11 +551,6 @@ endgenerate
                end else begin
                   deq_task = !task_deq_valid_reg | !deq_epoch_match; 
                end
-            end else if (!abort_child_ready & (tq_state == TQ_OVERFLOW)  
-                  & overflow_ready // Ideally, this check should be done next cycle, but it not change until then
-                  & spill_heap_ready & !overflow_epoch_fifo_full & (spill_heap_capacity != '1)) begin
-               tq_read_addr = spill_next_deque_elem_slot;
-               spill_heap_deq_task = 1'b1;
             end
          end
       end
