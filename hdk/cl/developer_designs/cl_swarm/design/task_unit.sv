@@ -256,7 +256,7 @@ module task_unit
       .in_op(heap_in_op),
       .ready(heap_ready),
 
-      .out_ts({next_deque_elem.ts, unused_1}),  
+      .out_ts({next_deque_elem.ts, next_deque_elem.producer}),  
       .out_data( {next_deque_elem.slot, next_deque_elem.splitter, next_deque_elem.epoch, next_deque_elem.non_spec} ),
       .out_valid(heap_out_valid),
    
@@ -316,6 +316,7 @@ end else begin
    assign spill_next_deque_elem_slot = 0;
    assign spill_heap_ready = 1;
    assign spill_heap_capacity = 0;
+   assign spill_heap_out_valid = 0;
 end   
 endgenerate
    
@@ -374,7 +375,7 @@ endgenerate
    logic [LOG_TQ_SPILL_SIZE-1:0] task_unit_spill_size;
 
    tq_slot_t n_tied_tasks;
-   tq_slot_t n_tasks;
+   logic [LOG_TQ_SIZE:0] n_tasks; // can be equal to TQ_SIZE
 
    logic tq_stall;
    logic tq_started;
@@ -925,8 +926,9 @@ endgenerate
    assign n_tied_tasks_dec_commit_task =  (commit_task_ready & tied_task[commit_task_slot])
                   & !(n_tied_tasks_dec_cut_ties & (cut_ties_tq_slot == commit_task_slot)) ; 
 
-   tq_slot_t new_n_tied_tasks, new_n_tasks;
-   assign new_n_tasks= n_tasks + next_free_tq_slot_deque - add_free_tq_slot_valid;               
+   tq_slot_t new_n_tied_tasks;
+   logic [LOG_TQ_SIZE:0] new_n_tasks;
+   assign new_n_tasks = n_tasks + next_free_tq_slot_deque - add_free_tq_slot_valid;               
    assign new_n_tied_tasks = n_tied_tasks + n_tied_tasks_inc -
                         n_tied_tasks_dec_cut_ties -
                         n_tied_tasks_dec_abort_child - 
@@ -951,7 +953,7 @@ endgenerate
       last_op_was_enq <= (heap_in_op==ENQ);
    assign empty = (heap_capacity ==  2**(TQ_STAGES) -1) & !last_op_was_enq;
    assign full =  (heap_capacity == 0) | free_list_empty;
-   assign almost_full =   ( ((heap_capacity < 10) | (n_tasks > (2**LOG_TQ_SIZE - 10))) & task_enq_tied) 
+   assign almost_full =   ( ((heap_capacity < 10) | (n_tasks > (2**LOG_TQ_SIZE - 4))) & task_enq_tied) 
                         | (full & !task_enq_tied);
 
    ts_t lvt_heap;
