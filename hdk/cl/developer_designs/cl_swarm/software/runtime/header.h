@@ -97,6 +97,7 @@
 #define SPILL_BASE_SCRATCHPAD    0x68
 #define SPILL_ADDR_STACK_PTR     0x6c
 
+#define TASK_UNIT_SET_STAT_ID      0x0c
 #define TASK_UNIT_CAPACITY         0x10
 #define TASK_UNIT_N_TASKS          0x14
 #define TASK_UNIT_N_TIED_TASKS     0x18
@@ -141,6 +142,8 @@
 #define TASK_UNIT_STAT_N_COAL_CHILD           0xc0
 #define TASK_UNIT_STAT_N_OVERFLOW             0xc4
 #define TASK_UNIT_STAT_N_CYCLES_DEQ_VALID     0xc8
+
+#define TASK_UNIT_HEAP_OP_STAT_READ           0xcc
 
 #define TASK_UNIT_STATE_STATS                 0xd0
 #define TASK_UNIT_MISC_DEBUG                  0xf4
