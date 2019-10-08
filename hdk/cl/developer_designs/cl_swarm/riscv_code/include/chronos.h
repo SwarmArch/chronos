@@ -20,7 +20,7 @@ void finish_task() {
    *(volatile int *)( ADDR_FINISH_TASK) = 0;
 }
 
-void chronos_init() {
+static inline void chronos_init() {
 
    //__asm__( "li a0, 0x80000000;");
    //__asm__( "csrw mtvec, a0;");
@@ -30,8 +30,6 @@ void chronos_init() {
    __asm__( "ori a0, a0, 8;"); // interrupts enabled
    __asm__( "csrw mstatus, a0;");
 
-   // Temperorily turn-off since this can sometimes cause writes to code regions
-/*
    // Assign a separate stack area for each core
    __asm__( "lui a0, 0xc0000");
    __asm__( "lw a1, 96(a0)"); // tile_id
@@ -43,7 +41,6 @@ void chronos_init() {
    __asm__( "slli sp,a1,16");
 
    register int *x asm ("sp");
-*/
 
 }
 

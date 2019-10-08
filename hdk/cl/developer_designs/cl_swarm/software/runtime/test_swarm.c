@@ -354,7 +354,7 @@ void load_code() {
     unsigned int boot_code[4];
     boot_code[0] = (boot_addr >> 12) << 12 | 0xb7; // lui x1, main[31:12]
     boot_code[1] = (boot_addr & 0xfff) << 20 | 0x08093; // addi x1,x1,main[11:0]
-    boot_code[2] = 0x7e000137; // li sp, 0x7e000
+    boot_code[2] = 0x80000137; // li sp, 0x80000
     boot_code[3] = 0x8067; // jalr x1, 0
     for (int i=0;i<4;i++) {
         code_buffer[i*4 + 0] = (boot_code[i] & 0xff);
@@ -733,11 +733,11 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     if (logging_on) {
         // If we are in debugging mode, only allow a small number of tasks at a
         // time, lest the on-chip buffers fill up.
-        pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES ,0x230);
+        pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES , logging_phase_tasks);
     }
     uint32_t core_mask = 0;
     uint32_t active_cores = 8;
-    core_mask = (1<<(active_cores+1))-1;
+    core_mask = (1<<(active_cores))-1;
     if (!USING_PIPELINED_TEMPLATE) core_mask <<= 16;
     core_mask |= (1<<ID_COALESCER);
     core_mask |= (1<<ID_SPLITTER);
