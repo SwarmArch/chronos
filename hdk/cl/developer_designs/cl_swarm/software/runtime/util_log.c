@@ -58,7 +58,7 @@ void fill_msg_type(struct msg_type_t * msg, unsigned int data) {
 void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size, uint32_t tile_id) {
    unsigned int* buf = (unsigned int*) log_buffer;
    struct msg_type_t commit_task, abort_child, abort_task, cut_ties;
-   struct msg_type_t deq_task, overflow_task, enq_task, coal_child;
+   struct msg_type_t deq_task, overflow_task, enq_task, coal_child, deq_max;
    for (int i=0;i<log_size ;i++) {
         unsigned int seq = buf[i*16 + 0];
         unsigned int cycle = buf[i*16 + 1];
@@ -112,6 +112,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
         fill_msg_type( &deq_task       , buf[i*16 + 8]);
         fill_msg_type( &cut_ties       , buf[i*16 + 9]);
         fill_msg_type( &abort_task     , buf[i*16 +10]);
+        fill_msg_type( &deq_max        , buf[i*16 +12]);
         if (!commit_n_abort_child) {
             fill_msg_type( &abort_child    , buf[i*16 +11]);
         } else {
@@ -141,6 +142,13 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
              }
          }
 
+         if (deq_max.valid) {
+            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) deq_max      slot:%4d tied:%d heap_cap:%4d\n",
+               seq, cycle,
+               gvt_ts, gvt_tb,
+               n_tasks, n_tied_tasks, heap_capacity,
+               deq_max.slot, deq_max.tied, deq_locale>>16);
+         }
          if (coal_child.valid & coal_child.ready) {
             fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) coal_child   slot:%4d ts:%4d locale:%6d ttype:%1d (%6x)\n",
                seq, cycle,
@@ -1386,12 +1394,16 @@ printf("STAT_N_OVERFLOW             %9d\n",stat_TASK_UNIT_STAT_N_OVERFLOW       
                 ((avg_heap_util +0.0) / tot_cycles)*65536);
     }
 
-    uint32_t heap_op_enq, heap_op_deq, heap_op_replace;
-    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_HEAP_ENQ, &heap_op_enq);
-    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_HEAP_DEQ, &heap_op_deq);
-    pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_HEAP_REPLACE, &heap_op_replace);
-    printf("heap enq:%9d deq:%9d replace:%9d\n", heap_op_enq, heap_op_deq, heap_op_replace);
-    printf("Total heap ops: %d\n", heap_op_enq + heap_op_deq + heap_op_replace + stat_TASK_UNIT_STAT_N_OVERFLOW);
+    uint32_t heap_op_stats[8];
+    uint32_t total_heap_ops=0;
+    for (int i=1;i<8;i++) {
+        pci_poke(tile, ID_TASK_UNIT, TASK_UNIT_SET_STAT_ID, i);
+        pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_HEAP_OP_STAT_READ, &heap_op_stats[i]);
+        total_heap_ops += heap_op_stats[i];
+    }
+    printf("heap     enq:%9d  deq:%9d  replace:%9d\n", heap_op_stats[1], heap_op_stats[2], heap_op_stats[3]);
+    printf("heap deq_max:%9d +enq:%9d +replace:%9d\n", heap_op_stats[4], heap_op_stats[5], heap_op_stats[7]);
+    printf("Total heap ops: %d\n", total_heap_ops);
 
     printf("cycles deq_valid:%9d\n", n_cycles_deq_valid);
 

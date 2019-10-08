@@ -558,7 +558,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     uint32_t tied_cap = 1<<(LOG_TQ_SIZE -2);
     uint32_t clean_threshold = 40;
-    uint32_t spill_threshold = (1<<LOG_TQ_SIZE) - 30;
+    uint32_t spill_threshold = (1<<LOG_TQ_SIZE) - 500;
     //tied_cap = 100;
     //tied_cap = 0;
     //spill_threshold = 1500;
@@ -612,7 +612,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_SIZE, spill_size);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_CHECK_LIMIT, spill_size * 2);
-        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq locale/ts
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 2); // get enq args instead of deq locale/ts
 
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_PRE_ENQ_BUF,
                 (pre_enq_fifo_thresh << 16) | deq_tolerance);
@@ -1368,7 +1368,7 @@ int loop_debuggin_spec(uint32_t iters){
     uint32_t coal_state;
     uint32_t stack_ptr=0;
     uint32_t cq_state;
-    uint32_t tq_debug;
+    uint32_t tq_debug, tq_debug_1;
     uint32_t cycle;
     uint32_t ser_debug;
     uint32_t ser_locale =0;
@@ -1390,7 +1390,10 @@ int loop_debuggin_spec(uint32_t iters){
         pci_peek(i, ID_COALESCER, CORE_NUM_ENQ, &coal_enq);
         pci_peek(i, ID_COALESCER, CORE_STATE, &coal_state);
         pci_peek(i, ID_CQ, CQ_STATE, &cq_state );
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SET_STAT_ID, 0);
         pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug );
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SET_STAT_ID, 1);
+        pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug_1 );
         pci_peek(i, ID_COALESCER, CORE_STATE, &stack_ptr );
 
         pci_peek(i, ID_SERIALIZER, SERIALIZER_READY_LIST, &ser_ready);
@@ -1407,7 +1410,7 @@ int loop_debuggin_spec(uint32_t iters){
                 ser_locale, ser_ready, ser_debug, tsb_entry_valid,
                 rw_read_fifo_occ, rw_write_fifo_occ
               );
-        printf(" coal state:%8x deq: %7d enq: %7d\n", coal_state, coal_deq, coal_enq);
+        printf(" coal state:%8x deq: %7d enq: %7d tq_state_2: %8x\n", coal_state, coal_deq, coal_enq, tq_debug_1);
         pci_poke(i, ID_ALL_APP_CORES, CORE_N_DEQUEUES, logging_phase_tasks);
         //cq_stats(0, ID_CQ);
         /*
