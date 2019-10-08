@@ -47,12 +47,12 @@ ALL TIMES.
 
 #include "math.h"
 #include <string.h>
-#define BURST  // Slightly better. (avg. task length reduces by 3)
+//#define BURST  // Slightly better. (avg. task length reduces by 3)
 
 
-void sssp_hls (task_t task_in, hls::stream<task_t>* task_out, ap_uint<32>* l1, undo_log_t* undo_log_entry) {
+void sssp_hls (task_t task_in, hls::stream<task_t>* task_out, ap_uint<32>* l1, hls::stream<undo_log_t>* undo_log_entry) {
 #pragma HLS PIPELINE II=15 enable_flush rewind
-#pragma HLS INTERFACE ap_vld port=undo_log_entry
+#pragma HLS INTERFACE axis port=undo_log_entry
 #pragma HLS DATA_PACK variable=undo_log_entry
 #pragma HLS INTERFACE m_axi depth=1000 port=l1
 #pragma HLS DATA_PACK variable=task_in
@@ -106,8 +106,10 @@ void sssp_hls (task_t task_in, hls::stream<task_t>* task_out, ap_uint<32>* l1, u
 			task_out->write(child);
 		}
 #endif
-		undo_log_entry->addr = (base_dist + vid) << 2;
-		undo_log_entry->data = cur_dist;
+		undo_log_t ulog;
+		ulog.addr = (base_dist + vid) << 2;
+		ulog.data = cur_dist;
+		undo_log_entry->write(ulog);
 	}
 
 

@@ -57,8 +57,7 @@ int main () {
 
 	// Create input data
   task_t task_in = {0,0,0,0};
-  undo_log_t undo_log_entry;
-
+  hls::stream<undo_log_t> undo_log_entry;
 
   int i;
 

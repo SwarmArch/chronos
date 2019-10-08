@@ -251,7 +251,10 @@ end
 // If the app_core was aborted with pending mem requeuest,
 // core should stall until all have a response
 always_comb begin
-   if ( (state == WAIT_BVALID) | (state == WAIT_RVALID)) begin
+   if ( abort_running_task_q |
+         (state == FINISH_TASK) |
+         (state == WAIT_BVALID) | 
+         (state == WAIT_RVALID)) begin
       l1.bready = 1'b1;
       l1.rready = 1'b1;
       ap_l1_rlast = 1'b0;

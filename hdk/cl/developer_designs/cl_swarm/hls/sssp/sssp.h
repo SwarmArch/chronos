@@ -64,5 +64,5 @@ typedef struct {
 
 typedef ap_uint<32> addr_t;
 
-void sssp_hls (task_t task_in, hls::stream<task_t>* task_out, ap_uint<32>* l1, undo_log_t* undo_log_entry);
+void sssp_hls (task_t task_in, hls::stream<task_t>* task_out, ap_uint<32>* l1, hls::stream<undo_log_t>* undo_log_entry);
 #endif

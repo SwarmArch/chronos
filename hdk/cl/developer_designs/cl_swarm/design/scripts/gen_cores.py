@@ -17,6 +17,8 @@ arg_width = 0
 app_id = 0
 data_width = 32
 
+is_hls = app.find("hls")>=0
+
 cores = []
 
 n_types = 0
@@ -135,6 +137,13 @@ core_inst = """
         .undo_log_entry_ap_rdy (app_undo_log_ready),
         .ap_state (ap_state)
         """
+
+if (is_hls):  # BIG HACK
+    core_inst = core_inst.replace(".ap_state (ap_state)", "")
+    core_inst = core_inst.replace("undo_log_entry_ap_vld", "undo_log_entry_V_TVALID")
+    core_inst = core_inst.replace("undo_log_entry_ap_rdy", "undo_log_entry_V_TREADY")
+    core_inst = core_inst.replace("undo_log_entry  ", "undo_log_entry_V_TDATA  ")
+    core_inst = core_inst.replace("app_undo_log_ready),", "app_undo_log_ready)")
 
 for i in range(len(cores)):
     (core_type, task_type, threads, custom) = cores[i]
