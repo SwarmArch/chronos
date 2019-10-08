@@ -230,7 +230,8 @@ endmodule
 // Can be read via PCIS
 module log #(
       parameter WIDTH = 384,
-      parameter LOG_DEPTH = 12
+      parameter LOG_DEPTH = 12,
+      parameter DROP_LAST = 1 // if overflow, 1=drop the incoming event, 0=drop the earliest event
 ) (
    input  clk,
    input  rstn,
@@ -271,13 +272,14 @@ module log #(
       wdata_q <= wdata;
    end
 
-   logic fifo_rd_en;
+   logic fifo_rd_en, fifo_wr_en;
    logic fifo_full;
 
    logic [7:0] read_remaining;
 
    always_comb begin
-      fifo_rd_en = (pci.rready & (read_remaining > 0) ) | (fifo_full & wvalid);
+      fifo_rd_en = (pci.rready & (read_remaining > 0) ) | (fifo_full & wvalid & !DROP_LAST);
+      fifo_wr_en = (wvalid & (DROP_LAST ? !fifo_full : 1));
    end
 
    assign pci.rvalid = (read_remaining > 0);
@@ -306,7 +308,7 @@ module log #(
          wr_ptr <= 0;
          rd_ptr <= 0;
       end else begin
-         if (wvalid) begin
+         if (fifo_wr_en) begin
             wr_ptr <= wr_ptr + 1;
          end
          if (fifo_rd_en) begin
@@ -316,7 +318,7 @@ module log #(
    end
 
    always_ff @(posedge clk) begin
-      if (wvalid) begin   
+      if (fifo_wr_en) begin   
          mem[wr_ptr[LOG_DEPTH-1:0]] <= {wdata, cycle, seq};
       end
       fifo_head <= mem[next_rd_ptr[LOG_DEPTH-1:0]];
@@ -327,9 +329,9 @@ module log #(
       if (!rstn) begin
          size <= 0;
       end else begin
-         if (wvalid & !fifo_rd_en) begin
+         if (fifo_wr_en & !fifo_rd_en) begin
             size <= size + 1;
-         end else if (fifo_rd_en & !wvalid) begin
+         end else if (fifo_rd_en & !fifo_wr_en) begin
             size <= size - 1;
          end
       end
