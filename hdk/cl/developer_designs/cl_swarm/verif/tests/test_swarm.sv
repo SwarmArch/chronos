@@ -436,7 +436,7 @@ task load_riscv_program;
    assign _main = 32'h80000074; 
    boot_code[0] = {_main[31:12], 5'd1, 7'b0110111};    // lui x1, _main[31:12]
    boot_code[1] = {_main[11:0], 5'd1, 3'b000, 5'd1, 7'b0010011};  // addi x1, x1,  _main[11:0]
-   boot_code[2] = 32'h73000137; // li sp, 0x7e000
+   boot_code[2] = 32'h80000137; // li sp, 0x80000
    boot_code[3] = {12'b0, 5'd1, 3'b000, 5'd0, 7'b1100111};  // jalr x1, 0
 `ifdef SIMPLE_MEMORY
    for (integer i=0;i<4; i+=1) begin
