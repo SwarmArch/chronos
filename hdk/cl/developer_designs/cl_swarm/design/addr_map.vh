@@ -21,12 +21,12 @@
 
    parameter ID_GLOBAL = 48;
    
-   parameter TASK_TYPE_TERMINATE = 12;
+   parameter TASK_TYPE_TERMINATE = N_TASK_TYPES-4;
    // if a core has task_araddr = TASK_TYPE_ALL, it can accept any ttype less
    // than TASK_TYPE_ALL
-   parameter TASK_TYPE_ALL = 13;
-   parameter TASK_TYPE_SPLITTER = 14;
-   parameter TASK_TYPE_UNDO_LOG_RESTORE = 15;
+   parameter TASK_TYPE_ALL = N_TASK_TYPES-3;
+   parameter TASK_TYPE_SPLITTER = N_TASK_TYPES-2;
+   parameter TASK_TYPE_UNDO_LOG_RESTORE = N_TASK_TYPES-1;
 
 `ifdef USE_PIPELINED_TEMPLATE
    parameter CM_PORTS = 3;
