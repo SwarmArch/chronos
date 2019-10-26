@@ -264,7 +264,7 @@ coalescer
   .pci_debug(pci_debug[ID_COAL])
 );
 axi_decoder #(
-   .ID_BASE( L2_ID_COAL << 12 ),
+   .ID_BASE( L2_ID_COAL << 10 ),
    .MAX_ARSIZE(2),
    .MAX_AWSIZE( $clog2(TQ_WIDTH) -3 )
 ) COAL_L1 (
@@ -302,7 +302,7 @@ splitter #(
 );
 
 axi_decoder #(
-   .ID_BASE( L2_ID_SPLITTER << 12 ),
+   .ID_BASE( L2_ID_SPLITTER << 10 ),
    .MAX_ARSIZE( ( ($clog2(TQ_WIDTH) -1) > 6) ? 6 : (($clog2(TQ_WIDTH) -1) )),
    .MAX_AWSIZE(2)
 ) SPLITTER_L1 (
@@ -1530,7 +1530,7 @@ end
 */
    undo_log 
    #(
-      .ID_BASE( L2_ID_UNDO_LOG << 12),
+      .ID_BASE( L2_ID_UNDO_LOG << 10),
       .TILE_ID(TILE_ID),
       .N_CORES(N_CORES),
       .UNDO_LOG_THREADS(UNDO_LOG_THREADS)

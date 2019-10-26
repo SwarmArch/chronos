@@ -704,7 +704,7 @@ end
    );
 
    axi_decoder #(
-      .ID_BASE( CORE_ID << 12),
+      .ID_BASE( CORE_ID << 10),
       .MAX_AWSIZE(2),
       .MAX_ARSIZE(5)
    ) IBUS_CONVERT (
@@ -716,7 +716,7 @@ end
    );
    
    axi_decoder #(
-      .ID_BASE( (CORE_ID << 12) + 8),
+      .ID_BASE( (CORE_ID << 10) + 8),
       .MAX_AWSIZE(2),
       .MAX_ARSIZE(5)
    ) DBUS_CONVERT (

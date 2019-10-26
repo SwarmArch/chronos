@@ -1002,7 +1002,8 @@ pci_arbiter PCI_ARBITER (
 );
 
 axi_decoder #(
-   .ID_BASE(0)
+   .ID_BASE(0),
+   .IN_TILE(0)
 ) pci_decoder (
   .clk(clk_main_a0),
   .rstn(rst_main_n_sync),

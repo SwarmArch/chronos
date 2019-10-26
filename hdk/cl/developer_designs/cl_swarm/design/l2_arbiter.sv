@@ -276,7 +276,7 @@ logic [NUM_MI-1:0] [$clog2(NUM_SI):0] m_b_port;
 
 generate
 for (i=0;i<NUM_MI;i++) begin
-   assign m_b_port[i] = m_bid[i][12 +: LOG_NUM_SI ]; 
+   assign m_b_port[i] = m_bid[i][10 +: LOG_NUM_SI ]; 
 end
 
 for (i=0;i<NUM_SI;i++) begin : b_sched
@@ -340,7 +340,7 @@ logic [NUM_MI-1:0] [$clog2(NUM_SI):0] m_r_port;
 
 generate
 for (i=0;i<NUM_MI;i++) begin
-   assign m_r_port[i] = m_rid[i][12 +: LOG_NUM_SI ]; 
+   assign m_r_port[i] = m_rid[i][10 +: LOG_NUM_SI ]; 
 end
 
 for (i=0;i<NUM_SI;i++) begin : r_sched

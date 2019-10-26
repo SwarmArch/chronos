@@ -13,7 +13,9 @@ module axi_decoder
     // The impact maybe small, but considering this module is instantiated 100s
     // of times, they add up.
     parameter MAX_AWSIZE = 6,
-    parameter MAX_ARSIZE = 6
+    parameter MAX_ARSIZE = 6,
+    
+    parameter IN_TILE = 1
  )
 (
    input clk,
@@ -98,7 +100,7 @@ end
 // Tracks how many writes have been issued to L2 in a single transaction. 
 // Currently limited to 16, which is sufficient for a burst of 256 32-bit words. 
 // (where initial address is cache-line aligned)
-logic [7:0] reg_id;
+logic [ (IN_TILE ? 5:7) :0] reg_id;
 logic [3:0] tx_id;
 
 always_ff @(posedge clk) begin
@@ -266,6 +268,7 @@ always_ff @(posedge clk) begin
       l2.awaddr = {awaddr[63:MAX_AWSIZE], {MAX_AWSIZE{1'b0}}};
    end
 end
+logic [3:0] bid_tx_id;
 
 initial begin
    for (integer i=0;i<16;i++) begin
@@ -276,7 +279,7 @@ always_ff @(posedge clk) begin
    if (l2.wvalid & l2.wready & reg_awlen==0) begin
       ack_remaining[tx_id] <= ack_remaining[tx_id] + reg_id + 1;
    end else if (l2.bvalid & l2.bready) begin
-      ack_remaining[l2.bid[11:8]] <= ack_remaining[l2.bid[11:8]] - 1;
+      ack_remaining[bid_tx_id] <= ack_remaining[bid_tx_id] - 1;
    end
 end
 always_ff @(posedge clk) begin
@@ -288,7 +291,7 @@ end
 
 logic bvalid_fifo_full, bvalid_fifo_empty;
 logic bvalid_fifo_wr_en;
-assign bvalid_fifo_wr_en = l2.bvalid & l2.bready & (ack_remaining[l2.bid[11:8]] == 1);
+assign bvalid_fifo_wr_en = l2.bvalid & l2.bready & (ack_remaining[bid_tx_id] == 1);
 
 logic [3:0] s_bid;
 
@@ -299,7 +302,7 @@ fifo #(
       .clk(clk),
       .rstn(rstn),
       .wr_en(bvalid_fifo_wr_en),
-      .wr_data(l2.bid[11:8]),
+      .wr_data(bid_tx_id),
 
       .full(bvalid_fifo_full),
       .empty(bvalid_fifo_empty),
@@ -314,8 +317,22 @@ end
 assign core.bvalid = !bvalid_fifo_empty;
 
 assign l2.bready = !bvalid_fifo_full & !(l2.wvalid & l2.wready & (reg_awlen==0));
-assign l2.awid = ID_BASE | (tx_id << 8) | reg_id;;
-assign l2.wid = ID_BASE | (tx_id << 8) | reg_id;;
+
+generate 
+if (IN_TILE) begin
+   assign l2.awid = ID_BASE | (tx_id << 6) | reg_id;;
+   assign l2.wid = ID_BASE | (tx_id << 6) | reg_id;;
+   assign bid_tx_id = l2.bid[9:6];
+end else begin
+   // If this module is being instantiated out of the tile (i.e pci_decoder),
+   // allocate more bits for reg_id since longer burst writes are possible.
+   // If within the tile, such longer writes are traded for more l2 accessing
+   // components
+   assign l2.awid = ID_BASE | (tx_id << 8) | reg_id;;
+   assign l2.wid = ID_BASE | (tx_id << 8) | reg_id;;
+   assign bid_tx_id = l2.bid[11:8];
+end
+endgenerate
 
 assign core.bresp = 0;
 

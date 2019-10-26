@@ -216,7 +216,7 @@ core_tile_inst = """
          """
 core_tile_l1_inst = """
          axi_decoder #(
-            .ID_BASE( ($cid) << 12),
+            .ID_BASE( ($cid) << 10),
             .MAX_AWSIZE(2),
             .MAX_ARSIZE(5)
          ) CORE_L1_$cid (
