@@ -1,4 +1,6 @@
-ARG_WIDTH 64
+# ARG_WIDTH has to be a multiple of 32
+ARG_WIDTH 128
+ 
 APP_ID 256
 RISCV_APP sssp
 

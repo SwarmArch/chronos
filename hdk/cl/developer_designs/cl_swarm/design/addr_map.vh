@@ -266,8 +266,7 @@
    parameter RISCV_DEQ_TASK      = 32'hc0000000;
    parameter RISCV_DEQ_TASK_LOCALE = 32'hc0000004;
    parameter RISCV_DEQ_TASK_TTYPE= 32'hc0000008;
-   parameter RISCV_DEQ_TASK_ARG0 = 32'hc000000c;
-   parameter RISCV_DEQ_TASK_ARG1 = 32'hc0000010;
+   parameter RISCV_DEQ_TASK_ARG  = 32'hc00001xx;
    parameter RISCV_FINISH_TASK   = 32'hc0000020;
    parameter RISCV_UNDO_LOG_ADDR = 32'hc0000030;
    parameter RISCV_UNDO_LOG_DATA = 32'hc0000034;
@@ -275,3 +274,7 @@
    parameter RISCV_CUR_CYCLE     = 32'hc0000050;
    parameter RISCV_TILE_ID       = 32'hc0000060;
    parameter RISCV_CORE_ID       = 32'hc0000064;
+   
+   //To be deprecated: Currently in here for backward compatibility
+   parameter RISCV_DEQ_TASK_ARG0 = 32'hc000000c;
+   parameter RISCV_DEQ_TASK_ARG1 = 32'hc0000010;

@@ -1,11 +1,10 @@
 
+#include <stdarg.h>
 
-
-const int ADDR_DEQ_TASK      = 0xc0000000;
-const int ADDR_DEQ_TASK_HINT = 0xc0000004;
-const int ADDR_DEQ_TASK_TTYPE= 0xc0000008;
-const int ADDR_DEQ_TASK_ARG0 = 0xc000000c;
-const int ADDR_DEQ_TASK_ARG1 = 0xc0000010;
+const int ADDR_TASK      = 0xc0000000;
+const int ADDR_TASK_HINT = 0xc0000004;
+const int ADDR_TASK_TTYPE= 0xc0000008;
+const int ADDR_TASK_ARG  = 0xc0000100;
 const int ADDR_FINISH_TASK   = 0xc0000020;
 const int ADDR_UNDO_LOG_ADDR = 0xc0000030;
 const int ADDR_UNDO_LOG_DATA = 0xc0000034;
@@ -49,33 +48,57 @@ void undo_log_write(uint* addr, uint data) {
    *(volatile int *)( ADDR_UNDO_LOG_DATA) = data;
 }
 
-void enq_task_arg2(uint ttype, uint ts, uint locale, uint arg0, uint arg1){
-
-     *(volatile int *)( ADDR_DEQ_TASK_HINT) = (locale);
-     *(volatile int *)( ADDR_DEQ_TASK_TTYPE) = (ttype);
-     *(volatile int *)( ADDR_DEQ_TASK_ARG0) = (arg0);
-     *(volatile int *)( ADDR_DEQ_TASK_ARG1) = (arg1);
-     *(volatile int *)( ADDR_DEQ_TASK) = ts;
+void enq_task_arg0(uint ttype, uint ts, uint locale){
+     *(volatile int *)( ADDR_TASK_HINT) = (locale);
+     *(volatile int *)( ADDR_TASK_TTYPE) = (ttype);
+     *(volatile int *)( ADDR_TASK) = ts;
 }
 void enq_task_arg1(uint ttype, uint ts, uint locale, uint arg0){
-
-     *(volatile int *)( ADDR_DEQ_TASK_HINT) = (locale);
-     *(volatile int *)( ADDR_DEQ_TASK_TTYPE) = (ttype);
-     *(volatile int *)( ADDR_DEQ_TASK_ARG0) = (arg0);
-     *(volatile int *)( ADDR_DEQ_TASK) = ts;
+     *(volatile int *)( ADDR_TASK_ARG) = (arg0);
+     enq_task_arg0(ttype, ts, locale);
 }
-void enq_task_arg0(uint ttype, uint ts, uint locale){
-
-     *(volatile int *)( ADDR_DEQ_TASK_HINT) = (locale);
-     *(volatile int *)( ADDR_DEQ_TASK_TTYPE) = (ttype);
-     *(volatile int *)( ADDR_DEQ_TASK) = ts;
+void enq_task_arg2(uint ttype, uint ts, uint locale, uint arg0, uint arg1){
+     *(volatile int *)( ADDR_TASK_ARG + 4) = (arg1);
+     enq_task_arg1(ttype, ts, locale, arg0);
 }
+void enq_task_arg3(uint ttype, uint ts, uint locale, uint arg0, uint arg1, uint arg2){
+     *(volatile int *)( ADDR_TASK_ARG + 8) = (arg2);
+     enq_task_arg2(ttype, ts, locale, arg0, arg1);
+}
+void enq_task_arg4(uint ttype, uint ts, uint locale, uint arg0, uint arg1, uint arg2, uint arg3){
+     *(volatile int *)( ADDR_TASK_ARG + 12) = (arg3);
+     enq_task_arg3(ttype, ts, locale, arg0, arg1, arg2);
+}
+
+void deq_task_arg0(uint* ttype, uint* ts, uint* locale) {
+      *ts = *(volatile uint *)(ADDR_TASK);
+      *locale = *(volatile uint *)(ADDR_TASK_HINT);
+      *ttype = *(volatile uint *)(ADDR_TASK_TTYPE);
+}
+void deq_task_arg1(uint* ttype, uint* ts, uint* locale, uint* arg0) {
+      deq_task_arg0(ttype, ts, locale);
+      *arg0 = *(volatile uint *)(ADDR_TASK_ARG);
+}
+void deq_task_arg2(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1) {
+      deq_task_arg1(ttype, ts, locale, arg0);
+      *arg1 = *(volatile uint *)(ADDR_TASK_ARG + 4);
+}
+void deq_task_arg3(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1, uint* arg2) {
+      deq_task_arg2(ttype, ts, locale, arg0, arg1);
+      *arg2 = *(volatile uint *)(ADDR_TASK_ARG + 8);
+}
+void deq_task_arg4(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1, uint* arg2, uint* arg3) {
+      deq_task_arg3(ttype, ts, locale, arg0, arg1, arg2);
+      *arg3 = *(volatile uint *)(ADDR_TASK_ARG + 12);
+}
+
+// backwards compatibility
 void deq_task(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1) {
-      *ts = *(volatile uint *)(ADDR_DEQ_TASK);
-      *locale = *(volatile uint *)(ADDR_DEQ_TASK_HINT);
-      *ttype = *(volatile uint *)(ADDR_DEQ_TASK_TTYPE);
-      *arg0 = *(volatile uint *)(ADDR_DEQ_TASK_ARG0);
-      *arg1 = *(volatile uint *)(ADDR_DEQ_TASK_ARG1);
+      *ts = *(volatile uint *)(ADDR_TASK);
+      *locale = *(volatile uint *)(ADDR_TASK_HINT);
+      *ttype = *(volatile uint *)(ADDR_TASK_TTYPE);
+      *arg0 = *(volatile uint *)(ADDR_TASK_ARG);
+      *arg1 = *(volatile uint *)(ADDR_TASK_ARG + 4);
 }
 
 // Needed to avoid 'undefined reference to _exit'

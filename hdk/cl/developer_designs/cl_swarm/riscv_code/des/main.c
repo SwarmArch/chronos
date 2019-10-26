@@ -138,7 +138,7 @@ void main() {
 
     while (1) {
         uint ttype, ts, locale, arg0, arg1;
-        deq_task(&ttype, &ts, &locale, &arg0, &arg1);
+        deq_task_arg2(&ttype, &ts, &locale, &arg0, &arg1);
         switch(ttype) {
             case DES_TASK:
                 des_task(ts, locale, arg0, arg1);

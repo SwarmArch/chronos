@@ -276,10 +276,11 @@ always_comb begin
    case(state)
       WAIT_CORE: begin
          if (dBus_cmd_valid & !dBus_cmd_payload_wr) begin
-            case (dBus_cmd_addr) 
+            casex (dBus_cmd_addr) 
                RISCV_DEQ_TASK_LOCALE,
                RISCV_DEQ_TASK_ARG0, 
                RISCV_DEQ_TASK_ARG1, 
+               RISCV_DEQ_TASK_ARG, 
                RISCV_CUR_CYCLE, 
                RISCV_TILE_ID, RISCV_CORE_ID,
                RISCV_DEQ_TASK_TTYPE : state_next = IO_READ;
@@ -365,7 +366,7 @@ always_ff @(posedge clk) begin
    if (task_wvalid & task_wready) begin
          $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5x  locale:%5x ttype:%2d args:(%4d, %4d)",
             cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.locale, task_wdata.ttype,
-            task_wdata.args[63:32], task_wdata[31:0]);
+            task_wdata.args[63:32], task_wdata.args[31:0]);
    end
    abort_running_task_d <= abort_running_task;
    if (abort_running_task & !abort_running_task_d) begin
@@ -480,12 +481,21 @@ always_ff @ (posedge clk) begin
       task_wdata.non_spec <= 1'b0; 
    end else begin
       if (dBus_cmd_valid & dBus_cmd_payload_wr) begin
-         case (dBus_cmd_addr) 
+         casex (dBus_cmd_addr) 
             RISCV_DEQ_TASK      : if (!task_wvalid) task_wdata.ts <= dBus_cmd_data;
             RISCV_DEQ_TASK_LOCALE : if (!task_wvalid) task_wdata.locale <= dBus_cmd_data; 
             RISCV_DEQ_TASK_TTYPE: if (!task_wvalid) task_wdata.ttype <= dBus_cmd_data;
             RISCV_DEQ_TASK_ARG0 : if (!task_wvalid) task_wdata.args[31:0] <= dBus_cmd_data;
             RISCV_DEQ_TASK_ARG1 : if (!task_wvalid) task_wdata.args[63:32] <= dBus_cmd_data;
+            RISCV_DEQ_TASK_ARG : begin
+               if (!task_wvalid) begin
+                  for (integer i =0;i <(ARG_WIDTH/32);i++) begin
+                     if (dBus_cmd_addr[7:2] == i ) begin
+                        task_wdata.args[ i*32 +: 32 ] <= dBus_cmd_data;
+                     end
+                  end
+               end
+             end
             RISCV_UNDO_LOG_ADDR : if (!undo_log_valid) undo_log_addr <= dBus_cmd_data;
             RISCV_UNDO_LOG_DATA : if (!undo_log_valid) undo_log_data <= dBus_cmd_data;
          endcase
@@ -561,11 +571,12 @@ always_comb begin
 
    if (dBus_cmd_valid) begin
       if (dBus_cmd_payload_wr) begin
-         case (dBus_cmd_addr) 
+         casex (dBus_cmd_addr) 
             RISCV_FINISH_TASK: dBus_cmd_ready = (finish_task_valid & finish_task_ready);
             RISCV_DEQ_TASK_LOCALE,
             RISCV_DEQ_TASK_ARG0,
             RISCV_DEQ_TASK_ARG1,
+            RISCV_DEQ_TASK_ARG,
             RISCV_DEQ_TASK_TTYPE: dBus_cmd_ready = !(task_wvalid);
             RISCV_DEQ_TASK: begin
                if (!task_wvalid) begin
@@ -602,10 +613,11 @@ always_comb begin
          endcase
       end else begin
          if (state == WAIT_CORE || state == ABORT_TASK) begin
-            case (dBus_cmd_addr) 
+            casex (dBus_cmd_addr) 
                RISCV_DEQ_TASK_LOCALE,
                RISCV_DEQ_TASK_TTYPE,
                RISCV_DEQ_TASK_ARG0,
+               RISCV_DEQ_TASK_ARG,
                RISCV_TILE_ID,
                RISCV_CORE_ID,
                RISCV_DEQ_TASK_ARG1: begin
@@ -633,12 +645,19 @@ always_comb begin
    dBus_rsp_valid = 1'b0;
    dBus_rsp_data = 'x;
    if (state == IO_READ) begin
-      case (io_read_addr) 
+      casex (io_read_addr) 
          RISCV_DEQ_TASK      : dBus_rsp_data = task_in.ts;
          RISCV_DEQ_TASK_LOCALE : dBus_rsp_data = task_in.locale; 
          RISCV_DEQ_TASK_TTYPE: dBus_rsp_data = task_in.ttype; 
          RISCV_DEQ_TASK_ARG0 : dBus_rsp_data = task_in.args[31:0]; 
          RISCV_DEQ_TASK_ARG1 : dBus_rsp_data = task_in.args[63:32]; 
+         RISCV_DEQ_TASK_ARG  : begin 
+            for (integer i =0;i <(ARG_WIDTH/32);i++) begin
+               if (io_read_addr[7:2] == i ) begin
+                  dBus_rsp_data = task_in.args[i*32 +: 32]; 
+               end
+            end
+         end
          RISCV_CUR_CYCLE     : dBus_rsp_data = cur_cycle; 
          RISCV_TILE_ID       : dBus_rsp_data = TILE_ID; 
          RISCV_CORE_ID       : dBus_rsp_data = CORE_ID; 
