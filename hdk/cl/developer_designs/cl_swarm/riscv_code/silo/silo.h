@@ -1,12 +1,8 @@
-
-#include <random>
-#include <stdio.h>
-#include <string.h>
-#include <vector>
-
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
+#ifndef RISCV
+#include "../include/simulator.h"
+#else
+#include "../include/chronos.h"
+#endif
 
 struct warehouse_ro {
    uint32_t w_tax;
@@ -94,6 +90,7 @@ struct new_order {
    uint32_t no_w_id : 3;
 };
 
+
 struct history {
    uint32_t h_c_id;
    uint8_t h_c_d_id;
@@ -105,18 +102,19 @@ struct history {
    char h_data[24];
 };
 
+
+struct fifo_table_info {
+   void* fifo_base;
+   uint32_t num_records;
+   uint32_t record_size;
+   uint32_t rd_ptr;
+   uint32_t wr_ptr;
+};
 struct table_info {
    uint8_t log_bucket_size;
    uint8_t log_num_buckets;
    uint16_t record_size; // in bytes
-   uint8_t* table_base;
-};
-
-struct fifo_table_info {
-   uint8_t* fifo_base;
-   uint32_t num_records;
-   uint32_t record_size;
-   uint32_t* addr_pointer;
+   uint32_t table_base;
 };
 
 struct tx_info_new_order {
@@ -131,25 +129,6 @@ struct tx_info_new_order_item {
    uint32_t i_qty : 4;
    uint32_t i_s_wid: 4;
 };
-
-int size_of_field(int items, int size_of_item){ // in bytes
-	const int CACHE_LINE_SIZE = 64;
-	return ( (items * size_of_item + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE) * CACHE_LINE_SIZE ;
-}
-
-
-int RandomNumber(int min, int max)
-{
- // [0, UINT64_MAX] -> (int) [min, max]
- int n = rand();
- int m = n % (max - min + 1);
- return min + (int) m;
-}
-
-int NonUniformRandom(int A, int C, int min, int max)
-{
- return (((RandomNumber(0, A) | RandomNumber(min, max)) + C) % (max - min + 1)) + min;
-}
 
 uint32_t hash_key(uint32_t n) {
    uint32_t keys[] = {
@@ -199,4 +178,9 @@ uint32_t hash_key(uint32_t n) {
    }
    return res;
 
+}
+
+int size_of_field(int items, int size_of_item){ // in bytes
+	const int CACHE_LINE_SIZE = 64;
+	return ( (items * size_of_item + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE) * CACHE_LINE_SIZE ;
 }

@@ -1,5 +1,9 @@
 
 #include <stdarg.h>
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
+typedef unsigned long uint64_t;
 
 const int ADDR_TASK      = 0xc0000000;
 const int ADDR_TASK_HINT = 0xc0000004;
@@ -41,6 +45,9 @@ static inline void chronos_init() {
 
    register int *x asm ("sp");
 
+}
+
+void printf(...) {
 }
 
 void undo_log_write(uint* addr, uint data) {
@@ -102,5 +109,5 @@ void deq_task(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1) {
 }
 
 // Needed to avoid 'undefined reference to _exit'
-void exit(int a) {
+void _exit(int a) {
 }

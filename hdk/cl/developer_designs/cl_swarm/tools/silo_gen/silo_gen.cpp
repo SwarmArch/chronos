@@ -18,9 +18,9 @@ district_rw districts_rw[n_districts];
 table_info tbl_cust_ro = {8, 8, sizeof(customer_ro), 0};
 table_info tbl_cust_rw = {8, 8, sizeof(customer_rw), 0};
 table_info tbl_order = {8, 8, sizeof(order), 0};
-table_info tbl_order_line = {8, 14, sizeof(order), 0};
-table_info tbl_item = {8, 9, sizeof(order), 0};
-table_info tbl_stock = {8, 12, sizeof(order), 0};
+table_info tbl_order_line = {8, 14, sizeof(order_line), 0};
+table_info tbl_item = {8, 9, sizeof(item), 0};
+table_info tbl_stock = {8, 12, sizeof(stock), 0};
 fifo_table_info tbl_new_order = {0, 65536, sizeof(new_order), 0};
 fifo_table_info tbl_history = {0, 65536, sizeof(history), 0};
 
@@ -33,7 +33,7 @@ void initialize_table(table_info* table) {
    int num_entries = (1<<(table->log_bucket_size + table->log_num_buckets));
    table->table_base = (uint8_t*) malloc(table->record_size * num_entries);
    for (int i=0;i<num_entries;i++) {
-      *((uint64_t*) (table->table_base + i*table->record_size)) = ~0;
+      *((uint32_t*) (table->table_base + i*table->record_size)) = ~0;
    }
 }
 void initialize_fifo(fifo_table_info* fifo) {
@@ -51,17 +51,17 @@ void insert_fifo_record(fifo_table_info* fifo, void* value) {
 }
 
 void insert_record(table_info* table, void* value) {
-   uint64_t key = *((uint64_t*)(value));
+   uint32_t key = *((uint32_t*)(value));
    int hash = hash_key(key);
    int offset = hash & ( (1<<table->log_bucket_size)-1);
    int bucket = (hash >> table->log_bucket_size) & ( (1<<table->log_num_buckets)-1);
 
    uint32_t bucket_size_bytes = size_of_field(1<<(table->log_bucket_size) , table->record_size);
-   //printf("%lx: %8x %d %d | %d %d\n", key, hash, offset, bucket, g[0], g[1] );
+   //printf("%lx: %8x %d %d \n", key, hash, offset, bucket);
    while(true) {
       uint8_t* rec_begin = (table->table_base +  bucket_size_bytes*bucket + offset* table->record_size);
-      uint64_t rec_key = *(uint64_t*) (rec_begin);
-      if (rec_key == ~0ul) {
+      uint32_t rec_key = *(uint32_t*) (rec_begin);
+      if (rec_key == ~0u) {
          memcpy( (void*) rec_begin, value, table->record_size);
          break;
       } else {
@@ -83,6 +83,7 @@ void initialize_districts() {
       for (int j=0;j<n_warehouses * n_districts_per_warehouse;j++) {
          int index = i*n_districts_per_warehouse + j;
          districts_ro[index].d_tax = RandomNumber(0,2000);
+         printf("d tax %d\n", districts_ro[index].d_tax);
          districts_rw[index].d_next_o_id = 3001;
          districts_rw[index].d_ytd = 30000;
       }
@@ -241,6 +242,7 @@ void generate_tx() {
 }
 
 void fill_table(table_info* tbl, uint32_t start_index, uint32_t* data, uint32_t base) {
+   printf(" %d %d %d\n", start_index, tbl->log_num_buckets, tbl->record_size);
    data[start_index] = ( (tbl->log_bucket_size << 24) | (tbl->log_num_buckets << 16) | (tbl->record_size));
    data[start_index+1] = base;
 
@@ -338,6 +340,10 @@ void write_output(FILE* fp) {
    fill_table(&tbl_item ,   20, data, base_item);
    fill_table(&tbl_stock,   22, data, base_stock);
 
+   memcpy((void*) (&data[base_warehouse]), (void*) warehouses, size_warehouse*4);
+   memcpy((void*) (&data[base_district_ro]), (void*) districts_ro, size_district_ro*4);
+   memcpy((void*) (&data[base_district_rw]), (void*) districts_rw, size_district_rw*4);
+
    data[23] = base_new_order;
    data[24] = (tbl_new_order.num_records << 16 | tbl_new_order.record_size);
    data[25] = new_order_ptr;
@@ -361,9 +367,10 @@ void write_output(FILE* fp) {
 
    for (int i=0;i<=num_tx;i++) data[base_tx_offset + i] = tx_offset[i];
    for (int i=0;i<=tx_data.size();i++) data[base_tx_data + i] = tx_data[i];
-   for (int i=0;i<base_end;i++) {
-      fprintf(fp, "%08x\n", data[i]);
-   }
+   fwrite(data, 4, base_end, fp);
+   //for (int i=0;i<base_end;i++) {
+   //   fprintf(fp, "%08x\n", data[i]);
+   //}
 
 }
 
@@ -379,7 +386,7 @@ initialize_item();
 initialize_stock();
 generate_tx();
 
-FILE* fo = fopen("silo_tx", "w");
+FILE* fo = fopen("silo_tx", "wb");
 write_output(fo);
 fclose(fo);
 
