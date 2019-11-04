@@ -8,7 +8,7 @@ const int num_items = 100000;
 const int num_tx = 1000;
 
 // Warehouse and Distric tables are simple arrays.
-
+bool debug = false;
 
 warehouse_ro warehouses[n_warehouses];
 district_ro districts_ro[n_districts];
@@ -17,7 +17,7 @@ district_rw districts_rw[n_districts];
 // {bucket_size, num_buckets}
 table_info tbl_cust_ro = {8, 8, sizeof(customer_ro), 0};
 table_info tbl_cust_rw = {8, 8, sizeof(customer_rw), 0};
-table_info tbl_order = {8, 8, sizeof(order), 0};
+table_info tbl_order = {8, 10, sizeof(order), 0};
 table_info tbl_order_line = {8, 14, sizeof(order_line), 0};
 table_info tbl_item = {8, 9, sizeof(item), 0};
 table_info tbl_stock = {8, 12, sizeof(stock), 0};
@@ -57,16 +57,19 @@ void insert_record(table_info* table, void* value) {
    int bucket = (hash >> table->log_bucket_size) & ( (1<<table->log_num_buckets)-1);
 
    uint32_t bucket_size_bytes = size_of_field(1<<(table->log_bucket_size) , table->record_size);
-   //printf("%lx: %8x %d %d \n", key, hash, offset, bucket);
+   if (debug) {
+      printf("%lx [%7d]: %8x %d bucket=%d \n", key, key, hash, offset, bucket);
+   }
    while(true) {
-      uint8_t* rec_begin = (table->table_base +  bucket_size_bytes*bucket + offset* table->record_size);
+      uint8_t* rec_begin = (table->table_base +
+            bucket_size_bytes*bucket + offset* table->record_size);
       uint32_t rec_key = *(uint32_t*) (rec_begin);
+      if (debug) printf("\t %d %lx \n", offset, rec_key);
       if (rec_key == ~0u) {
          memcpy( (void*) rec_begin, value, table->record_size);
          break;
       } else {
          offset++;
-         //printf("\t %d %lx\n", index, rec_key);
          if (offset == (1<<table->log_bucket_size)) offset = 0;
       }
    }
@@ -179,17 +182,21 @@ void initialize_order() {
 }
 
 void initialize_item() {
+   printf("Initializing Items\n");
    initialize_table(&tbl_item);
    for (int i=1;i<=num_items;i++){
       item it;
       it.i_id = i;
       it.i_price = RandomNumber(100,10000);
+      //printf("item %d price:%d\n", i, it.i_price);
       insert_record(&tbl_item, &it);
    }
 }
 
 void initialize_stock() {
+   printf("Initializing Stock\n");
    initialize_table(&tbl_stock);
+   debug = true;
    for (int w=0;w<n_warehouses;w++) {
       for (int i=1;i<=num_items;i++){
          stock s;
@@ -202,6 +209,7 @@ void initialize_stock() {
          insert_record(&tbl_stock, &s);
       }
    }
+   debug = false;
 }
 
 void generate_tx() {
@@ -344,33 +352,37 @@ void write_output(FILE* fp) {
    memcpy((void*) (&data[base_district_ro]), (void*) districts_ro, size_district_ro*4);
    memcpy((void*) (&data[base_district_rw]), (void*) districts_rw, size_district_rw*4);
 
-   data[23] = base_new_order;
-   data[24] = (tbl_new_order.num_records << 16 | tbl_new_order.record_size);
-   data[25] = new_order_ptr;
+   data[24] = base_new_order;
+   data[25] = (tbl_new_order.num_records << 16 | tbl_new_order.record_size);
+   data[26] = new_order_ptr;
    memcpy((void*) (&data[base_new_order]), (void*) tbl_new_order.fifo_base, size_new_order *4);
    data[new_order_ptr] = tbl_new_order.addr_pointer[0];
    data[new_order_ptr + 1] = tbl_new_order.addr_pointer[1];
    printf("%d %d\n", data[new_order_ptr], data[new_order_ptr + 1]);
 
-   data[26] = base_history;
-   data[27] = (tbl_history.num_records << 16 | tbl_history.record_size);
-   data[28] = history_ptr;
+   data[27] = base_history;
+   data[28] = (tbl_history.num_records << 16 | tbl_history.record_size);
+   data[29] = history_ptr;
    data[history_ptr] = 0;
    data[history_ptr + 1] = 0;
    // histroy table is not initialized;
 
-   data[29] = base_end;
+   data[30] = base_end;
 
-   for (int i=0;i<30;i++) {
-      printf("header %d: %x\n", i, data[i]);
+   for (int i=0;i<31;i++) {
+      printf("header %d: %8x %9d \n", i, data[i], data[i]);
    }
 
    for (int i=0;i<=num_tx;i++) data[base_tx_offset + i] = tx_offset[i];
    for (int i=0;i<=tx_data.size();i++) data[base_tx_data + i] = tx_data[i];
    fwrite(data, 4, base_end, fp);
-   //for (int i=0;i<base_end;i++) {
-   //   fprintf(fp, "%08x\n", data[i]);
-   //}
+   /*
+   FILE* f = fopen("tx","w");
+   for (int i=0;i<base_end;i++) {
+      fprintf(f, "%08x\n", data[i]);
+   }
+   fclose(f);
+   */
 
 }
 
