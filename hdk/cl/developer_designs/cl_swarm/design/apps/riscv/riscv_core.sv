@@ -760,7 +760,9 @@ if (CORE_LOGGING[TILE_ID] & (CORE_ID == 0)) begin
       logic [31:0] araddr;
       logic [31:0] rdata;
      
-      logic [11:0] unused;
+      logic [9:0] unused;
+      logic finish_task_valid;
+      logic finish_task_ready;
       logic dBus_cmd_valid;
       logic dBus_cmd_ready;
       logic dBus_cmd_payload_wr;
@@ -811,6 +813,9 @@ if (CORE_LOGGING[TILE_ID] & (CORE_ID == 0)) begin
       log_word.bready   = l1.bready ;
       log_word.rlast    = l1.rlast  ;
       log_word.wlast    = l1.wlast  ;
+
+      log_word.finish_task_valid = finish_task_valid;
+      log_word.finish_task_ready = finish_task_ready;
       
       log_word.dBus_cmd_valid    = dBus_cmd_valid  ;
       log_word.dBus_cmd_ready    = dBus_cmd_ready  ;
@@ -825,7 +830,7 @@ if (CORE_LOGGING[TILE_ID] & (CORE_ID == 0)) begin
             (dBus_cmd_addr == RISCV_DEBUG_PRINTF);
       end else begin
          log_valid = (l1.awvalid | l1.arvalid | l1.wvalid | l1.rvalid | l1.bvalid | 
-                  dBus_cmd_valid | dBus_rsp_valid);
+                  dBus_cmd_valid | dBus_rsp_valid | finish_task_valid);
       end
    end
 
