@@ -548,7 +548,6 @@ assign rst_core = !(rstn & start);
 
 assign dBus_in.awsize = 2;
 assign dBus_in.arsize = 2;
-assign dBus_in.wstrb = 4'b1111;
 assign dBus_in.awlen = 0;
 assign dBus_in.arlen = 0;
 assign dBus_in.wlast = 1'b1;
