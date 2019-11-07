@@ -609,7 +609,7 @@ always_comb begin
                   dBus_in.wvalid = 1'b1; 
                   case (dBus_cmd_size) 
                      0: dBus_in.wstrb[dBus_cmd_addr[1:0]] = 1'b1; 
-                     1: dBus_in.wstrb[dBus_cmd_addr[1] +:2 ] = 2'b11; 
+                     1: dBus_in.wstrb[dBus_cmd_addr[1]*2 +:2 ] = 2'b11; 
                      default: dBus_in.wstrb = 4'b1111; 
                   endcase
                   if (dBus_in.awready) begin
