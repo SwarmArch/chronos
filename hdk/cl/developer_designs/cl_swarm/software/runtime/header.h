@@ -68,6 +68,7 @@
 #define OCL_PARAM_NON_SPEC            0x68
 #define OCL_PARAM_LOG_READY_LIST_SIZE 0x6c
 #define OCL_PARAM_LOG_L2_BANKS        0x70
+#define OCL_PARAM_N_CORES             0x74
 
 #define CORE_START                0xa0 //  wdata - bitmap of which cores are activated
 #define CORE_N_DEQUEUES           0xb0
@@ -244,6 +245,7 @@ int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*,
 int log_ddr(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_serializer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 int log_ro_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
+int log_rw_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char*, uint32_t);
 void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size, uint32_t tile_id);
 
 void init_params();
@@ -287,7 +289,8 @@ extern uint16_t pci_device_id; /* PCI Device ID preassigned by Amazon for F1 app
 #define APP_ASTAR 3
 #define APP_COLOR 4
 #define APP_MAXFLOW 5
-#define APP_LAST 6
+#define APP_SILO 6
+#define APP_LAST 7
 
 typedef struct {
    uint excess;

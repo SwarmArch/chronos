@@ -43,12 +43,13 @@ static inline void chronos_init() {
    __asm__( "add a1,a1,a2");
    __asm__( "slli sp,a1,16");
 
+   // hardcoded in linker script
+   __asm__( "li gp, 0xc0000800");
+
    register int *x asm ("sp");
 
 }
 
-void printf(...) {
-}
 
 void undo_log_write(uint* addr, uint data) {
    *(volatile int *)( ADDR_UNDO_LOG_ADDR) = (uint) addr;
@@ -109,5 +110,5 @@ void deq_task(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1) {
 }
 
 // Needed to avoid 'undefined reference to _exit'
-void _exit(int a) {
+void exit(int a) {
 }

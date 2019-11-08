@@ -6,9 +6,9 @@ const int ADDR_BASE_DIST = 5 << 2;
 const int ADDR_BASE_EDGE_OFFSET = 3 << 2;
 const int ADDR_BASE_NEIGHBORS = 4 << 2;
 
-int* dist;
-int* edge_offset;
-int* edge_neighbors;
+uint32_t* dist;
+uint32_t* edge_offset;
+uint32_t* edge_neighbors;
 
 #define VISIT_NODE_TASK  0
 
@@ -30,14 +30,14 @@ void visit_node_task(uint ts, uint vid) {
 }
 
 
-void main() {
+int main() {
    chronos_init();
 
    // Dereference the pointers to array base addresses.
    // ( The '<<2' is because graph_gen writes the word number, not the byte)
-   dist = (int*) ((*(int *) (ADDR_BASE_DIST))<<2) ;
-   edge_offset  =(int*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
-   edge_neighbors  =(int*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
+   dist = (uint32_t*) ((*(uint32_t *) (ADDR_BASE_DIST))<<2) ;
+   edge_offset  =(uint32_t*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
+   edge_neighbors  =(uint32_t*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
 
    while (1) {
       uint ttype, ts, locale;

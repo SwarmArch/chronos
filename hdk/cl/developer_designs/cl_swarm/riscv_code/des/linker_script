@@ -48,11 +48,12 @@ SECTIONS
   }
   .plt            : { *(.plt) }
   .iplt           : { *(.iplt) }
+  . = 0x80000074;
   .text           :
   {
+    *(.text.startup .text.startup.*)
     *(.text.unlikely .text.*_unlikely .text.unlikely.*)
     *(.text.exit .text.exit.*)
-    *(.text.startup .text.startup.*)
     *(.text.hot .text.hot.*)
     *(.text .stub .text.* .gnu.linkonce.t.*)
     /* .gnu.warning sections are handled specially by elf32.em.  */
@@ -144,8 +145,11 @@ SECTIONS
   .data.rel.ro : { *(.data.rel.ro.local* .gnu.linkonce.d.rel.ro.local.*) *(.data.rel.ro .data.rel.ro.* .gnu.linkonce.d.rel.ro.*) }
   .dynamic        : { *(.dynamic) }
   . = DATA_SEGMENT_RELRO_END (0, .);
+  /* Push data and bss out of read-only region (80-c0) */
+  . = 0xc0000000;
   .data           :
   {
+    __global_pointer$ = . + 0x800;
     *(.data .data.* .gnu.linkonce.d.*)
     SORT(CONSTRUCTORS)
   }
@@ -156,7 +160,6 @@ SECTIONS
      we can shorten the on-disk segment size.  */
   .sdata          :
   {
-    __global_pointer$ = . + 0x800;
     *(.srodata.cst16) *(.srodata.cst8) *(.srodata.cst4) *(.srodata.cst2) *(.srodata .srodata.*)
     *(.sdata .sdata.* .gnu.linkonce.s.*)
   }

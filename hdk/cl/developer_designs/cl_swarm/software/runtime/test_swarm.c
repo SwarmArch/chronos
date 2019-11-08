@@ -27,6 +27,7 @@ int dma_example(int slot_i);
 pci_bar_handle_t pci_bar_handle;
 uint32_t APP_ID;
 uint32_t N_TILES;
+uint32_t N_CORES;
 uint32_t ID_OCL_SLAVE;
 uint32_t READY_LIST_SIZE;
 uint32_t L2_BANKS;
@@ -51,7 +52,9 @@ uint32_t NON_SPEC;
 uint32_t USING_PIPELINED_TEMPLATE;
 
 uint32_t active_tiles;
+bool logging_on = false;
 uint32_t logging_phase_tasks = 0x100;
+uint32_t reading_binary_file = false;
 
 uint16_t pci_vendor_id = 0x1D0F; /* Amazon PCI Vendor ID */
 uint16_t pci_device_id = 0xF000; /* PCI Device ID preassigned by Amazon for F1 applications */
@@ -96,6 +99,7 @@ void init_params() {
     USING_PIPELINED_TEMPLATE = (APP_ID >> 16) & 1;
 
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_N_TILES, &N_TILES);
+    pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_N_CORES, &N_CORES);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_TQ_HEAP_STAGES, &TQ_STAGES);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_NON_SPEC, &NON_SPEC);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_TQ_SIZE, &LOG_TQ_SIZE);
@@ -186,12 +190,17 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "color") ==0) {
         app = APP_COLOR;
     }
+    if (strcmp(argv[1], "silo") ==0) {
+        app = APP_SILO;
+        reading_binary_file = true;
+    }
     if (argc >=4 ) fhex = fopen(argv[3], "r"); // code hex
     if ( (app > 0) & (argc <3)) {
         printf("Need input file\n");
         exit(0);
     }
-    fg=fopen(argv[2], "r");
+    if (reading_binary_file) fg = fopen(argv[2], "rb");
+    else fg=fopen(argv[2], "r");
     fail_on((rc = (fg == 0)? 1:0), out, "unable to open input file. ");
     if (app == -1) {
         printf("Invalid app\n"); exit(0);
@@ -303,6 +312,7 @@ void load_code() {
     printf("Loading code %p\n", fhex);
     int code_len = 1024*1024;
     unsigned char* code_buffer = (unsigned char*) malloc(code_len);
+    unsigned char* data_buffer = (unsigned char*) malloc(code_len);
     fseek(fhex, 0, SEEK_END);
     uint32_t size = ftell(fhex);
     fseek(fhex, 0, SEEK_SET);
@@ -310,9 +320,11 @@ void load_code() {
     fread(content, 1, size, fhex);
 
     const unsigned int code_start = 0x80000000;
+    const unsigned int data_start = 0xc0000000;
 
     uint32_t offset = 0;
     char* line = content;
+    bool reading_code = true;
     while (1) {
         if (line[0] == ':') {
             uint32_t byteCount = hToI(line + 1, 2);
@@ -322,17 +334,27 @@ void load_code() {
             switch (key) {
                 case 0:
                     for (uint32_t i = 0; i < byteCount; i++) {
-                        code_buffer[nextAddr + i - code_start] = hToI(line + 9 + i * 2, 2);
+                        if (reading_code) {
+                            code_buffer[nextAddr + i - code_start] = hToI(line + 9 + i * 2, 2);
+                        } else {
+                            data_buffer[nextAddr + i - data_start] = hToI(line + 9 + i * 2, 2);
+                        }
                         //printf("%x %x %c%c\n",nextAddr + i,hToI(line + 9 + i*2,2),line[9 + i * 2],line[9 + i * 2+1]);
                     }
                     break;
                 case 2:
-                    //				cout << offset << endl;
                     offset = hToI(line + 9, 4) << 4;
+                    printf("offset %x\n", offset);
                     break;
                 case 4:
-                    //				cout << offset << endl;
                     offset = hToI(line + 9, 4) << 16;
+                    printf("offset %x\n", offset);
+                    if (offset == data_start) reading_code = false;
+                    else if (offset == code_start) reading_code = true;
+                    else {
+                        printf("unexpect offset\n");
+                        exit(0);
+                    }
                     break;
                 default:
                     //				cout << "??? " << key << endl;
@@ -371,6 +393,7 @@ void load_code() {
     //    exit(0);
    // }
     dma_write(code_buffer, code_len, code_start);
+    dma_write(data_buffer, code_len, data_start);
 }
 
 int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
@@ -412,7 +435,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     // Change here if you want to reduce the system size
     active_tiles = 1;
-    uint32_t max_threads = 1e10;
+    uint32_t max_threads = 1e9;
 
     if (N_TILES < active_tiles) {
         printf("N_TILES %d < active_tiles %d\n", N_TILES, active_tiles);
@@ -422,21 +445,35 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     // Stage 1: Read input file and transfer to the FPGA
     printf("File %p\n", fg);
     write_buffer = (unsigned char *)malloc(1600*1024*1024);
-    unsigned int headers[16];
-    uint32_t line;
-    int ret;
-    int n = 0;
-    while ( (ret = fscanf(fg,"%8x\n", &line)) != EOF) {
-        //line = n;
-        write_buffer[n ] = line & 0xff;
-        write_buffer[n +1] = (line >>8) & 0xff;
-        write_buffer[n +2] = (line >>16) & 0xff;
-        write_buffer[n +3] = (line >>24) & 0xff;
-        if (n<64) headers[n/4] = line;
-        n+=4;
+    uint32_t* headers = (uint32_t*) write_buffer;
+    long lSize;
+    if (reading_binary_file) {
+       fseek (fg , 0 , SEEK_END);
+       lSize = ftell (fg);
+       printf("File %p size %ld\n", fg, lSize);
+       rewind (fg);
+       fread( (void*) write_buffer, 1, lSize, fg);
+       for (int i=0;i<16;i++) {
+            printf("headers %d %x \n", i, headers[i]);
+       }
+    } else {
+        uint32_t line;
+        int ret;
+        int n = 0;
+        while ( (ret = fscanf(fg,"%8x\n", &line)) != EOF) {
+            //line = n;
+            write_buffer[n ] = line & 0xff;
+            write_buffer[n +1] = (line >>8) & 0xff;
+            write_buffer[n +2] = (line >>16) & 0xff;
+            write_buffer[n +3] = (line >>24) & 0xff;
+            if (n<64) headers[n/4] = line;
+            n+=4;
+        }
+        printf("File Len %d\n", n);
+        lSize = n;
     }
     if (app == APP_MAXFLOW) {
-   uint32_t log_gr_interval = headers[10];
+        uint32_t log_gr_interval = headers[10];
         // global relabel interval
         bool adjust_relabel_interval = true;
         if (adjust_relabel_interval) {
@@ -471,15 +508,11 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
-    printf("File Len %d\n", n);
 
-    for (int i=0;i<16;i++) {
-        write_buffer[i*4] = headers[i];
-    }
 
     uint32_t startCycle, endCycle;
 
-    int file_len = n;
+    int file_len = lSize;
     read_buffer = (unsigned char *)malloc(headers[1]*4);
     pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &startCycle);
     rc =fpga_dma_burst_write(write_fd, write_buffer, file_len, 0);
@@ -530,7 +563,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     // for debug logs (if enabled in config)
     FILE* fwtu = fopen("task_unit_log", "w");
-    FILE* fwtu1 = fopen("task_unit_log_1", "w");
     FILE* fwddr = fopen("ddr_log", "w");
     FILE* fwser = fopen("serializer_log", "w");
     FILE* fwcoal = fopen("coalescer_log", "w");
@@ -541,7 +573,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     FILE* fwl2 = fopen("l2_rw", "w");
     FILE* fwl2ro = fopen("l2_ro", "w");
     FILE* fwrv_0 = fopen("riscv_log_0", "w");
-    bool logging_on = false;
     unsigned char* log_buffer = (unsigned char *)malloc(20000*64);
 
     sleep(1);
@@ -611,8 +642,8 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_CLEAN_THRESHOLD, clean_threshold);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_SIZE, spill_size);
-        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_CHECK_LIMIT, spill_size * 2);
-        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 2); // get enq args instead of deq locale/ts
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_CHECK_LIMIT, spill_size * 16);
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq locale/ts
 
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_PRE_ENQ_BUF,
                 (pre_enq_fifo_thresh << 16) | deq_tolerance);
@@ -714,6 +745,16 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
             pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
             break;
+        case APP_SILO:
+            printf("APP_SILO\n");
+
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , 0 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
+
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
+            break;
 
     }
     printf("Starting Applicaton\n");
@@ -736,7 +777,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES , logging_phase_tasks);
     }
     uint32_t core_mask = 0;
-    uint32_t active_cores = 8;
+    uint32_t active_cores = N_CORES;
     core_mask = (1<<(active_cores))-1;
     if (!USING_PIPELINED_TEMPLATE) core_mask <<= 16;
     core_mask |= (1<<ID_COALESCER);
@@ -766,7 +807,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
    while(true) {
        uint32_t gvt;
-       uint32_t gvt_tb;
        if (NON_SPEC) {
            pci_peek(0, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
            //loop_debuggin_nonspec(iters);
@@ -797,6 +837,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            if (done) break;
        }
        if (logging_on) {
+
            log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
                        (N_TILES << 8) | ID_GLOBAL);
            log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
@@ -809,7 +850,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
            log_cache(pci_bar_handle, read_fd, fwl2, log_buffer, ID_L2_RW);
            log_cache(pci_bar_handle, read_fd, fwl2ro, log_buffer, ID_L2_RO);
-           //log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
+           log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
            log_coalescer(pci_bar_handle, read_fd, fwcoal, log_buffer, ID_COALESCER);
            log_splitter(pci_bar_handle, read_fd, fwsp, log_buffer, ID_SPLITTER);
            log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
@@ -857,9 +898,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            task_unit_stats(i, cycles);
        if (i==0) {
            serializer_stats(i, ID_SERIALIZER);
-           uint32_t ro_ar_valid_not_ready;
-           //pci_peek(i, ID_RO_STAGE, CORE_DEBUG_WORD + 4, &ro_ar_valid_not_ready);
-           //printf("ro read stall %d\n", ro_ar_valid_not_ready);
        }
    }
 
@@ -987,7 +1025,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        case APP_DES:
            results = (uint32_t*) malloc(4*(numV+16));
            for (int i=0;i<numV/16 +1;i++){
-               fpga_dma_burst_read(read_fd, results + i*16, 16*4, 64 + i*64);
+               fpga_dma_burst_read(read_fd, (uint8_t*) (results + i*16), 16*4, 64 + i*64);
            }
            for (int i=0;i<headers[12];i++) {  // numOutputs
                unsigned char* ref_ptr = write_buffer + (headers[6] +i)*4;
@@ -998,7 +1036,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                    *ref_ptr;
                uint32_t ref_vid = ref_data >> 16;
                uint32_t ref_val = ref_data & 0x3;
-               uint64_t act_addr = 64 + ref_vid * 4;
                uint32_t act_data = results[ref_vid];
                uint32_t act_val = (act_data >> 24) & 0x3;
                bool error = (act_val != ref_val);
@@ -1011,7 +1048,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            }
            FILE* fdes = fopen("des_debug", "w");
            for (int i=0;i<numV;i++) {
-               uint64_t act_addr = 64 + i * 4;
                uint32_t act_data = results[i];
                uint32_t outVal = act_data >> 24 & 0x3;
                uint32_t in0 = (act_data >> 22) & 0x3 ;
@@ -1028,7 +1064,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        case APP_ASTAR:
            results = (uint32_t*) malloc(4*(numV+16));
            for (int i=0;i<numV/16 +1;i++){
-               fpga_dma_burst_read(read_fd, results + i*16, 16*4, 64 + i*64);
+               fpga_dma_burst_read(read_fd, (uint8_t*) (results + i*16), 16*4, 64 + i*64);
            }
            for (int i=0;i<numV;i++) {
                int ref_ptr_loc = (app != APP_ASTAR) ? 6 : 9;
@@ -1083,12 +1119,16 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                }
            }
            printf("Total Errors %d / %d\n", num_errors, ref_count);
-           //printf("Earliest Fail %d (%x) / %d\n", astar_low_fail_node, astar_low_fail_node, astar_low_fail_ref);
+           if (num_errors > 0) {
+               printf("Earliest Fail %d (%x) / %d\n",
+                       astar_low_fail_node, astar_low_fail_node, astar_low_fail_ref);
+           }
            break;
        case APP_COLOR:
            results = (uint32_t*) malloc(16*(numV+100));
            for (int i=0;i<numV/16 + 1;i++){
-               fpga_dma_burst_read(read_fd, results + i*16*4, 16*16, 64 + i*16*16);
+               fpga_dma_burst_read(read_fd, (uint8_t*) (results + i*16*4),
+                       16*16, 64 + i*16*16);
            }
            color_node_prop_t* c_nodes =
                (color_node_prop_t *) (results);// (write_buffer + headers[5]*4);
@@ -1102,7 +1142,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                uint32_t i_color = c_nodes[i].color;
 
                 // read_join_counter and scratch;
-               uint32_t addr = headers[7] * 4 + (i*8);
                uint32_t bitmap = c_nodes[i].scratch;
                uint32_t join_counter = c_nodes[i].ndp;
 
@@ -1135,7 +1174,8 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
       case APP_MAXFLOW:
            results = (uint32_t*) malloc(64*(numV+100));
            for (int i=0;i<numV/16 + 1;i++){
-               fpga_dma_burst_read(read_fd, results + i*16*16, 16*64, 64 + i*64*16);
+               fpga_dma_burst_read(read_fd, (uint8_t*) (results + i*16*16),
+                       16*64, 64 + i*64*16);
            }
            maxflow_edge_prop_t* edges =
                (maxflow_edge_prop_t *) (write_buffer + headers[4]*4);
@@ -1261,7 +1301,7 @@ out:
     return (rc != 0 ? 1 : 0);
 }
 
-int loop_debuggin_nonspec(uint32_t iters){
+void loop_debuggin_nonspec(uint32_t iters){
 
     uint32_t gvt, gvt_tb;
     uint32_t n_tasks, n_tied_tasks, heap_capacity;
@@ -1360,7 +1400,7 @@ int loop_debuggin_nonspec(uint32_t iters){
     }
 }
 
-int loop_debuggin_spec(uint32_t iters){
+void loop_debuggin_spec(uint32_t iters){
 
     uint32_t gvt, gvt_tb;
     uint32_t n_tasks, n_tied_tasks, heap_capacity;

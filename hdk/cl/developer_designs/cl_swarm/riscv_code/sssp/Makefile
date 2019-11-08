@@ -17,8 +17,10 @@
 
 INCLUDES = -I$(SDK_DIR)/userspace/include 
 
-CC = riscv-none-embed-gcc
-CFLAGS = -march=rv32i -mabi=ilp32 -T linker_script 
+#CC = riscv-none-embed-gcc
+#CFLAGS = -march=rv32i -mabi=ilp32 -T linker_script 
+CC = riscv-none-embed-g++
+CFLAGS = -march=rv32i -mabi=ilp32 -T linker_script -DRISCV -specs=nosys.specs 
 
 
 SRC = main.c 
@@ -29,7 +31,7 @@ all: $(BIN)
 
 $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) -O3 -o $^ $(SRC)  
-	riscv-none-embed-objdump -d main.o > main.dump
+	riscv-none-embed-objdump -D main.o > main.dump
 	riscv-none-embed-objcopy --output-target=ihex main.o main.hex
 
 clean:

@@ -1,5 +1,10 @@
 #include "silo.h"
 
+#ifdef RISCV
+void printf(...) {
+}
+#endif
+
 uint32_t num_tx;
 uint32_t* tx_offset;
 uint32_t* tx_data;
@@ -57,7 +62,7 @@ void fill_tbl_header(struct table_info* tbl, int offset) {
    tbl->table_base = chronos_mem[offset+1];
 }
 
-void get_bucket(table_info* tbl, uint32_t pkey, uint32_t* bucket, uint32_t* offset) {
+inline void get_bucket(table_info* tbl, uint32_t pkey, uint32_t* bucket, uint32_t* offset) {
    uint32_t hash = hash_key(pkey);
    *bucket = (hash >> tbl->log_bucket_size) & ( (1<<tbl->log_num_buckets)-1);
    *offset = hash & ( (1<<tbl->log_bucket_size)-1);
@@ -111,9 +116,11 @@ void new_order_update_district(uint32_t ts, uint32_t locale, uint32_t tx_id, uin
    o.o_w_id = tx_info.w_id;
    o.o_id = d_next_o_id;
    uint32_t pkey = *(uint32_t*) &o;
+   uint32_t h = hash_key(pkey);
 
    uint32_t bucket, offset;
    get_bucket(&tbl_order, pkey, &bucket, &offset);
+
    enq_task_arg2(NEW_ORDER_INSERT_ORDER, ts, LOCALE_ORDER | (bucket << 4), pkey,
          (offset << 16) | tx_info.c_id);
 
@@ -242,10 +249,8 @@ int main() {
    chronos_mem = (uint32_t*) malloc(lSize);
    fread( (void*) chronos_mem, 1, lSize, fp);
    enq_task_arg1(TX_ENQUEUER_TASK, 0, 0, 0);
+#else
 #endif
-
-   // Dereference the pointers to array base addresses.
-   // ( The '<<2' is because graph_gen writes the word number, not the byte)
 
    num_tx = chronos_mem[1];
    tx_offset = (uint32_t*) chronos_ptr(2);
@@ -279,7 +284,7 @@ int main() {
    uint ttype, ts, locale, arg0, arg1, arg2;
    while (1) {
       deq_task_arg3(&ttype, &ts, &locale, &arg0, &arg1, &arg2);
-      if (ttype == -1) break;
+//      if (ttype == -1) break;
       switch(ttype){
           case TX_ENQUEUER_TASK:
               tx_enqueuer_task(ts, locale, arg0);

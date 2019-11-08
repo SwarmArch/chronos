@@ -31,7 +31,7 @@ all: $(BIN)
 
 $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) -O3 -o $^ $(SRC)  
-	riscv-none-embed-objdump -d main.o > main.dump
+	riscv-none-embed-objdump -D main.o > main.dump
 	riscv-none-embed-objcopy --output-target=ihex main.o main.hex
 
 clean:

@@ -1205,7 +1205,7 @@ int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
            unsigned int wready = buf[i*16 + 2] >> 8 & 1;
            unsigned int arvalid = buf[i*16 + 2] >> 7 & 1;
            //unsigned int arready = buf[i*16 + 2] >> 6 & 1;
-           //unsigned int rvalid = buf[i*16 + 2] >> 5 & 1;
+           unsigned int rvalid = buf[i*16 + 2] >> 5 & 1;
            //unsigned int rrready = buf[i*16 + 2] >> 4 & 1;
            unsigned int bvalid = buf[i*16 + 2] >> 3 & 1;
            unsigned int bready = buf[i*16 + 2] >> 2 & 1;
@@ -1226,36 +1226,46 @@ int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
            unsigned int dbus_cmd_wr = buf[i*16 +  2] >> 17 & 1;
            unsigned int dbus_rsp_valid = buf[i*16 +  2] >> 16 & 1;
 
+           unsigned int finish_task_valid = buf[i*16 + 2] >> 21 & 1;
+           unsigned int finish_task_ready = buf[i*16 + 2] >> 20 & 1;
+           unsigned int dbus_cmd_size = buf[i*16 +  2] >> 22 & 3;
+
+           unsigned int wstrb_0 = buf[i*16+13];
+           unsigned int wstrb_1 = buf[i*16+14];
 
            //printf(" \t \t %x %x %x %x\n", buf[i*16], buf[i*16+1], buf[i*16+14], buf[i*16+11]);
            if (seq == -1) {
                continue;
            }
             if (dbus_cmd_valid) {
-               fprintf(fw,"[%6d][%10u][%08x][%d] req %d%d wr:%d addr:%08x data:%08x\n",
+               fprintf(fw,"[%6d][%10u][%08x][%d] req %d%d wr:%d addr:%08x data:%08x size:%d\n",
                   seq, cycle, pc, state,
                   dbus_cmd_valid, dbus_cmd_ready,
                   dbus_cmd_wr,
                   dbus_cmd_addr,
-                  dbus_cmd_data
+                  dbus_cmd_data,
+                  dbus_cmd_size
                   );
             }
              if (dbus_rsp_valid) {
-                fprintf(fw,"[%6d][%10u][%08x] rsp %d data:%08x\n",
-                   seq, cycle, pc,
+                fprintf(fw,"[%6d][%10u][%08x][%d] rsp %d data:%08x\n",
+                   seq, cycle, pc, state,
                    dbus_rsp_valid,
                    dbus_rsp_data
                    );
              }
              if (awvalid) fprintf(fw, "[%6d][%10u][%08x] awvalid %08x %d\n",
                      seq, cycle, pc, awaddr, awid);
-             if (wvalid) fprintf(fw, "[%6d][%10u][%08x] wvalid %08x \n",
-                     seq, cycle, pc, wdata);
+             if (wvalid) fprintf(fw, "[%6d][%10u][%08x] wvalid %08x wstrb:%8x_%8x\n",
+                     seq, cycle, pc, wdata, wstrb_1, wstrb_0);
              if (awready) fprintf(fw, "[%6d][%10u][%08x] awready\n", seq, cycle, pc);
-             if (bvalid) fprintf(fw, "[%6d][%10u][%08x] bvalid %d\n", seq, cycle, pc, bid);
+             if (bvalid) fprintf(fw, "[%6d][%10u][%08x][%d] bvalid %d\n", seq, cycle, pc, bid, state);
              //if (bready) fprintf(fw, "[%6d][%10u][%08x] bready\n", seq, cycle, pc);
              if (wready) fprintf(fw, "[%6d][%10u][%08x] wready\n", seq, cycle, pc);
-             if (arvalid) fprintf(fw, "[%6d][%10u][%08x] arvalid\n", seq, cycle, pc);
+             if (arvalid) fprintf(fw, "[%6d][%10u][%08x][%d] arvalid\n", seq, cycle, pc, state);
+             if (rvalid) fprintf(fw, "[%6d][%10u][%08x][%d]  rvalid\n", seq, cycle, pc, state);
+             if (finish_task_valid) fprintf(fw, "[%6d][%10u][%08x][%d] [%d%d] finish_task_valid\n",
+                     seq, cycle, pc, state, finish_task_valid, finish_task_ready);
         }
    }
 
