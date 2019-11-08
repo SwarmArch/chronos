@@ -98,6 +98,7 @@ logic dBus_cmd_valid;
 logic dBus_cmd_ready;
 logic dBus_cmd_payload_wr;
 logic [31:0] dBus_cmd_addr;
+logic [1:0] dBus_cmd_size;
 logic [31:0] dBus_cmd_data;
 logic dBus_rsp_valid;
 logic [31:0] dBus_rsp_data;
@@ -547,7 +548,6 @@ assign rst_core = !(rstn & start);
 
 assign dBus_in.awsize = 2;
 assign dBus_in.arsize = 2;
-assign dBus_in.wstrb = 4'b1111;
 assign dBus_in.awlen = 0;
 assign dBus_in.arlen = 0;
 assign dBus_in.wlast = 1'b1;
@@ -565,6 +565,8 @@ always_comb begin
    dBus_in.awvalid = 1'b0;
    dBus_in.wvalid = 1'b0;
    dBus_in.arvalid = 1'b0;
+
+   dBus_in.wstrb = 0;
 
    task_out_valid = 1'b0;
    app_undo_log_valid = 1'b0;
@@ -605,6 +607,11 @@ always_comb begin
                end else begin
                   dBus_in.awvalid = 1'b1; 
                   dBus_in.wvalid = 1'b1; 
+                  case (dBus_cmd_size) 
+                     0: dBus_in.wstrb[dBus_cmd_addr[1:0]] = 1'b1; 
+                     1: dBus_in.wstrb[dBus_cmd_addr[1]*2 +:2 ] = 2'b11; 
+                     default: dBus_in.wstrb = 4'b1111; 
+                  endcase
                   if (dBus_in.awready) begin
                      dBus_cmd_ready = 1'b1;
                   end
@@ -693,7 +700,7 @@ end
       .dBus_cmd_ready            (dBus_cmd_ready),
       .dBus_cmd_payload_wr       (dBus_cmd_payload_wr),
       .dBus_cmd_payload_address  (dBus_cmd_addr),
-      .dBus_cmd_payload_size     (),
+      .dBus_cmd_payload_size     (dBus_cmd_size),
       .dBus_cmd_payload_data     (dBus_cmd_data),
       .dBus_rsp_ready            (dBus_rsp_valid),
       .dBus_rsp_data             (dBus_rsp_data),
@@ -744,7 +751,8 @@ if (CORE_LOGGING[TILE_ID] & (CORE_ID == 0)) begin
    
    logic log_valid;
    typedef struct packed {
-     
+    
+      logic [63:0] wstrb;
       logic [31:0] debug_pc;
 
       logic [31:0] dBus_cmd_addr;
@@ -760,7 +768,10 @@ if (CORE_LOGGING[TILE_ID] & (CORE_ID == 0)) begin
       logic [31:0] araddr;
       logic [31:0] rdata;
      
-      logic [11:0] unused;
+      logic [7:0] unused;
+      logic [1:0] dBus_cmd_size;
+      logic finish_task_valid;
+      logic finish_task_ready;
       logic dBus_cmd_valid;
       logic dBus_cmd_ready;
       logic dBus_cmd_payload_wr;
@@ -811,6 +822,11 @@ if (CORE_LOGGING[TILE_ID] & (CORE_ID == 0)) begin
       log_word.bready   = l1.bready ;
       log_word.rlast    = l1.rlast  ;
       log_word.wlast    = l1.wlast  ;
+
+      log_word.wstrb    = l1.wstrb ;
+
+      log_word.finish_task_valid = finish_task_valid;
+      log_word.finish_task_ready = finish_task_ready;
       
       log_word.dBus_cmd_valid    = dBus_cmd_valid  ;
       log_word.dBus_cmd_ready    = dBus_cmd_ready  ;
@@ -819,13 +835,14 @@ if (CORE_LOGGING[TILE_ID] & (CORE_ID == 0)) begin
       log_word.dBus_cmd_addr    = dBus_cmd_addr  ;
       log_word.dBus_cmd_data    = dBus_cmd_data  ;
       log_word.dBus_rsp_data    = dBus_rsp_data  ;
+      log_word.dBus_cmd_size = dBus_cmd_size;
       
       if (debug_mode) begin
          log_valid = dBus_cmd_valid & dBus_cmd_payload_wr & 
             (dBus_cmd_addr == RISCV_DEBUG_PRINTF);
       end else begin
          log_valid = (l1.awvalid | l1.arvalid | l1.wvalid | l1.rvalid | l1.bvalid | 
-                  dBus_cmd_valid | dBus_rsp_valid);
+                  dBus_cmd_valid | dBus_rsp_valid | finish_task_valid);
       end
    end
 

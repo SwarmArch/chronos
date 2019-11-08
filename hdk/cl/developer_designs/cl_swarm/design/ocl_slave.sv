@@ -222,6 +222,10 @@ module ocl_slave
                         state <= OCL_SEND_R;
                         data <= N_TILES;
                      end
+                     OCL_PARAM_N_CORES : begin
+                        state <= OCL_SEND_R;
+                        data <= N_CORES;
+                     end
                      OCL_PARAM_LOG_TQ_HEAP_STAGES : begin
                         state <= OCL_SEND_R;
                         data <= TQ_STAGES;

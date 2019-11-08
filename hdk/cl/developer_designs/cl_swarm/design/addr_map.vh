@@ -70,6 +70,7 @@
    parameter OCL_PARAM_NON_SPEC            = 8'h68;
    parameter OCL_PARAM_LOG_READY_LIST_SIZE = 8'h6c;
    parameter OCL_PARAM_LOG_L2_BANKS        = 8'h70;
+   parameter OCL_PARAM_N_CORES             = 8'h74;
 
    parameter CORE_START               = 8'ha0; //  wdata - bitmap of which cores are activated 
    parameter CORE_N_DEQUEUES          = 8'hb0;
