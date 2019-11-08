@@ -258,6 +258,9 @@ void core_stats (uint32_t tile, uint32_t);
 extern pci_bar_handle_t pci_bar_handle;
 void dma_write(unsigned char* write_buffer, uint32_t write_len, size_t write_addr);
 
+void loop_debuggin_spec(uint32_t iters);
+void loop_debuggin_nonspec(uint32_t iters);
+
 extern uint32_t N_TILES;
 extern uint32_t ID_OCL_SLAVE;
 extern uint32_t N_SSSP_CORES;

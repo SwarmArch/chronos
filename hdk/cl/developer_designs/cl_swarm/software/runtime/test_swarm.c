@@ -192,16 +192,23 @@ int main(int argc, char **argv) {
     }
     if (strcmp(argv[1], "silo") ==0) {
         app = APP_SILO;
-        reading_binary_file = true;
     }
     if (argc >=4 ) fhex = fopen(argv[3], "r"); // code hex
     if ( (app > 0) & (argc <3)) {
         printf("Need input file\n");
         exit(0);
     }
-    if (reading_binary_file) fg = fopen(argv[2], "rb");
-    else fg=fopen(argv[2], "r");
+    // Read the first word to determine if file is binary
+    fg = fopen(argv[2], "rb");
     fail_on((rc = (fg == 0)? 1:0), out, "unable to open input file. ");
+    uint32_t magic_op;
+    fread( &magic_op, 1, 4, fg);
+    printf("MAGIC_OP %x\n", magic_op);
+    reading_binary_file = (magic_op == 0xdead);
+    if (!reading_binary_file) {
+        fclose(fg);
+        fg=fopen(argv[2], "r");
+    }
     if (app == -1) {
         printf("Invalid app\n"); exit(0);
     }

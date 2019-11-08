@@ -481,9 +481,11 @@ void WriteOutput(FILE* fp) {
    }
 
    printf("Writing file \n");
+   fwrite(data, 4, BASE_END, fp);
+   /*
    for (int i=0;i<BASE_END;i++) {
       fprintf(fp, "%08x\n", data[i]);
-   }
+   } */
    fclose(fp);
 
    free(data);
@@ -579,9 +581,11 @@ void WriteOutputColor(FILE* fp) {
    }
 
    printf("Writing file \n");
+   fwrite(data, 4, BASE_END, fp);
+   /*
    for (int i=0;i<BASE_END;i++) {
       fprintf(fp, "%08x\n", data[i]);
-   }
+   } */
    fclose(fp);
 
    free(data);
@@ -673,9 +677,12 @@ void WriteOutputMaxflow(FILE* fp) {
       //         csr_neighbors[i].index, (BASE_NEIGHBORS +i*2)*4);
    }
    printf("Writing file \n");
+   fwrite(data, 4, BASE_END, fp);
+   /*
    for (int i=0;i<BASE_END;i++) {
       fprintf(fp, "%08x\n", data[i]);
    }
+   */
    fclose(fp);
 
    free(data);
@@ -785,7 +792,7 @@ int main(int argc, char *argv[]) {
    }
 
    FILE* fp;
-   fp = fopen(out_file, "w");
+   fp = fopen(out_file, "wb");
    printf("Writing file %s %p\n", out_file, fp);
    //fpd = fopen(dimacs_file, "w");
    //WriteDimacs(fpd);
