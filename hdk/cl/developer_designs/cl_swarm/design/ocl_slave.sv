@@ -224,7 +224,11 @@ module ocl_slave
                      end
                      OCL_PARAM_N_CORES : begin
                         state <= OCL_SEND_R;
-                        data <= N_CORES;
+                        `ifdef USE_PIPELINED_TEMPLATE
+                           data <= 0;
+                        `else 
+                           data <= N_CORES;
+                        `endif
                      end
                      OCL_PARAM_LOG_TQ_HEAP_STAGES : begin
                         state <= OCL_SEND_R;

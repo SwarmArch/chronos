@@ -93,7 +93,7 @@ R_SLICE (
 register_slice
 #(
    .WIDTH(16+2),
-   .STAGES(NO_RESP ? 0 : STAGES)
+   .STAGES(STAGES)
 )
 B_SLICE (
    .clk(clk),
