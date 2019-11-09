@@ -256,6 +256,7 @@ module log #(
 
    logic wvalid_q;
    logic [WIDTH-1:0] wdata_q;
+   logic [31:0] cycle_q;
 
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -263,13 +264,14 @@ module log #(
          seq <= 0;
       end else begin
          cycle <= cycle + 1;
-         if (wvalid) seq <= seq + 1;
+         if (wvalid_q) seq <= seq + 1;
       end
    end
 
    always_ff @(posedge clk) begin
       wvalid_q <= wvalid;
       wdata_q <= wdata;
+      cycle_q <= cycle;
    end
 
    logic fifo_rd_en, fifo_wr_en;
@@ -278,8 +280,8 @@ module log #(
    logic [7:0] read_remaining;
 
    always_comb begin
-      fifo_rd_en = (pci.rready & (read_remaining > 0) ) | (fifo_full & wvalid & !DROP_LAST);
-      fifo_wr_en = (wvalid & (DROP_LAST ? !fifo_full : 1));
+      fifo_rd_en = (pci.rready & (read_remaining > 0) ) | (fifo_full & wvalid_q & !DROP_LAST);
+      fifo_wr_en = (wvalid_q & (DROP_LAST ? !fifo_full : 1));
    end
 
    assign pci.rvalid = (read_remaining > 0);
@@ -319,7 +321,7 @@ module log #(
 
    always_ff @(posedge clk) begin
       if (fifo_wr_en) begin   
-         mem[wr_ptr[LOG_DEPTH-1:0]] <= {wdata, cycle, seq};
+         mem[wr_ptr[LOG_DEPTH-1:0]] <= {wdata_q, cycle_q, seq};
       end
       fifo_head <= mem[next_rd_ptr[LOG_DEPTH-1:0]];
    end
