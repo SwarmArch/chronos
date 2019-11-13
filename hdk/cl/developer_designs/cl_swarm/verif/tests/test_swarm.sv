@@ -31,7 +31,11 @@ logic [31:0] enq_ts;
 logic [31:0] enq_locale;
 logic [31:0] enq_args;
 
+logic binary_file;
+
 integer BASE_END;
+
+string input_file;
 
 initial begin
   
@@ -58,6 +62,16 @@ initial begin
       "astar"   : fid = $fopen("input_astar", "r");
       "color"   : fid = $fopen("input_color", "r");
       "maxflow" : fid = $fopen("input_maxflow", "r");
+   endcase
+   
+   case (APP_NAME) 
+      "des"     : input_file = "input_net";
+      "sssp"    : input_file = "input_graph";
+      "sssp_hls": input_file = "input_graph";
+      "astar"   : input_file = "input_astar";
+      "color"   : input_file = "input_color";
+      "maxflow" : input_file = "input_maxflow";
+      "silo"    : input_file = "input_silo";
    endcase
 
    read_and_transfer_input_file();
@@ -110,6 +124,10 @@ initial begin
       ocl_poke(i, ID_ALL_CORES, CORE_START, '1);
    end
    #4us;
+   for (int i=0;i<N_CORES;i++) begin
+    ocl_peek(0, 16+i, CORE_PC, ocl_data);
+      $display("core %d pc %x\n", i, ocl_data);
+   end
    //check_log(0, ID_COAL);
    
    // Wait until application completes
@@ -469,11 +487,32 @@ endtask
 
 
 task read_and_transfer_input_file;
+   
+   fid = $fopen(input_file, "rb");
+   line[7:0] = $fgetc(fid);
+   line[15:8] = $fgetc(fid);
+   line[23:16] = $fgetc(fid);
+   line[31:24] = $fgetc(fid);
+   $display("Magic op %x %d %d",line, status, fid);  
+   $fclose(fid);
+   binary_file = (line == 32'hdead);
+   if (binary_file) begin
+      fid = $fopen(input_file, "rb");
+   end else begin
+      fid = $fopen(input_file, "r");
+   end
 
    line = 0;
    n_lines = 0;
    while (!$feof(fid)) begin
-      status = $fscanf(fid, "%8x\n", line);
+      if (!binary_file) begin
+         status = $fscanf(fid, "%8x\n", line);
+      end else begin
+         line[7:0] = $fgetc(fid);
+         line[15:8] = $fgetc(fid);
+         line[23:16] = $fgetc(fid);
+         line[31:24] = $fgetc(fid);
+      end
       file[n_lines] = line;
       n_lines = n_lines + 1;
    end

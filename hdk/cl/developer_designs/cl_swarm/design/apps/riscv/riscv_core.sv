@@ -276,22 +276,26 @@ always_comb begin
    state_next = state;
    case(state)
       WAIT_CORE: begin
-         if (dBus_cmd_valid & !dBus_cmd_payload_wr) begin
-            casex (dBus_cmd_addr) 
-               RISCV_DEQ_TASK_LOCALE,
-               RISCV_DEQ_TASK_ARG0, 
-               RISCV_DEQ_TASK_ARG1, 
-               RISCV_DEQ_TASK_ARG, 
-               RISCV_CUR_CYCLE, 
-               RISCV_TILE_ID, RISCV_CORE_ID,
-               RISCV_DEQ_TASK_TTYPE : state_next = IO_READ;
-               RISCV_DEQ_TASK : begin 
-                  if (writes_left == 0) begin
-                     state_next = NEXT_TASK;
+         if (dBus_cmd_valid) begin
+            if (!dBus_cmd_payload_wr) begin
+               casex (dBus_cmd_addr) 
+                  RISCV_DEQ_TASK_LOCALE,
+                  RISCV_DEQ_TASK_ARG0, 
+                  RISCV_DEQ_TASK_ARG1, 
+                  RISCV_DEQ_TASK_ARG, 
+                  RISCV_CUR_CYCLE, 
+                  RISCV_TILE_ID, RISCV_CORE_ID,
+                  RISCV_DEQ_TASK_TTYPE : state_next = IO_READ;
+                  RISCV_DEQ_TASK : begin 
+                     if (writes_left == 0) begin
+                        state_next = NEXT_TASK;
+                     end
                   end
-               end
-               default: state_next = state;
-            endcase
+                  default: state_next = state;
+               endcase
+            end
+            // do not let an interrupt fire on the same cycles as a mem write
+            // the core hangs
          end else if (ap_done) begin
             state_next = FINISH_TASK;
          end else if (abort_running_task_q) begin

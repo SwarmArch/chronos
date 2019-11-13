@@ -709,6 +709,7 @@ always_comb begin
       out_task.no_read = 1'b1;
       out_task.no_write = 1'b0;
       out_task.producer = 1'b0;
+      out_task.non_spec = 1'b0;
       // other fields doesn't matter
    end else begin
       out_task_valid = 1'b0;
