@@ -293,6 +293,8 @@ always_comb begin
                   end
                   default: state_next = state;
                endcase
+            end else if (ap_done) begin
+               state_next = FINISH_TASK;
             end
             // do not let an interrupt fire on the same cycles as a mem write
             // the core hangs
