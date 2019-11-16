@@ -29,14 +29,14 @@
 
    // Gloabl type definitions
    typedef struct packed {
-      task_type_t ttype;
-      ts_t ts;
-      locale_t locale;
       args_t args;
       logic producer; // task is likely to generate additional tasks
       logic no_write; // task will not do any write
       logic no_read;  // task will not read any read-write data
       logic non_spec; // task will not be dequeued unless the GVT==ts
+      locale_t locale;
+      ts_t ts;
+      task_type_t ttype;
    } task_t;
 
 
