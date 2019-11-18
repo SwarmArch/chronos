@@ -196,10 +196,10 @@ logic [31:0] io_read_addr;
 always_comb begin
    finish_task_valid = 1'b0;
    if (state == FINISH_TASK || state == FINISH_TASK_ABORT) begin
-      finish_task_valid = !task_wvalid & !undo_log_valid;
+      finish_task_valid = !task_wvalid & !undo_log_valid & (writes_left==0);
    end else if (state == IO_READ) begin
       if (io_read_addr == RISCV_DEQ_TASK & abort_running_task_q) begin
-         finish_task_valid = 1'b1;
+         finish_task_valid = (writes_left == 0);
       end
    end
 end
