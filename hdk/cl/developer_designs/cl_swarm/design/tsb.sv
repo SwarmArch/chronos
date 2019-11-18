@@ -95,6 +95,7 @@ module tsb
    end
    endgenerate
    
+   logic [4:0] n_tiles;
    always_comb begin
       case (n_tiles) 
          1: dest_tile = 0;
@@ -115,7 +116,6 @@ module tsb
          default: dest_tile = hashed_locale[3:0];
       endcase
    end 
-   logic [4:0] n_tiles;
    
    always_ff @(posedge clk) begin
       if (!rstn) begin
@@ -311,12 +311,12 @@ end else begin
          end 
       end
 
+   logic [LOG_TSB_SIZE-1:0] cur_cycle;
    task_t lvt_tsb_entry;
    assign lvt_tsb_entry = tsb_entry_task[cur_cycle];
 
    ts_t lvt_fixed;
    ts_t lvt_rolling;
-   logic [LOG_TSB_SIZE-1:0] cur_cycle;
    always_ff @(posedge clk) begin
       if (!rstn) begin
          lvt_fixed <= 0;
