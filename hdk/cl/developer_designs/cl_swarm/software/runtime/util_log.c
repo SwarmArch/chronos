@@ -130,13 +130,13 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
                    enq_task.slot, enq_ts, enq_locale, enq_ttype,
                    deq_locale, deq_ts);
              } else {
-                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%6x locale:%6x ttype:%1d arg0:%8x arg1:%4x tied:%d epoch:%3d\n",
+                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%6x locale:%6x ttype:%1d arg0:%8x arg1:%4x tied:%d \n",
      //resp:(ack:%d tile:%2d tsb:%2d)
                    seq, cycle,
                    gvt_ts, gvt_tb,
                    n_tasks, n_tied_tasks, heap_capacity,
                    enq_task.slot, enq_ts, enq_locale, enq_ttype, deq_locale, deq_ts,
-                   enq_task.tied, enq_task.epoch_1
+                   enq_task.tied
        //            resp_ack,resp_tile_id, resp_tsb_id
                 ) ;
              }
@@ -214,6 +214,108 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
 
    }
 
+}
+int log_undo_log(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
+
+   uint32_t log_size;
+   uint32_t gvt;
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (DEBUG_CAPACITY), &log_size );
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) + (CQ_GVT_TS), &gvt );
+   printf("Undo log size %d gvt %d\n", log_size, gvt);
+   if (log_size > 17000) return 1;
+   // if (log_size > 100) log_size -= 100;
+   //unsigned char* log_buffer;
+   //log_buffer = (unsigned char *)malloc(log_size*64);
+
+   unsigned int read_offset = 0;
+   unsigned int read_len = log_size * 64;
+   unsigned int rc;
+   uint64_t cl_addr = (1L<<36) + (ID << 20);
+   while (read_offset < read_len) {
+       rc = pread(fd,
+               log_buffer,// + read_offset,
+               // keep Tx size under 64*64 to prevent shell timeouts
+               (read_len - read_offset) > 3200 ? 3200 : (read_len-read_offset),
+               cl_addr);
+       read_offset += rc;
+
+       unsigned int* buf = (unsigned int*) log_buffer;
+       for (int i=0;i<rc/64;i++) {
+           unsigned int seq = buf[i*16 + 0];
+           unsigned int cycle = buf[i*16 + 1];
+
+           unsigned int awaddr = buf[i*16 + 5];
+           unsigned int wdata = buf[i*16 + 4];
+
+           unsigned int undo_log_addr = buf[i*16+8];
+           unsigned int undo_log_data = buf[i*16+7];
+           unsigned int undo_log_id = buf[i*16+6] >> 28;
+           unsigned int undo_log_cq_slot = (buf[i*16+6] >> 21) & 0x7f;
+           unsigned int undo_log_valid = (buf[i*16+6] >> 20) & 0x1;
+
+           unsigned int restore_arvalid = (buf[i*16+3] >> 28) & 0xf;
+           unsigned int restore_rvalid = (buf[i*16+3] >> 24) & 0xf;
+           unsigned int restore_cq_slot = (buf[i*16+3] >> 16) & 0x7f;
+
+           unsigned int awvalid = (buf[i*16+3] >> 15) & 0x1;
+           unsigned int awready = (buf[i*16+3] >> 14) & 0x1;
+           unsigned int awid = (buf[i*16+3]) & 0x3fff;
+
+           unsigned int bid = (buf[i*16+2] >> 16) & 0xffff;
+           unsigned int bvalid = (buf[i*16+2] >> 15) & 0x1;
+           unsigned int bready = (buf[i*16+2] >> 14) & 0x1;
+           unsigned int restore_ack_thread = (buf[i*16+2] >> 8) & 0x3f;
+           unsigned int restore_done_valid = (buf[i*16+2] >> 4) & 0xf;
+           unsigned int restore_done_ready = (buf[i*16+2] ) & 0xf;
+           bool f = false;
+           if (undo_log_valid) {
+               fprintf(fw,"[%6d][%10u] undo_log_valid addr:%8x data:%8x id:%x cq_slot:%d\n",
+                       seq, cycle, undo_log_addr, undo_log_data, undo_log_id, undo_log_cq_slot
+                      );
+               f = true;
+           }
+
+           if (bvalid & bready) {
+               fprintf(fw,"[%6d][%10u] bvalid id:%4x\n",
+                       seq, cycle, bid
+                      );
+               f = true;
+           }
+
+           if (restore_rvalid > 0) {
+               fprintf(fw,"[%6d][%10u] restore rvalid:%x slot:%4d\n",
+                       seq, cycle, restore_rvalid, restore_cq_slot
+                      );
+               f = true;
+           }
+           if (restore_done_valid > 0) {
+               fprintf(fw,"[%6d][%10u] restore_ack valid:%x ready:%x thread:%4x\n",
+                       seq, cycle, restore_done_valid, restore_done_ready, restore_ack_thread
+                      );
+               f = true;
+           }
+           if (awvalid) {
+               fprintf(fw,"[%6d][%10u] awvalid %d%d addr:%8x data:%8x\n",
+                       seq, cycle, awvalid, awready,
+                       awaddr, wdata
+                      );
+               f = true;
+           }
+           if (!f) {
+               fprintf(fw,"[%6d][%10u] %8x %8x %8x %8x %8x %8x\n",
+                       seq, cycle,
+                       buf[i*16+2], buf[i*16+3],
+                       buf[i*16+4], buf[i*16+5],
+                       buf[i*16+6], buf[i*16+7]
+                      );
+
+           }
+       }
+
+   }
+
+   fflush(fw);
+   return 0;
 }
 
 int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID_L2) {
@@ -354,9 +456,9 @@ int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
             unsigned int state = buf[i*16+4] & 0xff;
             unsigned int heap_size = (buf[i*16+4] >> 8) & 0xffff;
 
-            unsigned int rdata_locale = buf[i*16+5] >> 5;
-            unsigned int rdata_ts = buf[i*16+6] >> 5;
-            unsigned int rdata_ttype = buf[i*16+7] >> 5;
+            unsigned int rdata_locale = buf[i*16+6] >> 4;
+            unsigned int rdata_ts = buf[i*16+5] >> 4;
+            unsigned int rdata_ttype = buf[i*16+5] & 0xf;
 
             if (state == 6) {
                 rdata_locale = 0;
@@ -376,7 +478,7 @@ int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
             }
 
             fprintf(fw, "[%6d][%12u][%x] [%8d]  [%d] coal_id:%4x entry:%8x heap:%2d (%8x %8d)"
-                      " rdata: (%x %5d %8d)\n",
+                      " rdata: (%2x %8d %8d)\n",
                     seq, cycle,
                     state, lvt, coal_id_seq, coal_id,  scratchpad_entry,
                     heap_size, s_task_locale, s_task_ts,
@@ -384,6 +486,7 @@ int log_splitter(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
                    );
         }
     }
+    fflush(fw);
     return 0;
 }
 
@@ -420,7 +523,7 @@ int log_coalescer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned ch
 
             unsigned int state = (buf[i*16+2] >> 8) & 0xf;
             unsigned int coal_child_fifo = (buf[i*16+2] >> 12) & 0xff;
-            unsigned int spill_fifo = (buf[i*16+2] >> 20) & 0xfff;
+            unsigned int spill_fifo = (buf[i*16+2] >> 20) & 0x7ff;
 
             unsigned int stack_ptr = (buf[i*16+3] >> 0) & 0xffff;
             unsigned int stack_ptr_awid = (buf[i*16+3] >> 16) & 0xffff;
@@ -430,9 +533,9 @@ int log_coalescer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned ch
             unsigned int awid = (buf[i*16+5] >> 16) & 0xffff;
             unsigned int awaddr = (buf[i*16+6]);
 
-            unsigned int wdata_locale = buf[i*16+7] >> 5;
-            unsigned int wdata_ts = buf[i*16+8] >> 5;
-            unsigned int wdata_ttype = buf[i*16+9] >> 5;
+            unsigned int wdata_ts = buf[i*16+7] >> 4;
+            unsigned int wdata_locale = buf[i*16+8] >> 4;
+            unsigned int wdata_ttype = buf[i*16+7] & 0xf;
             if (awvalid & awready) {
                 fprintf(fw, "[%6d][%12u][%x] [%4x %4x] fifo[%3d %4d] awvalid %d%d id:%4x addr:%8x\n",
                         seq, cycle, state, stack_ptr, coal_id,
@@ -441,10 +544,11 @@ int log_coalescer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned ch
                        );
             }
             if (wvalid & wready) {
-                fprintf(fw, "[%6d][%12u][%x] [%4x %4x] fifo[%3d %4d]  wvalid %d%d id:%4x data:(%x %8x %8x) sp_awid:%d\n",
+                fprintf(fw, "[%6d][%12u][%x] [%4x %4x] fifo[%3d %4d]  wvalid %d%d id:%4x data:(%x %8d %8d) sp_awid:%d\n",
                         seq, cycle, state, stack_ptr, coal_id,
                         coal_child_fifo, spill_fifo,
                         wvalid, wready, wid,
+                        //buf[i*16+7], buf[i*16+8], buf[i*16+9], buf[i*16+10]
                         wdata_ttype, wdata_ts, wdata_locale, stack_ptr_awid
                        );
             }
@@ -457,6 +561,7 @@ int log_coalescer(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned ch
             }
         }
     }
+    fflush(fw);
     return 0;
 }
 
@@ -1259,7 +1364,7 @@ int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
              if (wvalid) fprintf(fw, "[%6d][%10u][%08x] wvalid %08x wstrb:%8x_%8x\n",
                      seq, cycle, pc, wdata, wstrb_1, wstrb_0);
              if (awready) fprintf(fw, "[%6d][%10u][%08x] awready\n", seq, cycle, pc);
-             if (bvalid) fprintf(fw, "[%6d][%10u][%08x][%d] bvalid %d\n", seq, cycle, pc, bid, state);
+             if (bvalid) fprintf(fw, "[%6d][%10u][%08x][%d] bvalid id:%d %d\n", seq, cycle, pc, state, bid);
              //if (bready) fprintf(fw, "[%6d][%10u][%08x] bready\n", seq, cycle, pc);
              if (wready) fprintf(fw, "[%6d][%10u][%08x] wready\n", seq, cycle, pc);
              if (arvalid) fprintf(fw, "[%6d][%10u][%08x][%d] arvalid\n", seq, cycle, pc, state);
@@ -1268,7 +1373,7 @@ int log_riscv(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
                      seq, cycle, pc, state, finish_task_valid, finish_task_ready);
         }
    }
-
+    fflush(fw);
    return 0;
 }
 

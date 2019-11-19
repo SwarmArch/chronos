@@ -38,6 +38,7 @@ uint32_t ID_RO_STAGE;
 uint32_t ID_SPLITTER;
 uint32_t ID_COALESCER;
 uint32_t ID_TASK_UNIT;
+uint32_t ID_UNDO_LOG;
 uint32_t ID_L2_RW; // RW/ RO naming is for historical reasons. Both caches are read-write now.
 uint32_t ID_L2_RO;
 uint32_t ID_TSB;
@@ -51,7 +52,7 @@ uint32_t NON_SPEC;
 
 uint32_t USING_PIPELINED_TEMPLATE;
 
-uint32_t active_tiles;
+uint32_t active_tiles = 1;
 bool logging_on = false;
 uint32_t logging_phase_tasks = 0x100;
 uint32_t reading_binary_file = false;
@@ -114,7 +115,7 @@ void init_params() {
 
     printf("APP_ID %x Pipelined:%d\n", APP_ID, USING_PIPELINED_TEMPLATE);
 
-    printf("%d tiles\n", N_TILES);
+    printf("%d tiles %d cores\n", N_TILES, N_CORES);
     printf("Non spec %d\n", NON_SPEC);
     printf("TQ Size %d CQ Size %d\n", LOG_TQ_SIZE, LOG_CQ_SIZE);
     //L2_BANKS = 1;
@@ -135,7 +136,8 @@ void init_params() {
     ID_CQ               =      10;
     ID_CM               =      11;
     ID_SERIALIZER       =      12;
-    ID_LAST             =      13;
+    ID_UNDO_LOG         =      13;
+    ID_LAST             =      14;
 
     ID_OCL_SLAVE = 0;
 
@@ -441,7 +443,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
 
     // Change here if you want to reduce the system size
-    active_tiles = 1;
     uint32_t max_threads = 1e9;
 
     if (N_TILES < active_tiles) {
@@ -484,7 +485,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         // global relabel interval
         bool adjust_relabel_interval = true;
         if (adjust_relabel_interval) {
-            log_gr_interval += -(int) log2(active_tiles) ;
+            log_gr_interval += -(int) log2(active_tiles) + 5;
             if (log_gr_interval < 5) log_gr_interval = 5;
 
         }
@@ -572,6 +573,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     FILE* fwtu = fopen("task_unit_log", "w");
     FILE* fwddr = fopen("ddr_log", "w");
     FILE* fwser = fopen("serializer_log", "w");
+    FILE* fwundo = fopen("undolog_log", "w");
     FILE* fwcoal = fopen("coalescer_log", "w");
     FILE* fwsp = fopen("splitter_log", "w");
     FILE* fwro = fopen("ro_log", "w");
@@ -650,7 +652,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_SIZE, spill_size);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_CHECK_LIMIT, spill_size * 16);
-        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 1); // get enq args instead of deq locale/ts
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 0); // get enq args instead of deq locale/ts
 
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_PRE_ENQ_BUF,
                 (pre_enq_fifo_thresh << 16) | deq_tolerance);
@@ -795,7 +797,7 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_MSB, &startCycle);
     startCycle64 = startCycle;
     pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &startCycle);
-    startCycle64 |= (startCycle64 << 32) | startCycle;
+    startCycle64 = (startCycle64 << 32) | startCycle;
     for (int i=0;i<N_TILES;i++) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_START, 1);
         pci_poke(i, ID_ALL_CORES, CORE_START, core_mask);
@@ -826,7 +828,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            endCycle64 = endCycle;
            pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &endCycle);
            endCycle64 = (endCycle64 << 32) | endCycle;
-           pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &endCycle);
            bool done = true;
            if (NON_SPEC) {
                // under non-spec, the exact gvt cannot be computed,
@@ -1091,8 +1092,6 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                    pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB        , msb );
                }
                uint32_t act_dist;
-               //pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_LSB        , (addr & 0xffffffff ));
-              // pci_peek(0, ID_OCL_SLAVE, OCL_ACCESS_MEM, &act_dist );
                act_dist = results[i];
                bool error;
                if (app == APP_ASTAR)
@@ -1129,6 +1128,20 @@ int test_swarm(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            if (num_errors > 0) {
                printf("Earliest Fail %d (%x) / %d\n",
                        astar_low_fail_node, astar_low_fail_node, astar_low_fail_ref);
+           }
+           if (app == APP_SSSP) {
+                FILE* fs = fopen("sssp_verif", "w");
+                for (int i=0;i<numV;i++) {
+                    fprintf(fs, "vid:%8d dist:%8d, ref:%8d, %s\n",
+                               i, results[i], csr_ref_color[i],
+                               results[i] == csr_ref_color[i] ? "MATCH" : "FAIL");
+                    for (int j=csr_offset[i];j<csr_offset[i+1];j++){
+                        uint32_t n = csr_neighbors[j*2];
+                        uint32_t w = csr_neighbors[j*2+1];
+                        fprintf(fs, "\t neighbor %8d weight %4d\n", n, w);
+                    }
+                }
+                fclose(fs);
            }
            break;
        case APP_COLOR:
@@ -1441,7 +1454,7 @@ void loop_debuggin_spec(uint32_t iters){
         pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug );
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SET_STAT_ID, 1);
         pci_peek(i, ID_TASK_UNIT, TASK_UNIT_MISC_DEBUG, &tq_debug_1 );
-        pci_peek(i, ID_COALESCER, CORE_STATE, &stack_ptr );
+        pci_peek(i, ID_COALESCER, COAL_STACK_PTR, &stack_ptr );
 
         pci_peek(i, ID_SERIALIZER, SERIALIZER_READY_LIST, &ser_ready);
         pci_peek(i, ID_SERIALIZER, SERIALIZER_DEBUG_WORD, &ser_debug);
@@ -1453,7 +1466,7 @@ void loop_debuggin_spec(uint32_t iters){
         printf(" [%4d][%1d][%8u] gvt:(%9x %9d) (%4d %4d %4d) %6d %4x stack_ptr:%4x | %8d %8x %8x | %x %2d %2d\n",
                 iters, i, cycle, gvt, gvt_tb,
                 n_tasks, n_tied_tasks, heap_capacity,
-                cq_state, tq_debug, stack_ptr,
+                cq_state, tq_debug, stack_ptr & 0xffff,
                 ser_locale, ser_ready, ser_debug, tsb_entry_valid,
                 rw_read_fifo_occ, rw_write_fifo_occ
               );
