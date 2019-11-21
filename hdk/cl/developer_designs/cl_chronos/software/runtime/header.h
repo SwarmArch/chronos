@@ -46,7 +46,7 @@
 #define ID_GLOBAL                 48
 
 #define OCL_TASK_ENQ_ARGS         0x1c // set the args of the task to be enqueued next
-#define OCL_TASK_ENQ_LOCALE         0x14 // set the locale of the task to be enqueued next
+#define OCL_TASK_ENQ_OBJECT         0x14 // set the object of the task to be enqueued next
 #define OCL_TASK_ENQ_TTYPE        0x18 // set the ttype of the task to be enqueued next
 #define OCL_TASK_ENQ              0x10 // Enq task with ts (wdata)
 #define OCL_ACCESS_MEM_SET_MSB    0x24 // set bits [63:32] of mem addr
@@ -84,7 +84,7 @@
 #define SSSP_BASE_EDGE_OFFSET     0x20
 #define SSSP_BASE_DIST            0x24
 #define SSSP_BASE_NEIGHBORS       0x28
-#define SSSP_LOCALE                 0x30
+#define SSSP_OBJECT                 0x30
 #define SSSP_TS                   0x34
 #define SSSP_STATE_STATS_BEGIN    0x40
 #define CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD 0x40
@@ -162,7 +162,7 @@
 #define CQ_USE_TS_CACHE        0x1c
 #define CQ_LOOKUP_ENTRY        0x18
 #define CQ_LOOKUP_STATE        0x20
-#define CQ_LOOKUP_LOCALE         0x24
+#define CQ_LOOKUP_OBJECT         0x24
 #define CQ_LOOKUP_MODE         0x2c
 #define CQ_GVT_TS              0x30
 #define CQ_GVT_TB              0x34
@@ -210,7 +210,7 @@
 #define SERIALIZER_CQ_STALL_COUNT 0x44
 #define SERIALIZER_STAT 0x80
 #define SERIALIZER_DEBUG_WORD 0x50
-#define SERIALIZER_S_LOCALE 0x54
+#define SERIALIZER_S_OBJECT 0x54
 #define SERIALIZER_N_MAX_RUNNING_TASKS 0x60
 
 #define L2_FLUSH          0x10

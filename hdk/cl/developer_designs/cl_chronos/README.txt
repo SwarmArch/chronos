@@ -257,7 +257,7 @@ step 2 in the tutorial above.
 
 This template requires each task be mapped to a read-write
 (RW) portion followed by a read-only (RO) portion. The RW portion can only
-access the data belonging to the task's locale, while the RO portion can read
+access the data belonging to the task's object, while the RO portion can read
 any arbitrary read-only data.
 
 e.g,: For SSSP, the RW portion corresponds to reading current distance to the

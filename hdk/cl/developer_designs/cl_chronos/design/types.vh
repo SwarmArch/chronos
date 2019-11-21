@@ -15,7 +15,7 @@
 
    typedef logic [TASK_TYPE_WIDTH-1:0] task_type_t;
    typedef logic [TS_WIDTH-1:0] ts_t;
-   typedef logic [LOCALE_WIDTH-1:0] locale_t;
+   typedef logic [OBJECT_WIDTH-1:0] object_t;
    typedef logic [ARG_WIDTH-1:0] args_t;
 
    typedef logic [$clog2(CACHE_NUM_WAYS)-1:0] lru_width_t;
@@ -34,7 +34,7 @@
       logic no_write; // task will not do any write
       logic no_read;  // task will not read any read-write data
       logic non_spec; // task will not be dequeued unless the GVT==ts
-      locale_t locale;
+      object_t object;
       ts_t ts;
       task_type_t ttype;
    } task_t;
@@ -68,16 +68,16 @@
 
    typedef logic [LOG_STAGE_FIFO_SIZE:0] fifo_size_t;
    
-   typedef logic [RW_WIDTH-1:0] object_t; 
+   typedef logic [RW_WIDTH-1:0] rw_data_t; 
    typedef struct packed {
       task_t            task_desc;
       cq_slice_slot_t   cq_slot;
       thread_id_t       thread;
-      object_t          object;
+      rw_data_t          object;
    } rw_write_t;
    
    typedef logic [LOG_N_SUB_TYPES-1:0] subtype_t;
-   typedef logic [DATA_WIDTH-1:0] data_t;
+   typedef logic [DATA_WIDTH-1:0] ro_data_t;
   
    typedef logic [7:0] byte_t;
 

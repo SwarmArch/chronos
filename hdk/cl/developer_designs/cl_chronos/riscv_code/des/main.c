@@ -137,14 +137,14 @@ void main() {
     init_edge_offset  =(int*) ((*(int *)(ADDR_INIT_BASE_OFFSET))<<2) ;
 
     while (1) {
-        uint ttype, ts, locale, arg0, arg1;
-        deq_task_arg2(&ttype, &ts, &locale, &arg0, &arg1);
+        uint ttype, ts, object, arg0, arg1;
+        deq_task_arg2(&ttype, &ts, &object, &arg0, &arg1);
         switch(ttype) {
             case DES_TASK:
-                des_task(ts, locale, arg0, arg1);
+                des_task(ts, object, arg0, arg1);
                 break;
             case ENQUEUER_TASK:
-                enqueuer_task(ts, locale, arg0, arg1);
+                enqueuer_task(ts, object, arg0, arg1);
                 break;
             default:
                 break;

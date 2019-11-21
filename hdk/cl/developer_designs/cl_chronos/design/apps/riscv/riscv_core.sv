@@ -281,7 +281,7 @@ always_comb begin
          if (dBus_cmd_valid) begin
             if (!dBus_cmd_payload_wr) begin
                casex (dBus_cmd_addr) 
-                  RISCV_DEQ_TASK_LOCALE,
+                  RISCV_DEQ_TASK_OBJECT,
                   RISCV_DEQ_TASK_ARG0, 
                   RISCV_DEQ_TASK_ARG1, 
                   RISCV_DEQ_TASK_ARG, 
@@ -366,15 +366,15 @@ end
 always_ff @(posedge clk) begin
    if (state == NEXT_TASK) begin
       if (task_arvalid & task_rvalid) begin
-         $display("[%5d][tile-%2d][core-%2d] dequeue_task: ts:%5x  locale:%5x ttype:%2d args:(%4d, %4d) slot:%3d",
-            cycle, TILE_ID, CORE_ID, task_rdata.ts, task_rdata.locale, task_rdata.ttype,
+         $display("[%5d][tile-%2d][core-%2d] dequeue_task: ts:%5x  object:%5x ttype:%2d args:(%4d, %4d) slot:%3d",
+            cycle, TILE_ID, CORE_ID, task_rdata.ts, task_rdata.object, task_rdata.ttype,
             task_rdata.args[63:32], task_rdata.args[31:0], task_rslot);
       end
    end
 
    if (task_wvalid & task_wready) begin
-         $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5x  locale:%5x ttype:%2d args:(%4d, %4d)",
-            cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.locale, task_wdata.ttype,
+         $display("[%5d][tile-%2d][core-%2d] \tenqueue_task: ts:%5x  object:%5x ttype:%2d args:(%4d, %4d)",
+            cycle, TILE_ID, CORE_ID, task_wdata.ts, task_wdata.object, task_wdata.ttype,
             task_wdata.args[63:32], task_wdata.args[31:0]);
    end
    abort_running_task_d <= abort_running_task;
@@ -451,7 +451,7 @@ always_ff @(posedge clk) begin
    if (reg_bus.arvalid) begin
       reg_bus.rvalid <= 1'b1;
       casex (reg_bus.araddr) 
-         CORE_LOCALE        : reg_bus.rdata <= task_in.locale;
+         CORE_OBJECT        : reg_bus.rdata <= task_in.object;
          CORE_TS          : reg_bus.rdata <= task_in.ts;
          CORE_N_DEQUEUES  : reg_bus.rdata <= dequeues_remaining;
          CORE_NUM_ENQ     : reg_bus.rdata <= num_enqueues;
@@ -492,7 +492,7 @@ always_ff @ (posedge clk) begin
       if (dBus_cmd_valid & dBus_cmd_payload_wr) begin
          casex (dBus_cmd_addr) 
             RISCV_DEQ_TASK      : if (!task_wvalid) task_wdata.ts <= dBus_cmd_data;
-            RISCV_DEQ_TASK_LOCALE : if (!task_wvalid) task_wdata.locale <= dBus_cmd_data; 
+            RISCV_DEQ_TASK_OBJECT : if (!task_wvalid) task_wdata.object <= dBus_cmd_data; 
             RISCV_DEQ_TASK_TTYPE: if (!task_wvalid) task_wdata.ttype <= dBus_cmd_data;
             RISCV_DEQ_TASK_ARG0 : if (!task_wvalid) task_wdata.args[31:0] <= dBus_cmd_data;
             RISCV_DEQ_TASK_ARG1 : if (!task_wvalid) task_wdata.args[63:32] <= dBus_cmd_data;
@@ -583,7 +583,7 @@ always_comb begin
       if (dBus_cmd_payload_wr) begin
          casex (dBus_cmd_addr) 
             RISCV_FINISH_TASK: dBus_cmd_ready = (finish_task_valid & finish_task_ready);
-            RISCV_DEQ_TASK_LOCALE,
+            RISCV_DEQ_TASK_OBJECT,
             RISCV_DEQ_TASK_ARG0,
             RISCV_DEQ_TASK_ARG1,
             RISCV_DEQ_TASK_ARG,
@@ -629,7 +629,7 @@ always_comb begin
       end else begin
          if (state == WAIT_CORE || state == ABORT_TASK) begin
             casex (dBus_cmd_addr) 
-               RISCV_DEQ_TASK_LOCALE,
+               RISCV_DEQ_TASK_OBJECT,
                RISCV_DEQ_TASK_TTYPE,
                RISCV_DEQ_TASK_ARG0,
                RISCV_DEQ_TASK_ARG,
@@ -662,7 +662,7 @@ always_comb begin
    if (state == IO_READ) begin
       casex (io_read_addr) 
          RISCV_DEQ_TASK      : dBus_rsp_data = task_in.ts;
-         RISCV_DEQ_TASK_LOCALE : dBus_rsp_data = task_in.locale; 
+         RISCV_DEQ_TASK_OBJECT : dBus_rsp_data = task_in.object; 
          RISCV_DEQ_TASK_TTYPE: dBus_rsp_data = task_in.ttype; 
          RISCV_DEQ_TASK_ARG0 : dBus_rsp_data = task_in.args[31:0]; 
          RISCV_DEQ_TASK_ARG1 : dBus_rsp_data = task_in.args[63:32]; 

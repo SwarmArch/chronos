@@ -3035,9 +3035,9 @@
             <obj_property name="ObjectShortName">cq_state[0:63][2:0]</obj_property>
             <obj_property name="isExpanded"></obj_property>
          </wvobject>
-         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CQ_SLICE/cq_locale">
-            <obj_property name="ElementShortName">cq_locale[0:63][31:0]</obj_property>
-            <obj_property name="ObjectShortName">cq_locale[0:63][31:0]</obj_property>
+         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CQ_SLICE/cq_object">
+            <obj_property name="ElementShortName">cq_object[0:63][31:0]</obj_property>
+            <obj_property name="ObjectShortName">cq_object[0:63][31:0]</obj_property>
          </wvobject>
          <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CQ_SLICE/cq_running_core">
             <obj_property name="ElementShortName">cq_running_core[0:63][4:0]</obj_property>
@@ -3103,9 +3103,9 @@
             <obj_property name="ElementShortName">cq_next_idle_in[63:0]</obj_property>
             <obj_property name="ObjectShortName">cq_next_idle_in[63:0]</obj_property>
          </wvobject>
-         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CQ_SLICE/ref_locale">
-            <obj_property name="ElementShortName">ref_locale[31:0]</obj_property>
-            <obj_property name="ObjectShortName">ref_locale[31:0]</obj_property>
+         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CQ_SLICE/ref_object">
+            <obj_property name="ElementShortName">ref_object[31:0]</obj_property>
+            <obj_property name="ObjectShortName">ref_object[31:0]</obj_property>
          </wvobject>
          <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CQ_SLICE/ts_check_id">
             <obj_property name="ElementShortName">ts_check_id[5:0]</obj_property>
@@ -3686,29 +3686,29 @@
             <obj_property name="ElementShortName">can_take_request[27:0]</obj_property>
             <obj_property name="ObjectShortName">can_take_request[27:0]</obj_property>
          </wvobject>
-         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/running_task_locale">
-            <obj_property name="ElementShortName">running_task_locale[27:0][31:0]</obj_property>
-            <obj_property name="ObjectShortName">running_task_locale[27:0][31:0]</obj_property>
+         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/running_task_object">
+            <obj_property name="ElementShortName">running_task_object[27:0][31:0]</obj_property>
+            <obj_property name="ObjectShortName">running_task_object[27:0][31:0]</obj_property>
          </wvobject>
-         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/running_task_locale_valid">
-            <obj_property name="ElementShortName">running_task_locale_valid[27:0]</obj_property>
-            <obj_property name="ObjectShortName">running_task_locale_valid[27:0]</obj_property>
+         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/running_task_object_valid">
+            <obj_property name="ElementShortName">running_task_object_valid[27:0]</obj_property>
+            <obj_property name="ObjectShortName">running_task_object_valid[27:0]</obj_property>
          </wvobject>
          <wvobject type="logic" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/finished_task_valid">
             <obj_property name="ElementShortName">finished_task_valid</obj_property>
             <obj_property name="ObjectShortName">finished_task_valid</obj_property>
          </wvobject>
-         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/finished_task_locale_match">
-            <obj_property name="ElementShortName">finished_task_locale_match[7:0]</obj_property>
-            <obj_property name="ObjectShortName">finished_task_locale_match[7:0]</obj_property>
+         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/finished_task_object_match">
+            <obj_property name="ElementShortName">finished_task_object_match[7:0]</obj_property>
+            <obj_property name="ObjectShortName">finished_task_object_match[7:0]</obj_property>
          </wvobject>
          <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/finished_task_core">
             <obj_property name="ElementShortName">finished_task_core[4:0]</obj_property>
             <obj_property name="ObjectShortName">finished_task_core[4:0]</obj_property>
          </wvobject>
-         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/finished_task_locale">
-            <obj_property name="ElementShortName">finished_task_locale[31:0]</obj_property>
-            <obj_property name="ObjectShortName">finished_task_locale[31:0]</obj_property>
+         <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/finished_task_object">
+            <obj_property name="ElementShortName">finished_task_object[31:0]</obj_property>
+            <obj_property name="ObjectShortName">finished_task_object[31:0]</obj_property>
          </wvobject>
          <wvobject type="array" fp_name="/tb/card/fpga/CL/\tile[0].TILE /CONFLICT_SERIALIZER/ready_list_size">
             <obj_property name="ElementShortName">ready_list_size[2:0]</obj_property>

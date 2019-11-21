@@ -47,7 +47,7 @@
 
    // OCL_SLAVE address
    parameter OCL_TASK_ENQ_ARGS        = 8'h1c; // set the args of the task to be enqueued next
-   parameter OCL_TASK_ENQ_LOCALE      = 8'h14; // set the locale of the task to be enqueued next
+   parameter OCL_TASK_ENQ_OBJECT      = 8'h14; // set the object of the task to be enqueued next
    parameter OCL_TASK_ENQ_TTYPE       = 8'h18; // set the ttype of the task to be enqueued next
    parameter OCL_TASK_ENQ             = 8'h10; // Enq task with ts (wdata)
    parameter OCL_TASK_ENQ_NON_SPEC    = 8'h44;  
@@ -88,7 +88,7 @@
    parameter CORE_BASE_EDGE_OFFSET    = 8'h20;
    parameter CORE_BASE_DIST           = 8'h24;
    parameter CORE_BASE_NEIGHBORS      = 8'h28;
-   parameter CORE_LOCALE              = 8'h30;
+   parameter CORE_OBJECT              = 8'h30;
    parameter CORE_TS                  = 8'h34;
    parameter CORE_STATE_STATS_BEGIN   = 8'b01xx_xxxx; // deprecated
    parameter CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD = 8'h40;
@@ -177,7 +177,7 @@
    parameter CQ_STATE                  = 8'h14;
    parameter CQ_LOOKUP_ENTRY           = 8'h18;
    parameter CQ_LOOKUP_STATE           = 8'h20;
-   parameter CQ_LOOKUP_LOCALE          = 8'h24;
+   parameter CQ_LOOKUP_OBJECT          = 8'h24;
    parameter CQ_LOOKUP_MODE            = 8'h2c;
    parameter CQ_GVT_TS                 = 8'h30;
    parameter CQ_GVT_TB                 = 8'h34;
@@ -218,7 +218,7 @@
    parameter DEQ_FIFO_FULL_THRESHOLD   = 8'h10;
    parameter DEQ_FIFO_SIZE             = 8'h14;
    parameter DEQ_FIFO_NEXT_TASK_TS     = 8'h18;
-   parameter DEQ_FIFO_NEXT_TASK_LOCALE = 8'h1c;
+   parameter DEQ_FIFO_NEXT_TASK_OBJECT = 8'h1c;
 
    parameter L2_FLUSH         = 8'h10;
    parameter L2_LOG_BVALID    = 8'h14;
@@ -254,18 +254,18 @@
    parameter SERIALIZER_SIZE_CONTROL = 8'h40; // {0, stall, full, almost_full}
    parameter SERIALIZER_CQ_STALL_COUNT = 8'h44; // bits [39:8]
    parameter SERIALIZER_DEBUG_WORD = 8'h50;
-   parameter SERIALIZER_S_LOCALE = 8'h54;
+   parameter SERIALIZER_S_OBJECT = 8'h54;
    parameter SERIALIZER_N_MAX_RUNNING_TASKS = 8'h60;
    parameter SERIALIZER_STAT = 8'h80; 
    
 
-   parameter CQ_LOCALE_DATA_BASE_ADDR = 8'h10;
+   parameter CQ_OBJECT_DATA_BASE_ADDR = 8'h10;
    
    parameter DEBUG_CAPACITY   = 8'hf0; // For any component that does logging
    parameter MEM_XBAR_NUM_CTRL = 8'h10;
 
    parameter RISCV_DEQ_TASK      = 32'hc0000000;
-   parameter RISCV_DEQ_TASK_LOCALE = 32'hc0000004;
+   parameter RISCV_DEQ_TASK_OBJECT = 32'hc0000004;
    parameter RISCV_DEQ_TASK_TTYPE= 32'hc0000008;
    parameter RISCV_DEQ_TASK_ARG  = 32'hc00001xx;
    parameter RISCV_FINISH_TASK   = 32'hc0000020;

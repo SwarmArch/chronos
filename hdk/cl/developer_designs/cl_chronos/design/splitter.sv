@@ -52,7 +52,7 @@ logic [SPLITTER_HEAP_SIZE_STAGES-1:0] heap_capacity, heap_free_space;
 
 
 splitter_state_t state, state_next;
-locale_t coal_id;
+object_t coal_id;
 heap_op_t heap_in_op;
 logic heap_ready;
 logic heap_can_enq;
@@ -184,7 +184,7 @@ always_ff @(posedge clk) begin
    end else begin
       state <= state_next;
       if (s_splitter_valid & s_splitter_ready) begin
-         coal_id <= s_splitter_task.locale >> 16;
+         coal_id <= s_splitter_task.object >> 16;
 
       end
       if (state == SPLITTER_READ_SCRATCHPAD_WAIT & l1.rvalid ) begin
@@ -364,13 +364,13 @@ always_ff @(posedge clk) begin
    if (state == SPLITTER_IDLE) begin
       if (s_splitter_valid & s_splitter_ready) begin
          $display("[%5d][splitter-%2d] dequeue_task: (%5d,%5d)",
-            cycle, TILE_ID, s_splitter_task.ts, s_splitter_task.locale >> 16);
+            cycle, TILE_ID, s_splitter_task.ts, s_splitter_task.object >> 16);
       end
    end
 
    if (task_wvalid & task_wready) begin
          $display("[%5d][splitter-%2d] enqueue_task: (%2d,%5d,%5d)",
-            cycle, TILE_ID, task_wdata.ttype, task_wdata.ts, task_wdata.locale);
+            cycle, TILE_ID, task_wdata.ttype, task_wdata.ts, task_wdata.object);
 
    end
    if (l1.awvalid & l1.awready & l1.wvalid & l1.wready) begin
@@ -449,7 +449,7 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
    typedef struct packed {
 
       logic [31:0] s_splitter_ts;
-      logic [31:0] s_splitter_locale;
+      logic [31:0] s_splitter_object;
       logic [31:0] lvt;
 
       logic [127:0] rdata;
@@ -469,7 +469,7 @@ if (SPLITTER_LOGGING[TILE_ID]) begin
 
       log_word = '0;
       log_word.s_splitter_ts = s_splitter_task.ts;
-      log_word.s_splitter_locale = s_splitter_task.locale;
+      log_word.s_splitter_object = s_splitter_task.object;
       log_word.heap_size = (2**SPLITTER_HEAP_SIZE_STAGES-1-heap_free_space);
       log_word.lvt = lvt;
       log_word.rdata[126:0] = l1.rdata;

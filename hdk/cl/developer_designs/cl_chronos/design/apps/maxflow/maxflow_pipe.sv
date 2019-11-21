@@ -58,16 +58,16 @@ module maxflow_rw
    output logic            task_in_ready,
 
    input task_t            in_task, 
-   input object_t          in_data,
+   input rw_data_t          in_data,
    input cq_slice_slot_t   in_cq_slot,
    
    output logic            wvalid,
    output logic [31:0]     waddr,
-   output object_t         wdata,
+   output rw_data_t         wdata,
 
    output logic            out_valid,
    output task_t           out_task,
-   output data_t           out_data,
+   output ro_data_t           out_data,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,
@@ -110,7 +110,7 @@ logic signed [31:0] flow_amount;
 
 always_comb begin 
    wvalid = 0;
-   waddr = base_vertex_data + ( in_task.locale << 6) ;
+   waddr = base_vertex_data + ( in_task.object << 6) ;
    write_word = read_word;
    out_valid = 1'b0;
 
@@ -138,7 +138,7 @@ always_comb begin
          MAXFLOW_PUSH_TASK: begin
             wvalid = 1'b1;
             write_word.counter = write_word.counter -1;
-            if ((read_word.height == push_task_neighbor_height + 1) || (in_task.locale == sourceNode)) begin
+            if ((read_word.height == push_task_neighbor_height + 1) || (in_task.object == sourceNode)) begin
                if ( flow_amount > (push_task_edge_capacity - push_task_edge_flow)) begin
                   flow_amount = push_task_edge_capacity - push_task_edge_flow;              
                end
@@ -168,7 +168,7 @@ always_comb begin
             wvalid = 1'b1;
             write_word.excess = read_word.excess + in_task.args[31:0];
             write_word.flow[ in_task.args[35:32] ] = read_word.flow[in_task.args[35:32]] - in_task.args[31:0];
-            out_valid = (read_word.excess == 0) & (in_task.locale != sourceNode) & (in_task.locale != sinkNode);
+            out_valid = (read_word.excess == 0) & (in_task.object != sourceNode) & (in_task.object != sinkNode);
          end
          MAXFLOW_BFS_CHECK_RESIDUAL_TASK: begin
             wvalid = 1'b0;
@@ -232,43 +232,43 @@ end
       if (task_in_valid & task_in_ready) begin
          case (in_task.ttype) 
          MAXFLOW_DISCHARGE_TASK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] DISCHARGE ts:%8x locale:%4x | | excess:%4d height:%4d",
+            $display("[%5d] [rob-%2d] [rw] [%3d] DISCHARGE ts:%8x object:%4x | | excess:%4d height:%4d",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, read_word.excess, read_word.height) ;
+            in_task.ts, in_task.object, read_word.excess, read_word.height) ;
          end
          MAXFLOW_GET_HEIGHT_TASK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] GET_HEIGHT ts:%8x locale:%4x | v_vid:%4x rev_edge:%1x fwd_edge:%1x cap:%4d  ",
+            $display("[%5d] [rob-%2d] [rw] [%3d] GET_HEIGHT ts:%8x object:%4x | v_vid:%4x rev_edge:%1x fwd_edge:%1x cap:%4d  ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, in_task.args[23:0], in_task.args[27:24], in_task.args[31:28], in_task.args[63:32] ) ;
+            in_task.ts, in_task.object, in_task.args[23:0], in_task.args[27:24], in_task.args[31:28], in_task.args[63:32] ) ;
          end
          MAXFLOW_PUSH_TASK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] PUSH ts:%8x locale:%4x | height:%2d rev_edge:%1x fwd_edge:%1x cap:%4d n_id:%4x | v_height:%2d ",
+            $display("[%5d] [rob-%2d] [rw] [%3d] PUSH ts:%8x object:%4x | height:%2d rev_edge:%1x fwd_edge:%1x cap:%4d n_id:%4x | v_height:%2d ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, 
+            in_task.ts, in_task.object, 
             in_task.args[23:0], in_task.args[27:24], in_task.args[31:28], in_task.args[63:32], in_task.args[95:64],
             read_word.height
             ) ;
          end
          MAXFLOW_RECEIVE_TASK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] RECEIVE ts:%8x locale:%4x | flow:%4d rev_edge:%1x ",
+            $display("[%5d] [rob-%2d] [rw] [%3d] RECEIVE ts:%8x object:%4x | flow:%4d rev_edge:%1x ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, in_task.args[31:0], in_task.args[35:32]) ;
+            in_task.ts, in_task.object, in_task.args[31:0], in_task.args[35:32]) ;
          end
          MAXFLOW_BFS_CHECK_RESIDUAL_TASK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_RESIDUAL ts:%8x locale:%4x | visited:%4x rev_edge:%1x rev_flow:%d ",
+            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_RESIDUAL ts:%8x object:%4x | visited:%4x rev_edge:%1x rev_flow:%d ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, read_word.last_visited_iter, in_task.args[27:24], out_task.args[95:64]) ;
+            in_task.ts, in_task.object, read_word.last_visited_iter, in_task.args[27:24], out_task.args[95:64]) ;
          end
          
          MAXFLOW_BFS_UPDATE_HEIGHT_TASK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_UPDATE ts:%8x locale:%4x | visited:%4x ",
+            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_UPDATE ts:%8x object:%4x | visited:%4x ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, read_word.last_visited_iter) ;
+            in_task.ts, in_task.object, read_word.last_visited_iter) ;
          end
          MAXFLOW_BFS_ENQ_NBR_TASK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_ENQ_NBR ts:%8x locale:%4x | visited:%4x ",
+            $display("[%5d] [rob-%2d] [rw] [%3d] BFS_ENQ_NBR ts:%8x object:%4x | visited:%4x ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, read_word.last_visited_iter) ;
+            in_task.ts, in_task.object, read_word.last_visited_iter) ;
          end
 
          endcase
@@ -291,7 +291,7 @@ module maxflow_ro
    output logic            task_in_ready,
 
    input task_t            in_task, 
-   input data_t            in_data,
+   input ro_data_t            in_data,
    input byte_t            in_word_id,
    input cq_slice_slot_t   in_cq_slot,
 
@@ -381,16 +381,16 @@ always_comb begin
                   out_valid = 1'b1;
                   out_task.ttype = MAXFLOW_BFS_UPDATE_HEIGHT_TASK;
                   out_task.ts = (in_word_id == 0)? in_task.ts : in_task.ts + (1<<11) ;
-                  out_task.locale = (in_word_id == 0) ? sinkNode : sourceNode;
+                  out_task.object = (in_word_id == 0) ? sinkNode : sourceNode;
                   out_task.producer = 1'b1;
                   out_task.non_spec = bfs_is_non_spec;
                end
                2: begin
                   out_valid = 1'b1;
                   out_task.ttype = MAXFLOW_GET_HEIGHT_TASK; 
-                  out_task.locale = in_data_edge.dest;
+                  out_task.object = in_data_edge.dest;
                   out_task.ts = in_task.ts | (ordered_edges ? in_word_id : 0); 
-                  out_task.args[23: 0] = in_task.locale[23:0];
+                  out_task.args[23: 0] = in_task.object[23:0];
                   out_task.args[27:24] = in_data_edge.reverse_edge_id;
                   out_task.args[31:28] = in_word_id;
                   out_task.args[63:32] = in_data_edge.capacity;
@@ -401,9 +401,9 @@ always_comb begin
          MAXFLOW_GET_HEIGHT_TASK: begin
             out_valid = 1'b1;
             out_task.ttype = MAXFLOW_PUSH_TASK;
-            out_task.locale = in_task.args[23:0];
+            out_task.object = in_task.args[23:0];
             out_task.args[23:0] = in_task.args[87:64]; // height
-            out_task.args[95:64] = in_task.locale;
+            out_task.args[95:64] = in_task.object;
          end
          MAXFLOW_PUSH_TASK: begin
             case (SUBTYPE)
@@ -411,7 +411,7 @@ always_comb begin
                   if (in_task.args[31:0] > 0) begin
                      out_valid = 1'b1;
                      out_task.ttype = MAXFLOW_RECEIVE_TASK;
-                     out_task.locale = in_task.args[95:64];
+                     out_task.object = in_task.args[95:64];
                   end
                   if (in_task.args[36]) begin // if reenqueue task
                      araddr = 0;
@@ -471,9 +471,9 @@ always_comb begin
                out_task.ttype = MAXFLOW_BFS_CHECK_RESIDUAL_TASK; 
                out_task.producer = 1'b0;
                out_task.non_spec = bfs_is_non_spec;
-               out_task.locale = in_data_edge.dest;
+               out_task.object = in_data_edge.dest;
                out_task.ts = in_task.ts + (use_bfs_producer_tasks ? 1'b0 : 1'b1) ; 
-               out_task.args[23: 0] = in_task.locale[23:0];
+               out_task.args[23: 0] = in_task.object[23:0];
                out_task.args[27:24] = in_data_edge.reverse_edge_id;
                out_task.args[31:28] = in_word_id;
                out_task.args[63:32] = 'x;
@@ -519,41 +519,41 @@ end
          case (in_task.ttype) 
          MAXFLOW_DISCHARGE_TASK: begin
             if (SUBTYPE == 0) begin
-               $display("[%5d] [rob-%2d] [ro] [%3d] \t DISCHARGE 0 ts:%8x locale:%4x | eo_begin:%4d eo_end:%4d",
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t DISCHARGE 0 ts:%8x object:%4x | eo_begin:%4d eo_end:%4d",
                cycle, TILE_ID, in_cq_slot,
-               in_task.ts, in_task.locale, in_task.args[31:0], in_task.args[63:32]) ;
+               in_task.ts, in_task.object, in_task.args[31:0], in_task.args[63:32]) ;
             end
             if (SUBTYPE == 1) begin
-               $display("[%5d] [rob-%2d] [ro] [%3d] \t DISCHARGE 1 ts:%8x locale:%4x ",
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t DISCHARGE 1 ts:%8x object:%4x ",
                cycle, TILE_ID, in_cq_slot,
-               in_task.ts, in_task.locale) ;
+               in_task.ts, in_task.object) ;
             end
             if (SUBTYPE == 2) begin
-               $display("[%5d] [rob-%2d] [ro] [%3d] \t DISCHARGE 2 ts:%8x locale:%4x | word_id:%1d dest:%4x cap:%4d",
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t DISCHARGE 2 ts:%8x object:%4x | word_id:%1d dest:%4x cap:%4d",
                cycle, TILE_ID, in_cq_slot,
-               in_task.ts, in_task.locale, in_word_id, in_data_edge.dest, in_data_edge.capacity) ;
+               in_task.ts, in_task.object, in_word_id, in_data_edge.dest, in_data_edge.capacity) ;
             end
          end
          MAXFLOW_GET_HEIGHT_TASK: begin
-            $display("[%5d] [rob-%2d] [ro] [%3d] \t GET_HEIGHT 0 ts:%8x locale:%4x ",
+            $display("[%5d] [rob-%2d] [ro] [%3d] \t GET_HEIGHT 0 ts:%8x object:%4x ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale) ;
+            in_task.ts, in_task.object) ;
          end
          MAXFLOW_PUSH_TASK: begin
-            $display("[%5d] [rob-%2d] [ro] [%3d] \t PUSH %d ts:%8x locale:%4x ",
+            $display("[%5d] [rob-%2d] [ro] [%3d] \t PUSH %d ts:%8x object:%4x ",
             cycle, TILE_ID, in_cq_slot, SUBTYPE,
-            in_task.ts, in_task.locale ) ;
+            in_task.ts, in_task.object ) ;
          end
          MAXFLOW_RECEIVE_TASK: begin
-            $display("[%5d] [rob-%2d] [ro] [%3d] \t RECEIVE 0 ts:%8x locale:%4x ",
+            $display("[%5d] [rob-%2d] [ro] [%3d] \t RECEIVE 0 ts:%8x object:%4x ",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale) ;
+            in_task.ts, in_task.object) ;
          end
          MAXFLOW_BFS_CHECK_RESIDUAL_TASK: begin
             if (SUBTYPE==1) begin
-               $display("[%5d] [rob-%2d] [ro] [%3d] \t BFS_RESIDUAL 0 ts:%8x locale:%4x | cap:%d flow:%d",
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t BFS_RESIDUAL 0 ts:%8x object:%4x | cap:%d flow:%d",
                cycle, TILE_ID, in_cq_slot,
-               in_task.ts, in_task.locale, in_data_edge.capacity, $signed(in_task.args[95:64])) ;
+               in_task.ts, in_task.object, in_data_edge.capacity, $signed(in_task.args[95:64])) ;
             end
          end
 

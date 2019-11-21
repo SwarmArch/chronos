@@ -208,7 +208,7 @@ logic [4:0] coal_child_fifo_size;
 
 assign coal_child_valid = !fifo_empty;
 assign coal_child_task.ts = fifo_out_ts;
-assign coal_child_task.locale = (fifo_out_id<< 16) + ((TILE_ID)<<4); // route to same tile 
+assign coal_child_task.object = (fifo_out_id<< 16) + ((TILE_ID)<<4); // route to same tile 
 assign coal_child_task.ttype = TASK_TYPE_SPLITTER;
 assign coal_child_task.args = 0;
 assign coal_child_task.producer = 1'b1;
@@ -520,7 +520,7 @@ always_ff @(posedge clk) begin
    if (state == COAL_WRITE_TASK & l1.wvalid & l1.wready) begin
       $display("[%5d][coalescer-%2d] coalescing task (%3d,%2d) - (%2d, %3d %3d)",
          cycle, TILE_ID, coal_id, TASKS_PER_SPLITTER - tasks_remaining,
-             spill_fifo_rd_data.ttype, spill_fifo_rd_data.ts, spill_fifo_rd_data.locale);
+             spill_fifo_rd_data.ttype, spill_fifo_rd_data.ts, spill_fifo_rd_data.object);
    end
    if (l1.awvalid & l1.awready & l1.wvalid & l1.wready) begin
       $display("[%5d][coalescer-%2d] write %10h : %10h",

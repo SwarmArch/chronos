@@ -1149,7 +1149,7 @@ fifo_size_t rw_write_out_fifo_occ;
 logic rw_write_out_valid;
 logic rw_write_out_ready;
 task_t rw_write_out_task;
-data_t rw_write_out_data;
+ro_data_t rw_write_out_data;
 cq_slice_slot_t rw_write_out_cq_slot;
 
 assign rw_write_out_ready = !rw_write_out_fifo_full;
@@ -1157,12 +1157,12 @@ assign rw_write_out_ready = !rw_write_out_fifo_full;
 logic           [N_SUB_TYPES-1:0]  fifo_wr_en;
 logic           [N_SUB_TYPES-1:0]  fifo_rd_en;
 task_t          [N_SUB_TYPES-1:0]  fifo_in_task;
-data_t          [N_SUB_TYPES-1:0]  fifo_in_data; 
+ro_data_t          [N_SUB_TYPES-1:0]  fifo_in_data; 
 cq_slice_slot_t [N_SUB_TYPES-1:0]  fifo_in_cq_slot;
 byte_t          [N_SUB_TYPES-1:0]  fifo_in_word_id;
 
 task_t          [N_SUB_TYPES-1:0]  fifo_out_task; 
-data_t          [N_SUB_TYPES-1:0]  fifo_out_data; 
+ro_data_t          [N_SUB_TYPES-1:0]  fifo_out_data; 
 cq_slice_slot_t [N_SUB_TYPES-1:0]  fifo_out_cq_slot;
 byte_t          [N_SUB_TYPES-1:0]  fifo_out_word_id;
                  
@@ -1210,7 +1210,7 @@ write_rw
    .task_out_cq_slot(rw_write_out_cq_slot),  
    .task_out_fifo_occ (fifo_occ[0]),
 
-   .unlock_locale (unlock_thread_valid),
+   .unlock_object (unlock_thread_valid),
    .unlock_thread(unlock_thread),
    
    .finish_task_valid (rw_finish_task_valid),
@@ -1234,7 +1234,7 @@ logic ro_out_task_valid;
 logic ro_out_task_ready;
 subtype_t ro_out_task_subtype;
 task_t ro_out_task;
-data_t ro_out_data;
+ro_data_t ro_out_data;
 cq_slice_slot_t ro_out_cq_slot;
 byte_t ro_out_word_id;
 

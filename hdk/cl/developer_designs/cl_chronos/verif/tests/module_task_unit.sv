@@ -67,10 +67,10 @@ initial begin
 
       if (s_wvalid) begin
          s_wdata.ttype = 0;
-         s_wdata.locale = i;
+         s_wdata.object = i;
          s_wdata.ts = $urandom_range(0,255);
          $display ("Writing %d (0x%x) %d : occ:%d", s_wdata.ts, s_wdata.ts, 
-            s_wdata.locale, queue.size() + 1);
+            s_wdata.object, queue.size() + 1);
          queue.push_back(s_wdata.ts);
          // sample at posedge
          #5 while(!s_wready) #10;
@@ -96,7 +96,7 @@ initial begin
          expected = queue[min_index];
          actual = m_rdata[0].ts;
          queue.delete(min_index);
-         $display ("Reading %3d Expected %3d locale:%3d ", actual, expected, m_rdata[0].locale);
+         $display ("Reading %3d Expected %3d object:%3d ", actual, expected, m_rdata[0].object);
       end
       #9
       m_rready[0] = 1'b0;

@@ -26,7 +26,7 @@ module write_rw
    output logic            task_out_valid,
    input                   task_out_ready,
    output task_t           task_out,  
-   output data_t           data_out,  
+   output ro_data_t           data_out,  
    output cq_slice_slot_t  task_out_cq_slot,  
    
    input fifo_size_t   task_out_fifo_occ, 
@@ -34,7 +34,7 @@ module write_rw
    input logic         gvt_task_slot_valid,
    cq_slice_slot_t     gvt_task_slot,
 
-   output logic        unlock_locale,
+   output logic        unlock_object,
    output thread_id_t  unlock_thread,
    
    output logic        finish_task_valid,
@@ -55,11 +55,11 @@ logic s_task_out_valid;
 logic s_valid, s_ready;
 logic s_wvalid;
 logic [31:0] s_waddr;
-object_t s_wdata;
+rw_data_t s_wdata;
 
 logic s_out_valid, s_out_ready;
 task_t s_out_task;
-data_t s_out_data;
+ro_data_t s_out_data;
 
 logic s_sched_valid, s_sched_ready;
 
@@ -106,30 +106,30 @@ always_comb begin
 end
 
 logic s_write_wvalid;
-object_t s_write_data;
+rw_data_t s_write_data;
 logic s_write_wready;
-locale_t s_write_locale;
+object_t s_write_object;
 thread_id_t s_thread_id, write_thread_id;
 
 logic wdata_fifo_full, wdata_fifo_empty;
 
-locale_t write_locale;
-object_t write_data;
+object_t write_object;
+rw_data_t write_data;
 
 fifo #(
-      .WIDTH($bits(s_write_locale) + $bits(s_thread_id) + $bits(s_write_data)),
+      .WIDTH($bits(s_write_object) + $bits(s_thread_id) + $bits(s_write_data)),
       .LOG_DEPTH(1)
    ) WDATA_FIFO (
       .clk(clk),
       .rstn(rstn),
       .wr_en(s_write_wvalid & s_write_wready),
-      .wr_data({s_thread_id, s_write_locale,  s_write_data}),
+      .wr_data({s_thread_id, s_write_object,  s_write_data}),
 
       .full(wdata_fifo_full),
       .empty(wdata_fifo_empty),
 
       .rd_en(wvalid & wready),
-      .rd_data({write_thread_id, write_locale, write_data})
+      .rd_data({write_thread_id, write_object, write_data})
 
    );
 
@@ -160,26 +160,26 @@ assign s_thread_id = task_in.thread;
 assign wvalid = !wdata_fifo_empty;
 assign wid = write_thread_id;
 assign s_write_wready = !wdata_fifo_full;
-assign s_write_locale = task_in.task_desc.locale;
+assign s_write_object = task_in.task_desc.object;
 
-assign  waddr = base_rw_addr + ( write_locale << (LOG_RW_WIDTH) ) ;
+assign  waddr = base_rw_addr + ( write_object << (LOG_RW_WIDTH) ) ;
 always_comb begin
    wdata = 'x;
    case (LOG_RW_WIDTH) 
-      2: wdata [ write_locale[3:0]* 32 +: 32 ] = write_data;
-      3: wdata [ write_locale[2:0]* 64 +: 64 ] = write_data;
-      4: wdata [ write_locale[1:0]* 128 +: 128 ] = write_data;
-      5: wdata [ write_locale[0]* 256 +: 256 ] = write_data;
+      2: wdata [ write_object[3:0]* 32 +: 32 ] = write_data;
+      3: wdata [ write_object[2:0]* 64 +: 64 ] = write_data;
+      4: wdata [ write_object[1:0]* 128 +: 128 ] = write_data;
+      5: wdata [ write_object[0]* 256 +: 256 ] = write_data;
       6: wdata  = write_data;
    endcase
 end
 always_comb begin
    wstrb = 0;
    case (LOG_RW_WIDTH) 
-      2: wstrb[ write_locale[3:0] * 4 +: 4]  = '1;
-      3: wstrb[ write_locale[2:0] * 8 +: 8]  = '1;
-      4: wstrb[ write_locale[1:0] * 16 +: 16]  = '1;
-      5: wstrb[ write_locale[0] * 32 +: 32]  = '1;
+      2: wstrb[ write_object[3:0] * 4 +: 4]  = '1;
+      3: wstrb[ write_object[2:0] * 8 +: 8]  = '1;
+      4: wstrb[ write_object[1:0] * 16 +: 16]  = '1;
+      5: wstrb[ write_object[0] * 32 +: 32]  = '1;
       6: wstrb  = '1;
    endcase
 end
@@ -252,17 +252,17 @@ always_comb begin
 end
 always_ff @(posedge clk) begin
    if (!rstn) begin
-      unlock_locale <= 1'b0;
+      unlock_object <= 1'b0;
       unlock_thread <= 'x;
    end else begin
       if (task_in_ready & !s_write_wvalid) begin
-         unlock_locale <= 1'b1;
+         unlock_object <= 1'b1;
          unlock_thread <= task_in.thread;
       end else if (c_bvalid) begin
-         unlock_locale <= 1'b1;
+         unlock_object <= 1'b1;
          unlock_thread <= c_bid;
       end else begin
-         unlock_locale <= 1'b0;
+         unlock_object <= 1'b0;
          unlock_thread <= 'x;
       end
    end

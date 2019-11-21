@@ -13,16 +13,16 @@ module astar_rw
    output logic            task_in_ready,
 
    input task_t            in_task, 
-   input object_t          in_data,
+   input rw_data_t          in_data,
    input cq_slice_slot_t   in_cq_slot,
   
    output logic            wvalid,
    output logic [31:0]     waddr,
-   output data_t           wdata,
+   output ro_data_t           wdata,
 
    output logic            out_valid,
    output task_t           out_task,
-   output data_t           out_data,
+   output ro_data_t           out_data,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,
@@ -43,7 +43,7 @@ assign gScore = in_task.ts;
 always_comb begin 
    wvalid = 0;
    wdata = 'x;
-   waddr = base_rw_addr + ( in_task.locale << 2) ;
+   waddr = base_rw_addr + ( in_task.object << 2) ;
    wdata = in_task.ts;
    out_valid = 1'b0;
 
@@ -93,9 +93,9 @@ end
       if (!rstn) cycle <=0;
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
-         $display("[%5d] [rob-%2d] [write_rw] [%2d] ts:%8d locale:%4d type:%1x",
+         $display("[%5d] [rob-%2d] [write_rw] [%2d] ts:%8d object:%4d type:%1x",
             cycle, TILE_ID, in_cq_slot,
-            in_task.ts, in_task.locale, in_task.ttype) ;
+            in_task.ts, in_task.object, in_task.ttype) ;
       end
    end 
 `endif
@@ -116,7 +116,7 @@ module astar_ro
    output logic            task_in_ready,
 
    input task_t            in_task, 
-   input data_t            in_data,
+   input ro_data_t            in_data,
    input byte_t            in_word_id,
    input cq_slice_slot_t   in_cq_slot,
   
@@ -185,21 +185,21 @@ if (SUBTYPE == 0) begin
       
       if (task_in_valid) begin
          if (in_task.ttype == 0) begin
-            if (in_task.locale == targetNode) begin
+            if (in_task.object == targetNode) begin
                araddr = offset_base_addr;
                arsize = 2;
                arvalid = 1'b1;
                arlen = (N_TILES-1);
                resp_subtype = 1;
             end else begin
-               araddr = offset_base_addr + (in_task.locale <<  2);
+               araddr = offset_base_addr + (in_task.object <<  2);
                arsize = 3;
                arvalid = 1'b1;
                arlen = 0;
                resp_subtype = 1;
             end
          end else begin
-            araddr = latlon_base_addr + (in_task.locale << 3);
+            araddr = latlon_base_addr + (in_task.object << 3);
             arvalid = 1'b1;
             arsize = 3;
             arlen = 0;
@@ -226,10 +226,10 @@ end else if (SUBTYPE == 1) begin
 
       if (task_in_valid) begin
          if (in_task.ttype == 0) begin
-            if (in_task.locale == targetNode) begin
+            if (in_task.object == targetNode) begin
                out_valid = 1'b1;
                out_task.ttype = TASK_TYPE_TERMINATE;
-               out_task.locale = in_word_id << 4; // only works with TSB_HASH_KEY=0 
+               out_task.object = in_word_id << 4; // only works with TSB_HASH_KEY=0 
                out_task_is_child = 1'b1;
             end else begin
                araddr = neighbors_base_addr + (in_data[31:0] <<  3);
@@ -263,9 +263,9 @@ end else if (SUBTYPE == 2) begin
          if (in_task.ttype == 0) begin
             out_valid = 1'b1;
             out_task.ttype = 1;
-            out_task.locale = in_data[31:0];
+            out_task.object = in_data[31:0];
             out_task.args[31:0] = in_task.args[31:0] + in_data[63:32];
-            out_task.args[63:32] = in_task.locale;
+            out_task.args[63:32] = in_task.object;
             out_task.ts = in_task.ts;
             out_task_is_child = 1'b1;
          end
@@ -415,9 +415,9 @@ end
       if (!rstn) cycle <=0;
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
-         $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8d locale:%4d data:(%5d %5d)",
+         $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8d object:%4d data:(%5d %5d)",
             cycle, TILE_ID, SUBTYPE, in_cq_slot,
-            in_task.ts, in_task.locale, in_data[63:32], in_data[31:0] ) ;
+            in_task.ts, in_task.object, in_data[63:32], in_data[31:0] ) ;
       end
    end 
 `endif

@@ -36,11 +36,11 @@ table_info tbl_stock;
 #define NEW_ORDER_UPDATE_STOCK 5
 #define NEW_ORDER_INSERT_ORDER_LINE 6
 
-#define LOCALE_DISTRICT (1<<20)
-#define LOCALE_NEW_ORDER (2<<20)
-#define LOCALE_ORDER (3<<20)
-#define LOCALE_STOCK (4<<20)
-#define LOCALE_ORDER_LINE (5<<20)
+#define OBJECT_DISTRICT (1<<20)
+#define OBJECT_NEW_ORDER (2<<20)
+#define OBJECT_ORDER (3<<20)
+#define OBJECT_STOCK (4<<20)
+#define OBJECT_ORDER_LINE (5<<20)
 
 uint32_t* chronos_mem = 0;
 
@@ -91,24 +91,24 @@ void* get_record(table_info* tbl, uint32_t pkey){
    return find_record(tbl, pkey, bucket, offset);
 }
 
-void tx_enqueuer_task(uint32_t ts, uint32_t locale, uint32_t start) {
+void tx_enqueuer_task(uint32_t ts, uint32_t object, uint32_t start) {
    if (start + 7 < num_tx) {
-      //enq_task_arg1(TX_ENQUEUER_TASK, (start+7)<<8, locale, start+7);
+      //enq_task_arg1(TX_ENQUEUER_TASK, (start+7)<<8, object, start+7);
    }
    int end = start+7; if (num_tx < end) end = num_tx;
    for (int i=start;i<end;i++) {
       struct tx_info_new_order* tx_info = (tx_info_new_order*) (&tx_data[tx_offset[i]]);
       //printf("offset %d %d %x\n", i, tx_offset[i], tx_data[tx_offset[i]]);
-      enq_task_arg2(NEW_ORDER_UPDATE_DISTRICT, (i<<8), LOCALE_DISTRICT | (tx_info->d_id << 4) , i,
+      enq_task_arg2(NEW_ORDER_UPDATE_DISTRICT, (i<<8), OBJECT_DISTRICT | (tx_info->d_id << 4) , i,
             *(uint32_t*) tx_info);
    }
 }
 
-void new_order_update_district(uint32_t ts, uint32_t locale, uint32_t tx_id, uint32_t _tx_info) {
-   uint32_t d = (locale >> 4) & 0xf;
+void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uint32_t _tx_info) {
+   uint32_t d = (object >> 4) & 0xf;
    uint32_t d_next_o_id = districts_rw[d].d_next_o_id++;
    printf("\td_next_o_id %d %d\n", d, d_next_o_id);
-   enq_task_arg2(NEW_ORDER_INSERT_NEW_ORDER, ts, LOCALE_NEW_ORDER, _tx_info, d_next_o_id);
+   enq_task_arg2(NEW_ORDER_INSERT_NEW_ORDER, ts, OBJECT_NEW_ORDER, _tx_info, d_next_o_id);
    // get bucket id for order
    order o;
    tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
@@ -121,19 +121,19 @@ void new_order_update_district(uint32_t ts, uint32_t locale, uint32_t tx_id, uin
    uint32_t bucket, offset;
    get_bucket(&tbl_order, pkey, &bucket, &offset);
 
-   enq_task_arg2(NEW_ORDER_INSERT_ORDER, ts, LOCALE_ORDER | (bucket << 4), pkey,
+   enq_task_arg2(NEW_ORDER_INSERT_ORDER, ts, OBJECT_ORDER | (bucket << 4), pkey,
          (offset << 16) | tx_info.c_id);
 
    // enq ol_cnt enqueuers
    for (int i=0;i<tx_info.num_items;i+=4) {
-      enq_task_arg2(NEW_ORDER_ENQ_OL_CNT, ts, locale /* RO */, tx_id,
+      enq_task_arg2(NEW_ORDER_ENQ_OL_CNT, ts, object /* RO */, tx_id,
             (i << 24) | d_next_o_id );
    }
 
 }
 
 
-void new_order_insert_new_order(uint32_t ts, uint32_t locale, uint32_t _tx_info, uint32_t o_id) {
+void new_order_insert_new_order(uint32_t ts, uint32_t object, uint32_t _tx_info, uint32_t o_id) {
    struct new_order* fifo = (struct new_order*) tbl_new_order.fifo_base;
    struct tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
    struct new_order n = {o_id, tx_info.d_id, tx_info.w_id};
@@ -141,10 +141,10 @@ void new_order_insert_new_order(uint32_t ts, uint32_t locale, uint32_t _tx_info,
    tbl_new_order.wr_ptr++;
 }
 
-void new_order_insert_order(uint32_t ts, uint32_t locale, uint32_t pkey, uint32_t offset_cid) {
+void new_order_insert_order(uint32_t ts, uint32_t object, uint32_t pkey, uint32_t offset_cid) {
    // find start of bucket data
    uint32_t offset = offset_cid >> 16;
-   uint32_t bucket = (locale >> 4) & 0xffff;
+   uint32_t bucket = (object >> 4) & 0xffff;
    order* order_ptr = (order*) find_record(&tbl_order, pkey, bucket, offset);
 
    uint32_t* o_int_ptr = (uint32_t*) order_ptr;
@@ -155,7 +155,7 @@ void new_order_insert_order(uint32_t ts, uint32_t locale, uint32_t pkey, uint32_
 }
 
 
-void new_order_item_enqueuer(uint32_t ts, uint32_t locale, uint32_t tx_id, uint32_t index_o_id) {
+void new_order_item_enqueuer(uint32_t ts, uint32_t object, uint32_t tx_id, uint32_t index_o_id) {
    uint32_t offset = tx_offset[tx_id];
    uint32_t start_index = (index_o_id >> 24);
    struct tx_info_new_order* tx_info = (tx_info_new_order*) (&tx_data[offset]);
@@ -177,7 +177,7 @@ void new_order_item_enqueuer(uint32_t ts, uint32_t locale, uint32_t tx_id, uint3
       uint32_t stock_pkey = *(uint32_t*) &s;
       uint32_t bucket, offset;
       get_bucket(&tbl_stock, stock_pkey, &bucket, &offset);
-      enq_task_arg2(NEW_ORDER_UPDATE_STOCK, ts + i, LOCALE_STOCK | (bucket << 4), stock_pkey,
+      enq_task_arg2(NEW_ORDER_UPDATE_STOCK, ts + i, OBJECT_STOCK | (bucket << 4), stock_pkey,
             (offset << 16) | tx_item->i_qty );
 
 
@@ -190,7 +190,7 @@ void new_order_item_enqueuer(uint32_t ts, uint32_t locale, uint32_t tx_id, uint3
       uint32_t ol_pkey = *(uint32_t*) &ol;
       uint32_t amt = tx_item->i_qty * item_ptr->i_price;
       get_bucket(&tbl_order_line, ol_pkey, &bucket, &offset);
-      enq_task_arg3(NEW_ORDER_INSERT_ORDER_LINE, ts + i, LOCALE_ORDER_LINE | (bucket << 4), ol_pkey,
+      enq_task_arg3(NEW_ORDER_INSERT_ORDER_LINE, ts + i, OBJECT_ORDER_LINE | (bucket << 4), ol_pkey,
             (offset << 24 ) | tx_item->i_id,
             (tx_item->i_s_wid << 24 ) | (tx_item->i_qty << 16) | amt);
 
@@ -198,9 +198,9 @@ void new_order_item_enqueuer(uint32_t ts, uint32_t locale, uint32_t tx_id, uint3
 
 }
 
-void new_order_update_stock(uint32_t ts, uint32_t locale, uint32_t pkey, uint32_t offset_quantity) {
+void new_order_update_stock(uint32_t ts, uint32_t object, uint32_t pkey, uint32_t offset_quantity) {
    uint32_t offset = offset_quantity >> 16;
-   uint32_t bucket = (locale >> 4) & 0xffff;
+   uint32_t bucket = (object >> 4) & 0xffff;
 
    uint32_t qty = offset_quantity & 0xffff;
 
@@ -214,11 +214,11 @@ void new_order_update_stock(uint32_t ts, uint32_t locale, uint32_t pkey, uint32_
    // TODO To update s_remote_cnt need to pass in o_wid
 }
 
-void new_order_insert_order_line(uint32_t ts, uint32_t locale, uint32_t pkey, uint32_t offset_i_id,
+void new_order_insert_order_line(uint32_t ts, uint32_t object, uint32_t pkey, uint32_t offset_i_id,
       uint32_t wid_qty_amt) {
 
    uint32_t offset = offset_i_id >> 24;
-   uint32_t bucket = (locale >> 4) & 0xffff;
+   uint32_t bucket = (object >> 4) & 0xffff;
    order_line* order_line_ptr = (order_line*) find_record(&tbl_order_line, pkey, bucket, offset);
 
    uint32_t* o_int_ptr = (uint32_t*) order_line_ptr;
@@ -281,31 +281,31 @@ int main() {
          tbl_new_order.wr_ptr, tbl_new_order.rd_ptr);
    printf("order %d %d %d\n", tbl_order.log_bucket_size, tbl_order.log_num_buckets, tbl_order.record_size);
 
-   uint ttype, ts, locale, arg0, arg1, arg2;
+   uint ttype, ts, object, arg0, arg1, arg2;
    while (1) {
-      deq_task_arg3(&ttype, &ts, &locale, &arg0, &arg1, &arg2);
+      deq_task_arg3(&ttype, &ts, &object, &arg0, &arg1, &arg2);
 //      if (ttype == -1) break;
       switch(ttype){
           case TX_ENQUEUER_TASK:
-              tx_enqueuer_task(ts, locale, arg0);
+              tx_enqueuer_task(ts, object, arg0);
               break;
           case NEW_ORDER_UPDATE_DISTRICT:
-              new_order_update_district(ts, locale, arg0, arg1);
+              new_order_update_district(ts, object, arg0, arg1);
               break;
           case NEW_ORDER_INSERT_NEW_ORDER:
-              new_order_insert_new_order(ts, locale, arg0, arg1);
+              new_order_insert_new_order(ts, object, arg0, arg1);
               break;
           case NEW_ORDER_INSERT_ORDER:
-              new_order_insert_order(ts, locale, arg0, arg1);
+              new_order_insert_order(ts, object, arg0, arg1);
               break;
           case NEW_ORDER_ENQ_OL_CNT:
-              new_order_item_enqueuer(ts, locale, arg0, arg1);
+              new_order_item_enqueuer(ts, object, arg0, arg1);
               break;
           case NEW_ORDER_UPDATE_STOCK:
-              new_order_update_stock(ts, locale, arg0, arg1);
+              new_order_update_stock(ts, object, arg0, arg1);
               break;
           case NEW_ORDER_INSERT_ORDER_LINE:
-              new_order_insert_order_line(ts, locale, arg0, arg1, arg2);
+              new_order_insert_order_line(ts, object, arg0, arg1, arg2);
               break;
 
           default:

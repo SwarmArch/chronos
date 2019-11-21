@@ -652,7 +652,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_TIED_CAPACITY, tied_cap);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_SIZE, spill_size);
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_SPILL_CHECK_LIMIT, spill_size * 16);
-        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 0); // get enq args instead of deq locale/ts
+        pci_poke(i, ID_TASK_UNIT, TASK_UNIT_ALT_DEBUG, 0); // get enq args instead of deq object/ts
 
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_PRE_ENQ_BUF,
                 (pre_enq_fifo_thresh << 16) | deq_tolerance);
@@ -699,22 +699,22 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
             for (int i=0;i<headers[11];i++) { // numI
                 unsigned char* ref_ptr = write_buffer + (headers[7] +i)*4;
                 //printf("%d\n", *(ref_ptr+1));
-                uint32_t enq_locale = (*(ref_ptr + 3)<<24)+
+                uint32_t enq_object = (*(ref_ptr + 3)<<24)+
                     (*(ref_ptr + 2)<<16) +
                     (*(ref_ptr + 1)<<8)  +
                     *ref_ptr;
-                uint32_t enq_tile = (enq_locale>>4) %(active_tiles);
-                pci_poke(enq_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , enq_locale );
+                uint32_t enq_tile = (enq_object>>4) %(active_tiles);
+                pci_poke(enq_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_OBJECT , enq_object );
                 pci_poke(enq_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
                 //usleep(10);
                 pci_poke(enq_tile, ID_OCL_SLAVE, OCL_TASK_ENQ      , 0);
 
-                printf("Enquing initial task %d\n", enq_locale);
+                printf("Enquing initial task %d\n", enq_object);
             }
             break;
         case APP_SSSP:
             printf("APP_SSSP\n");
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , headers[7] );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_OBJECT , headers[7] );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
 
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
@@ -725,7 +725,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 1 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0xffffffff );
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , headers[7] );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_OBJECT , headers[7] );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 1 );
 
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ, 0 );
@@ -734,7 +734,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         case APP_COLOR:
             printf("APP_COLOR\n");
 
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , 0x20000 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_OBJECT , 0x20000 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
@@ -744,7 +744,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         case APP_MAXFLOW:
             printf("APP_MAXFLOW\n");
             init_task_tile = (headers[7] >> 4) % active_tiles;
-            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE,
+            pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_OBJECT,
                         headers[7] );
             pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
             pci_poke(init_task_tile, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
@@ -757,7 +757,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         case APP_SILO:
             printf("APP_SILO\n");
 
-            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_LOCALE , 0 );
+            pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_OBJECT , 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_TTYPE, 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARG_WORD, 0 );
             pci_poke(0, ID_OCL_SLAVE, OCL_TASK_ENQ_ARGS , 0 );
@@ -1332,7 +1332,7 @@ void loop_debuggin_nonspec(uint32_t iters){
     uint32_t tq_debug;
     uint32_t cycle;
     uint32_t ser_debug;
-    uint32_t ser_locale =0;
+    uint32_t ser_object =0;
     uint32_t ser_ready;
     uint32_t tsb_entry_valid;
     uint32_t rw_read_fifo_occ;
@@ -1353,7 +1353,7 @@ void loop_debuggin_nonspec(uint32_t iters){
 
         pci_peek(i, ID_SERIALIZER, SERIALIZER_READY_LIST, &ser_ready);
         pci_peek(i, ID_SERIALIZER, SERIALIZER_DEBUG_WORD, &ser_debug);
-        pci_peek(i, ID_SERIALIZER, SERIALIZER_S_LOCALE, &ser_locale);
+        pci_peek(i, ID_SERIALIZER, SERIALIZER_S_OBJECT, &ser_object);
         pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_read_fifo_occ );
         pci_peek(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_write_fifo_occ );
 
@@ -1362,7 +1362,7 @@ void loop_debuggin_nonspec(uint32_t iters){
                 iters, i, cycle, gvt, gvt_tb,
                 n_tasks, n_tied_tasks, heap_capacity,
                 cq_state, tq_debug, stack_ptr & 0xffff,
-                ser_locale, ser_ready, ser_debug, tsb_entry_valid,
+                ser_object, ser_ready, ser_debug, tsb_entry_valid,
                 rw_read_fifo_occ, rw_write_fifo_occ
               );
         //cq_stats(0, ID_CQ);
@@ -1431,7 +1431,7 @@ void loop_debuggin_spec(uint32_t iters){
     uint32_t tq_debug, tq_debug_1;
     uint32_t cycle;
     uint32_t ser_debug;
-    uint32_t ser_locale =0;
+    uint32_t ser_object =0;
     uint32_t ser_ready;
     uint32_t tsb_entry_valid;
     uint32_t rw_read_fifo_occ =0;
@@ -1458,7 +1458,7 @@ void loop_debuggin_spec(uint32_t iters){
 
         pci_peek(i, ID_SERIALIZER, SERIALIZER_READY_LIST, &ser_ready);
         pci_peek(i, ID_SERIALIZER, SERIALIZER_DEBUG_WORD, &ser_debug);
-        pci_peek(i, ID_SERIALIZER, SERIALIZER_S_LOCALE, &ser_locale);
+        pci_peek(i, ID_SERIALIZER, SERIALIZER_S_OBJECT, &ser_object);
         //pci_peek(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_read_fifo_occ );
         //pci_peek(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD , &rw_write_fifo_occ );
 
@@ -1467,7 +1467,7 @@ void loop_debuggin_spec(uint32_t iters){
                 iters, i, cycle, gvt, gvt_tb,
                 n_tasks, n_tied_tasks, heap_capacity,
                 cq_state, tq_debug, stack_ptr & 0xffff,
-                ser_locale, ser_ready, ser_debug, tsb_entry_valid,
+                ser_object, ser_ready, ser_debug, tsb_entry_valid,
                 rw_read_fifo_occ, rw_write_fifo_occ
               );
         printf(" coal state:%8x deq: %7d enq: %7d tq_state_2: %8x\n", coal_state, coal_deq, coal_enq, tq_debug_1);
@@ -1507,7 +1507,7 @@ void loop_debuggin_spec(uint32_t iters){
 
            }
            if (iters==2999) {
-           printf("ser debug %d %8x %x\n", ser_locale, ser_ready, ser_debug);
+           printf("ser debug %d %8x %x\n", ser_object, ser_ready, ser_debug);
            }
            */
     }

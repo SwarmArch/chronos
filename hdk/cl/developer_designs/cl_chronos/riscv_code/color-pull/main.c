@@ -24,12 +24,12 @@ uint* scratch;
 uint* initlist;
 uint numV;
 
-void enqueuer_task(uint ts, uint locale, uint enq_start, uint arg1) {
+void enqueuer_task(uint ts, uint object, uint enq_start, uint arg1) {
    int n_child = 0;
    uint next_ts;
    while(enq_start + n_child < numV) {
      if (n_child == 7) {
-         enq_task_arg2(ENQUEUER_TASK, 0, locale, enq_start + 7, 0);
+         enq_task_arg2(ENQUEUER_TASK, 0, object, enq_start + 7, 0);
          break;
      }
      uint nextV = enq_start + n_child;
@@ -104,26 +104,26 @@ void main() {
    numV  =*(uint *)(ADDR_NUMV) ;
 
    while (1) {
-      uint ttype, ts, locale, arg0, arg1;
-      deq_task(&ttype, &ts, &locale, &arg0, &arg1);
+      uint ttype, ts, object, arg0, arg1;
+      deq_task(&ttype, &ts, &object, &arg0, &arg1);
       switch(ttype) {
         case ENQUEUER_TASK:
-           enqueuer_task(ts, locale, arg0, arg1);
+           enqueuer_task(ts, object, arg0, arg1);
            break;
         case ENQ_NEIGHBOR_TASK:
-           enq_neighbor_task(ts, locale, arg0, arg1);
+           enq_neighbor_task(ts, object, arg0, arg1);
            break;
         case READ_COLOR_TASK:
-           read_color_task(ts, locale, arg0, arg1);
+           read_color_task(ts, object, arg0, arg1);
            break;
         case UPDATE_COLOR_TASK:
-           update_color_task(ts, locale, arg0, arg1);
+           update_color_task(ts, object, arg0, arg1);
            break;
         case CALC_COLOR_TASK:
-           calc_color_task(ts, locale, arg0, arg1);
+           calc_color_task(ts, object, arg0, arg1);
            break;
         case WRITE_COLOR_TASK:
-           write_color_task(ts, locale, arg0, arg1);
+           write_color_task(ts, object, arg0, arg1);
            break;
       }
       finish_task();

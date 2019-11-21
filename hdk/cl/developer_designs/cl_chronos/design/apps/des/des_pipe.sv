@@ -13,16 +13,16 @@ module des_rw
    output logic            task_in_ready,
 
    input task_t            in_task, 
-   input object_t          in_data,
+   input rw_data_t          in_data,
    input cq_slice_slot_t   in_cq_slot,
    
    output logic            wvalid,
    output logic [31:0]     waddr,
-   output data_t           wdata,
+   output ro_data_t           wdata,
 
    output logic            out_valid,
    output task_t           out_task,
-   output data_t           out_data,
+   output ro_data_t           out_data,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,
@@ -156,16 +156,16 @@ end
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
          if (in_task.ttype == 0) begin
-            $display("[%5d] [rob-%2d] [write_rw] [%2d] ts:%8x locale:%4d (type:%d (%d %d) in:(%d on %d) ->%d old:%d type:%1x",
+            $display("[%5d] [rob-%2d] [write_rw] [%2d] ts:%8x object:%4d (type:%d (%d %d) in:(%d on %d) ->%d old:%d type:%1x",
                cycle, TILE_ID, in_cq_slot,
-               in_task.ts, in_task.locale, 
+               in_task.ts, in_task.object, 
                logic_gate, logic_val_0, logic_val_1, input_logic_val, input_port,
                new_gate_output, current_gate_output,
                in_task.ttype) ;
          end else begin
-            $display("[%5d] [rob-%2d] [write_rw] [%2d] ts:%8x locale:%4d args:%d type:%1x",
+            $display("[%5d] [rob-%2d] [write_rw] [%2d] ts:%8x object:%4d args:%d type:%1x",
                cycle, TILE_ID, in_cq_slot,
-               in_task.ts, in_task.locale, in_task.args, in_task.ttype) ;
+               in_task.ts, in_task.object, in_task.args, in_task.ttype) ;
 
          end
       end
@@ -188,7 +188,7 @@ module des_ro
    output logic            task_in_ready,
 
    input task_t            in_task, 
-   input data_t            in_data,
+   input ro_data_t            in_data,
    input byte_t            in_word_id,
    input cq_slice_slot_t   in_cq_slot,
    
@@ -248,7 +248,7 @@ always_comb begin
       if (in_task.ttype == 0) begin
          case (SUBTYPE) 
             0: begin
-               araddr = offset_base_addr + (in_task.locale <<  2);
+               araddr = offset_base_addr + (in_task.object <<  2);
                arsize = 3;
                arvalid = 1'b1;
                arlen = 0;
@@ -264,7 +264,7 @@ always_comb begin
             end
             2: begin
                out_valid = 1'b1;
-               out_task.locale = in_data[31:1];
+               out_task.object = in_data[31:1];
                out_task.ts = in_task.ts;
                out_task.args[2] = in_data[0];
                out_task_is_child = 1'b1;
@@ -273,7 +273,7 @@ always_comb begin
       end else begin
          case (SUBTYPE) 
             0: begin
-               araddr = init_edge_offset + (in_task.locale <<  2);
+               araddr = init_edge_offset + (in_task.object <<  2);
                arsize = 3;
                arvalid = 1'b1;
                arlen = 0;
@@ -345,13 +345,13 @@ end
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
          if (in_task.ttype == 0 & SUBTYPE==2) begin
-            $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8x locale:%4d neighbor:%5d port:%5d)",
+            $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8x object:%4d neighbor:%5d port:%5d)",
                cycle, TILE_ID, SUBTYPE, in_cq_slot,
-               in_task.ts, in_task.locale, in_data[31:1], in_data[0] ) ;
+               in_task.ts, in_task.object, in_data[31:1], in_data[0] ) ;
          end else begin
-            $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8x locale:%4d data:(%5x %5x)",
+            $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8x object:%4d data:(%5x %5x)",
                cycle, TILE_ID, SUBTYPE, in_cq_slot,
-               in_task.ts, in_task.locale, in_data[63:32], in_data[31:0] ) ;
+               in_task.ts, in_task.object, in_data[63:32], in_data[31:0] ) ;
          end
       end
    end 

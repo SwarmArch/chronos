@@ -52,7 +52,7 @@ ALL TIMES.
 
 typedef struct {
 	ap_uint<32> ts;
-	ap_uint<32> hint;
+	ap_uint<32> object;
 	ap_uint<4> ttype;
 	ap_uint<1> args;
 } task_t;

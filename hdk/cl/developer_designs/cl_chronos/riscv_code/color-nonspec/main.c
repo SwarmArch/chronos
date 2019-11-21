@@ -20,7 +20,7 @@ uint* edge_neighbors;
 uint* scratch;
 uint numV;
 
-void enqueuer_task(uint ts, uint locale, uint enq_start, uint arg1) {
+void enqueuer_task(uint ts, uint object, uint enq_start, uint arg1) {
    int n_child = 0;
    uint next_ts;
    uint enq_end = enq_start + 17;
@@ -118,20 +118,20 @@ void main() {
    numV  =*(uint *)(ADDR_NUMV) ;
 
    while (1) {
-      uint ttype, ts, locale, arg0, arg1;
-      deq_task(&ttype, &ts, &locale, &arg0, &arg1);
+      uint ttype, ts, object, arg0, arg1;
+      deq_task(&ttype, &ts, &object, &arg0, &arg1);
       switch(ttype) {
         case ENQUEUER_TASK:
-           enqueuer_task(ts, locale, arg0, arg1);
+           enqueuer_task(ts, object, arg0, arg1);
            break;
         case CALC_IN_DEGREE_TASK:
-           calc_in_degree_task(ts, locale, arg0, arg1);
+           calc_in_degree_task(ts, object, arg0, arg1);
            break;
         case CALC_COLOR_TASK:
-           calc_color_task(ts, locale, arg0, arg1);
+           calc_color_task(ts, object, arg0, arg1);
            break;
         case RECEIVE_COLOR_TASK:
-           receive_color_task(ts, locale, arg0, arg1);
+           receive_color_task(ts, object, arg0, arg1);
            break;
         default:
            break;

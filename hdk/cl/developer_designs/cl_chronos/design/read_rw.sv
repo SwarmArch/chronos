@@ -60,7 +60,7 @@ logic ar_fifo_empty;
 logic ar_fifo_full;
 
 assign s_arid = thread_id_in;
-assign s_araddr = base_rw_addr + (task_in.locale << (LOG_RW_WIDTH) );
+assign s_araddr = base_rw_addr + (task_in.object << (LOG_RW_WIDTH) );
 
 assign arvalid = !ar_fifo_empty;
 assign s_arready = !ar_fifo_full;
@@ -104,8 +104,8 @@ always_ff @(posedge clk) begin
    end
 end
 
-object_t undo_log [0:2**LOG_CQ_SLICE_SIZE-1];
-object_t undo_log_read_word;
+rw_data_t undo_log [0:2**LOG_CQ_SLICE_SIZE-1];
+rw_data_t undo_log_read_word;
 
 logic             reg_task_valid;
 task_t            reg_task;
@@ -140,10 +140,10 @@ always_comb begin
    task_out.cq_slot = task_cq_slot[rid];
    task_out.thread = rid;
    case (LOG_RW_WIDTH)
-      2: task_out.object = rdata[ task_out.task_desc.locale[ 3:0] * 32  +: 32 ]; 
-      3: task_out.object = rdata[ task_out.task_desc.locale[ 2:0] * 64  +: 64 ]; 
-      4: task_out.object = rdata[ task_out.task_desc.locale[ 1:0] * 128  +: 128 ]; 
-      5: task_out.object = rdata[ task_out.task_desc.locale[ 0] * 256  +: 256 ]; 
+      2: task_out.object = rdata[ task_out.task_desc.object[ 3:0] * 32  +: 32 ]; 
+      3: task_out.object = rdata[ task_out.task_desc.object[ 2:0] * 64  +: 64 ]; 
+      4: task_out.object = rdata[ task_out.task_desc.object[ 1:0] * 128  +: 128 ]; 
+      5: task_out.object = rdata[ task_out.task_desc.object[ 0] * 256  +: 256 ]; 
       default: task_out.object = rdata; 
    endcase
    task_out_valid = 1'b0;
@@ -258,9 +258,9 @@ end
       if (!rstn) cycle <=0;
       else cycle <= cycle + 1;
       if (task_in_valid & task_in_ready) begin
-         $display("[%5d] [rob-%2d] [read_rw] [%2d] [thread-%2d] ts:%8d locale:%4d type:%1x",
+         $display("[%5d] [rob-%2d] [read_rw] [%2d] [thread-%2d] ts:%8d object:%4d type:%1x",
             cycle, TILE_ID, cq_slot_in, thread_id_in,
-            task_in.ts, task_in.locale, task_in.ttype) ;
+            task_in.ts, task_in.object, task_in.ttype) ;
       end
    end 
 `endif
@@ -271,7 +271,7 @@ if (READ_RW_LOGGING[TILE_ID]) begin
    logic log_valid;
    typedef struct packed {
 
-      logic [191:0] out_object_rest;
+      logic [191:0] out_data_rest;
       
       logic task_in_valid;
       logic task_in_ready;
@@ -290,13 +290,13 @@ if (READ_RW_LOGGING[TILE_ID]) begin
       logic [3:0]  task_in_ttype;
 
       logic [31:0] task_in_ts;
-      logic [31:0] task_in_locale;
+      logic [31:0] task_in_object;
 
       logic [31:0] araddr;
 
-      logic [31:0] out_object;
+      logic [31:0] out_data;
       logic [31:0] out_ts;
-      logic [31:0] out_locale;
+      logic [31:0] out_object;
       
    } rw_read_log_t;
    rw_read_log_t log_word;
@@ -321,18 +321,18 @@ if (READ_RW_LOGGING[TILE_ID]) begin
       log_word.rid = rid;
       log_word.task_in_ttype = task_in.ttype; 
       log_word.task_in_ts = task_in.ts; 
-      log_word.task_in_locale = task_in.locale; 
+      log_word.task_in_object = task_in.object; 
       log_word.araddr = araddr; 
       if (APP_NAME == "maxflow") begin
-         log_word.out_object = task_out.object[511-:32] ;
+         log_word.out_data = task_out.object[511-:32] ;
       end else begin
-         log_word.out_object = task_out.object;
+         log_word.out_data = task_out.object;
       end
       log_word.out_thread = task_out.thread; 
       log_word.out_ts = task_out.task_desc.ts;
-      log_word.out_locale = task_out.task_desc.locale;
+      log_word.out_object = task_out.task_desc.object;
 
-      log_word.out_object_rest = task_out.object;
+      log_word.out_data_rest = task_out.object;
 
    end
 

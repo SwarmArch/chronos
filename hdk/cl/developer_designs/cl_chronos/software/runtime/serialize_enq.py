@@ -34,13 +34,13 @@ for line in f:
     seq = i
     slot_loc = line.find('slot:')
     ts_loc = line.find('ts:')
-    locale_loc = line.find('locale')
+    object_loc = line.find('object')
     if (slot_loc >0):
         slot = int(line[slot_loc+5:slot_loc+9])
 
     if (line.find('task_enqueue')>0):
         slot_lines[slot] = line
-        ts = int(line[ts_loc+3:locale_loc], 16)
+        ts = int(line[ts_loc+3:object_loc], 16)
         slot_ts[slot] = ts
         slot_seq[slot] = seq
      

@@ -34,7 +34,7 @@ package chronos;
    parameter LOG_CQ_SLICE_SIZE = 7; // log of Commit Queue size per tile
    parameter LOG_TQ_SIZE = 12;  // Task Queue: Task Array size
    parameter TQ_STAGES = 13;  // Task Queue: min_heap size (has to be >= array size)
-   parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in locale serializer
+   parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in object serializer
    parameter CACHE_INDEX_WIDTH = 11; // index bits in cache
    parameter CACHE_NUM_WAYS = 4;     // number of cache ways
    parameter NON_SPEC = 0;  // Non-spec version. 
@@ -97,14 +97,14 @@ package chronos;
 
    parameter LOG_L2_BANKS = 1;  // Number of L2 banks (either 0 or 1)
 
-   // The CQ contains a cache (indexed by locale) of the last dequeued timestamp
-   // of each locale. This cache can be used to bypass conflict checks if the
+   // The CQ contains a cache (indexed by object) of the last dequeued timestamp
+   // of each object. This cache can be used to bypass conflict checks if the
    // currently dequeueing task has timestamp larger than the last dequeued
-   // timestamp with the same locale.
+   // timestamp with the same object.
    parameter LOG_LAST_DEQ_VT_CACHE = 9; // must be >=4, 0 to turn off
 
    parameter TS_WIDTH = UNORDERED ? 1 : 32;
-   parameter LOCALE_WIDTH = 32;
+   parameter OBJECT_WIDTH = 32;
    // ARG_WIDTH is app dependent
    parameter N_TASK_TYPES = 16;
    parameter TASK_TYPE_WIDTH = $clog2(N_TASK_TYPES);

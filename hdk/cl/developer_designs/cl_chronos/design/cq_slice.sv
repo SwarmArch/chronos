@@ -197,7 +197,7 @@ cq_fsm_state_t state;
 logic      [2**LOG_CQ_SLICE_SIZE-1:0]  cq_valid; 
 
 cq_state_t   cq_state [0:2**LOG_CQ_SLICE_SIZE-1];
-locale_t     cq_locale  [0:2**LOG_CQ_SLICE_SIZE-1];
+object_t     cq_object  [0:2**LOG_CQ_SLICE_SIZE-1];
 epoch_t      tq_epoch [0:2**LOG_CQ_SLICE_SIZE-1];
 tq_slot_t    cq_tq_slot [0:2**LOG_CQ_SLICE_SIZE-1];
 logic        cq_read_only_task [0:2**LOG_CQ_SLICE_SIZE-1];
@@ -217,7 +217,7 @@ vt_t [0:2**LOG_CQ_TS_BANKS-1] rdata_lvt;
 
 initial begin
    for (integer i=0;i<2**LOG_CQ_SLICE_SIZE;i=i+1) begin
-      cq_locale[i] = 0;
+      cq_object[i] = 0;
    end
 end
 vt_t ts_write_data;
@@ -332,14 +332,14 @@ logic [31:0] stall_cycles_cq_full;
 logic [31:0] stall_cycles_cc_full;
 logic [31:0] stall_cycles_no_task;
 
-// tasks who did not have any same locale tasks on dequeue
+// tasks who did not have any same object tasks on dequeue
 logic [31:0] n_tasks_no_conflict;
-// has same locale tasks, but conflict checks were skipped because the cache was
+// has same object tasks, but conflict checks were skipped because the cache was
 // effective
 logic [31:0] n_tasks_conflict_mitigated;
-// has same locale tasks, but could not skip conflict checks because cache miss
+// has same object tasks, but could not skip conflict checks because cache miss
 logic [31:0] n_tasks_conflict_miss; 
-// has same locale tasks which were real conflicts
+// has same object tasks which were real conflicts
 logic [31:0] n_tasks_real_conflict; 
 
 always_comb begin
@@ -389,57 +389,57 @@ last_deq_ts_cache TS_CACHE
    .clk(clk),
    .rstn(rstn),
    
-   .query_locale(deq_task.locale),
+   .query_object(deq_task.object),
    .query_out_valid(last_deq_ts_cache_hit),
    .query_out_ts(last_deq_ts_cache_ts),
 
    .wr_en(ts_write_valid),
-   .write_locale(out_task.locale),
+   .write_object(out_task.object),
    .write_ts(out_task.ts),
    .wr_read_only(out_task.no_write)
 
 );
 
-locale_t bloom_query_locale;
+object_t bloom_query_object;
 logic [2**LOG_CQ_SLICE_SIZE-1:0] bloom_query_out_conflict;
 logic bloom_wr_en;
 cq_slice_slot_t bloom_wr_cq_slot; 
-locale_t bloom_wr_locale; 
+object_t bloom_wr_object; 
 logic bloom_wr_set; 
 
-assign bloom_query_locale = {1'b0, deq_task.locale[30:0]};
+assign bloom_query_object = {1'b0, deq_task.object[30:0]};
 
-locale_t ref_locale;
+object_t ref_object;
 logic  ref_read_only;
-locale_bloom_filters locale_BLOOM
+object_bloom_filters object_BLOOM
 (
    .clk(clk),
    .rstn(rstn),
    
-   .query_locale(ref_locale),
+   .query_object(ref_object),
    .query_out_conflict(bloom_query_out_conflict),
 
    .wr_en(bloom_wr_en),
    .write_slot(bloom_wr_cq_slot),
-   .write_locale(bloom_wr_locale),
+   .write_object(bloom_wr_object),
    .write_set(bloom_wr_set) // set-1, reset-0 
 );
 
 always_comb begin
    bloom_wr_en = 1'b0;
    bloom_wr_set = 'x;
-   bloom_wr_locale = 'x;
+   bloom_wr_object = 'x;
    bloom_wr_cq_slot = 'x;
    if (state == IDLE) begin
       bloom_wr_cq_slot = deq_task_cq_slot;
-      bloom_wr_locale = cq_locale[deq_task_cq_slot];
+      bloom_wr_object = cq_object[deq_task_cq_slot];
       bloom_wr_set = 0;
       if (deq_task_valid & deq_task_ready) begin
          bloom_wr_en = 1'b1;
       end
    end else if (state == DEQ_PUSH_TASK) begin
       bloom_wr_cq_slot = out_task_slot;
-      bloom_wr_locale = {1'b0, out_task.locale[30:0]}; 
+      bloom_wr_object = {1'b0, out_task.object[30:0]}; 
       bloom_wr_set = 1;
       if (out_task_valid & out_task_ready) begin
          bloom_wr_en = 1'b1;
@@ -463,17 +463,17 @@ assign cq_full =  (deq_task_cq_slot >= cq_size) ||  (cq_next_idle_in == 0);
 always_comb begin
    if (state==IDLE) begin
       if (from_tq_abort_valid) begin
-         ref_locale = cq_locale[from_tq_abort_slot];
+         ref_object = cq_object[from_tq_abort_slot];
          ref_read_only = cq_read_only_task[from_tq_abort_slot];
       end else if (resource_abort_start) begin
-         ref_locale = cq_locale[max_vt_pos_fixed];
+         ref_object = cq_object[max_vt_pos_fixed];
          ref_read_only = cq_read_only_task[max_vt_pos_fixed];
       end else begin
-         ref_locale = deq_task.locale;
+         ref_object = deq_task.object;
          ref_read_only = deq_task.no_write;
       end      
    end else begin
-      ref_locale = cur_task.locale;
+      ref_object = cur_task.object;
       ref_read_only = cur_task.no_write;
    end
 end
@@ -482,8 +482,8 @@ genvar i;
 for (i=0;i<2**LOG_CQ_SLICE_SIZE;i++) begin
    assign cq_conflict[i] = cq_valid[i] 
             & bloom_query_out_conflict[i]  
-            // & (ref_locale[30:0] == cq_locale[i][30:0])
-            // if MSB of locale is set, its a read-only locale. No conflicts between
+            // & (ref_object[30:0] == cq_object[i][30:0])
+            // if MSB of object is set, its a read-only object. No conflicts between
             // RO tasks
             &  !(cq_read_only_task[i] & ref_read_only)
             & (cq_state[i] != ABORTED) &  (cq_state[i] != WAITING_CHILDREN) &
@@ -562,7 +562,7 @@ always_ff @(posedge clk) begin
                in_tq_abort <= 1'b1;
                ref_tb <= check_vt.tb; 
                cur_task.ts <= check_vt.ts;
-               cur_task.locale <= ref_locale;
+               cur_task.object <= ref_object;
                cur_task_slot <= from_tq_abort_slot;
                reg_from_tq_abort_slot <= from_tq_abort_slot;
             end else 
@@ -580,7 +580,7 @@ always_ff @(posedge clk) begin
                   if ( !use_ts_cache | !last_deq_ts_cache_hit |
                         (deq_task.ts < last_deq_ts_cache_ts) ) begin
                      // bypass conflict checks if dequeing a task with a larger
-                     // ts than the previous dequeued task of the same locale
+                     // ts than the previous dequeued task of the same object
                      state <= DEQ_CHECK_TS;
                   end else begin
                      state <= DEQ_PUSH_TASK;
@@ -594,7 +594,7 @@ always_ff @(posedge clk) begin
                in_resource_abort <= 1'b1;
                ref_tb <= max_vt_fixed.tb;
                cur_task.ts <= max_vt_fixed.ts;
-               cur_task.locale <= ref_locale;
+               cur_task.object <= ref_object;
             end 
             undo_log_abort_max_ts <= '1;
          end
@@ -633,7 +633,7 @@ always_ff @(posedge clk) begin
          ABORT_REQUEUE: begin
             if (to_tq_abort_valid & to_tq_abort_ready | 
                   // Do not requeue the task from a task_queue induced abort,
-                  // but requeue later ts tasks with the same locale
+                  // but requeue later ts tasks with the same object
                   ( in_tq_abort & (reg_from_tq_abort_slot == ts_check_id)) ) begin
                   // no special treatment for resource aborts, they should
                   // requeue 
@@ -703,7 +703,7 @@ always_comb begin
          out_task_slot = undo_log_abort_max_ts_index;
       `endif
       out_task.ttype = TASK_TYPE_UNDO_LOG_RESTORE;
-      out_task.locale = cur_task.locale;
+      out_task.object = cur_task.object;
       out_task.ts = 'x;
       out_task.args = 'x;
       out_task.no_read = 1'b1;
@@ -734,7 +734,7 @@ end
 
 assign abort_ts_check_task = (state == DEQ_CHECK_TS) 
    & (check_vt >= ref_vt) 
-   & (cur_task.locale == cq_locale[ts_check_id]) // not a false hit in BF 
+   & (cur_task.object == cq_object[ts_check_id]) // not a false hit in BF 
    & (reg_conflict != 0);
 
 `ifdef XILINX_SIMULATOR
@@ -955,7 +955,7 @@ always_ff @(posedge clk) begin
    if (state==DEQ_PUSH_TASK & out_task_valid & out_task_ready) begin
       tq_epoch  [out_task_slot] <= cur_task_epoch;
       cq_tq_slot[out_task_slot] <= cur_task_tq_slot;
-      cq_locale [out_task_slot] <= out_task.locale;
+      cq_object [out_task_slot] <= out_task.object;
       cq_read_only_task [out_task_slot] <= out_task.no_write;
       cq_ttype[out_task_slot] <= out_task.ttype;
 
@@ -1153,7 +1153,7 @@ always_ff @(posedge clk) begin
          DEBUG_CAPACITY : reg_bus.rdata <= log_size;
          CQ_STATE  : reg_bus.rdata <= state;
          CQ_LOOKUP_STATE : reg_bus.rdata <= cq_state[lookup_entry];
-         CQ_LOOKUP_LOCALE  : reg_bus.rdata <= cq_locale[lookup_entry];
+         CQ_LOOKUP_OBJECT  : reg_bus.rdata <= cq_object[lookup_entry];
          CQ_LOOKUP_TS    : reg_bus.rdata <= check_vt.ts;
          CQ_LOOKUP_TB    : reg_bus.rdata <= check_vt.tb;
          CQ_GVT_TS       : reg_bus.rdata <= gvt.ts;
@@ -1275,7 +1275,7 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       logic out_task_ready;
       logic [6:0] out_task_cq_slot;
       logic [3:0] out_task_ttype;
-      logic [18:0] out_task_locale;
+      logic [18:0] out_task_object;
 
 
       // 32 
@@ -1381,7 +1381,7 @@ if (COMMIT_QUEUE_LOGGING[TILE_ID]) begin
       log_word.out_task_ready = out_task_ready;
       log_word.out_task_cq_slot = out_task_slot;
       log_word.out_task_ttype = out_task.ttype;
-      log_word.out_task_locale = out_task.locale;
+      log_word.out_task_object = out_task.object;
 
       log_word.state = state;
       log_word.ts_check_id = ts_check_id;
@@ -1571,45 +1571,45 @@ endmodule
 
 // looks up of the last dequeued ts for a given ts
 // used to accelerate conflict detection where if the currently dequeued task
-// comes after the last dequeued ts for the same locale, then no conflict
+// comes after the last dequeued ts for the same object, then no conflict
 // detection is required.
 module last_deq_ts_cache 
 (
    input clk,
    input rstn,
 
-   input locale_t query_locale,
+   input object_t query_object,
    output logic query_out_valid,
    output ts_t query_out_ts,
 
    input wr_en,
-   input locale_t write_locale,
+   input object_t write_object,
    input ts_t   write_ts,
    input wr_read_only
 );
 generate
 if (LOG_LAST_DEQ_VT_CACHE >0) begin
-   locale_t tag  [0:2**LOG_LAST_DEQ_VT_CACHE-1];
+   object_t tag  [0:2**LOG_LAST_DEQ_VT_CACHE-1];
    ts_t data   [0:2**LOG_LAST_DEQ_VT_CACHE-1];
 
    // skip bits[4+LOG_N_TILES -1:4] in indexing, since they may be constant if the task is
    // mapped to the current tile.
    logic [LOG_LAST_DEQ_VT_CACHE-1:0] rd_addr;
-   assign rd_addr = {query_locale[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  query_locale[3:0]};
+   assign rd_addr = {query_object[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  query_object[3:0]};
    logic [LOG_LAST_DEQ_VT_CACHE-1:0] wr_addr;
-   assign wr_addr =  {write_locale[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  write_locale[3:0]};
+   assign wr_addr =  {write_object[(LOG_N_TILES+4)+:(LOG_LAST_DEQ_VT_CACHE-4)],  write_object[3:0]};
    initial begin
       for (integer i=0;i<2**LOG_LAST_DEQ_VT_CACHE;i+=1) begin
          tag[i] = 0;
          data[i] = 0;
       end
    end
-   assign query_out_valid = (tag[rd_addr] == query_locale);
+   assign query_out_valid = (tag[rd_addr] == query_object);
    assign query_out_ts = data[rd_addr];
    // a read-only task may not have aborted all its successors. Therefore its
    // not safe to update the last_deq_ts with current task's ts
    ts_t current_ts;
-   assign current_ts = (tag[wr_addr] == write_locale) ? data[wr_addr] : 0;
+   assign current_ts = (tag[wr_addr] == write_object) ? data[wr_addr] : 0;
    ts_t new_write_ts;
    always_comb begin
       new_write_ts = write_ts;
@@ -1622,7 +1622,7 @@ if (LOG_LAST_DEQ_VT_CACHE >0) begin
    
    always_ff @(posedge clk) begin
       if (wr_en) begin
-         tag[wr_addr] <= write_locale;
+         tag[wr_addr] <= write_object;
          data[wr_addr] <= new_write_ts;
       end
    end
@@ -1633,17 +1633,17 @@ end
 endgenerate
 endmodule
 
-module locale_bloom_filters
+module object_bloom_filters
 (
    input clk,
    input rstn,
 
-   input locale_t query_locale,
+   input object_t query_object,
    output logic [2**LOG_CQ_SLICE_SIZE-1:0] query_out_conflict,
 
    input wr_en,
    input cq_slice_slot_t write_slot,
-   input locale_t write_locale,
+   input object_t write_object,
    input write_set // set-1, reset-0 
 );
 
@@ -1663,12 +1663,12 @@ module locale_bloom_filters
          ) BANK (
             .clk(clk),
             .rstn(rstn),
-            .query_locale(query_locale),
+            .query_object(query_object),
             .filter_out(filter_out[i]),
 
             .wr_en(wr_en),
             .write_slot(write_slot),
-            .write_locale(write_locale),
+            .write_object(write_object),
             .write_set(write_set)
          );
       end
@@ -1686,12 +1686,12 @@ module bloom_bank
    input clk,
    input rstn,
 
-   input locale_t query_locale,
+   input object_t query_object,
    output logic [2**LOG_CQ_SLICE_SIZE-1:0] filter_out,
 
    input wr_en,
    input cq_slice_slot_t write_slot,
-   input locale_t write_locale,
+   input object_t write_object,
    input write_set // set-1, reset-0 
 );
    typedef logic [$clog2(FILTER_DEPTH)-1:0] filter_addr_t;
@@ -1729,8 +1729,8 @@ module bloom_bank
 
    generate genvar j;
       for (j=0;j<$clog2(FILTER_DEPTH);j+=1) begin
-         assign query_addr[j] = query_locale[BIT_OFFSET +j] ^ query_locale[ 12+ BIT_OFFSET+j];
-         assign write_addr[j] = write_locale[BIT_OFFSET +j] ^ write_locale[ 12+ BIT_OFFSET+j];
+         assign query_addr[j] = query_object[BIT_OFFSET +j] ^ query_object[ 12+ BIT_OFFSET+j];
+         assign write_addr[j] = write_object[BIT_OFFSET +j] ^ write_object[ 12+ BIT_OFFSET+j];
       end
    endgenerate
    always_comb begin

@@ -82,7 +82,7 @@ module tsb
     32'h3aa2ce85
    };  
 
-   logic [15:0] hashed_locale;
+   logic [15:0] hashed_object;
 
    logic do_not_hash;
    assign do_not_hash = (s_wdata.ttype == TASK_TYPE_SPLITTER | s_wdata.ttype == TASK_TYPE_TERMINATE);
@@ -90,8 +90,8 @@ module tsb
    genvar i;
    generate;
    for (i=0;i<16;i++) begin
-      assign hashed_locale[i] = (use_hash & !do_not_hash) ?
-             ^(s_wdata.locale[31:4] & hash_keys[i][31:4]) : s_wdata.locale[i+4];
+      assign hashed_object[i] = (use_hash & !do_not_hash) ?
+             ^(s_wdata.object[31:4] & hash_keys[i][31:4]) : s_wdata.object[i+4];
    end
    endgenerate
    
@@ -99,21 +99,21 @@ module tsb
    always_comb begin
       case (n_tiles) 
          1: dest_tile = 0;
-         2: dest_tile = hashed_locale[0];
-         3: dest_tile = (hashed_locale) % 3;
-         4: dest_tile = hashed_locale[1:0];
-         5: dest_tile = (hashed_locale) % 5;
-         6: dest_tile = (hashed_locale) % 6;
-         7: dest_tile = (hashed_locale) % 7;
-         8: dest_tile = hashed_locale[2:0];
-         9: dest_tile = (hashed_locale) % 9;
-         10: dest_tile = (hashed_locale) % 10;
-         11: dest_tile = (hashed_locale) % 11;
-         12: dest_tile = (hashed_locale) % 12;
-         13: dest_tile = (hashed_locale) % 13;
-         14: dest_tile = (hashed_locale) % 14;
-         15: dest_tile = (hashed_locale) % 15;
-         default: dest_tile = hashed_locale[3:0];
+         2: dest_tile = hashed_object[0];
+         3: dest_tile = (hashed_object) % 3;
+         4: dest_tile = hashed_object[1:0];
+         5: dest_tile = (hashed_object) % 5;
+         6: dest_tile = (hashed_object) % 6;
+         7: dest_tile = (hashed_object) % 7;
+         8: dest_tile = hashed_object[2:0];
+         9: dest_tile = (hashed_object) % 9;
+         10: dest_tile = (hashed_object) % 10;
+         11: dest_tile = (hashed_object) % 11;
+         12: dest_tile = (hashed_object) % 12;
+         13: dest_tile = (hashed_object) % 13;
+         14: dest_tile = (hashed_object) % 14;
+         15: dest_tile = (hashed_object) % 15;
+         default: dest_tile = hashed_object[3:0];
       endcase
    end 
    

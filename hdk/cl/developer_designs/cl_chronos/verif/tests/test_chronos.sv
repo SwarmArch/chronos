@@ -28,7 +28,7 @@ localparam CL_SPILL_AREA = (1<<30);
 logic [31:0] addr, data;
 
 logic [31:0] enq_ts;
-logic [31:0] enq_locale;
+logic [31:0] enq_object;
 logic [31:0] enq_args;
 
 logic binary_file;
@@ -92,10 +92,10 @@ initial begin
    if (APP_NAME == "des") begin
       for (int i=0;i<file[11];i++) begin // numI
          enq_ts = 0;
-         enq_locale = file[ file[7] + i] ; 
+         enq_object = file[ file[7] + i] ; 
          enq_args = 0 ; 
-         // task_enq(ttype, locale, ts, num_args, arg_0, arg_1)
-         task_enq(1, enq_locale, enq_ts, 1, enq_args, 0);
+         // task_enq(ttype, object, ts, num_args, arg_0, arg_1)
+         task_enq(1, enq_object, enq_ts, 1, enq_args, 0);
       end
    end
    if (APP_NAME == "sssp" | APP_NAME == "sssp_hls") begin
@@ -280,14 +280,14 @@ endtask
 
 task task_enq;
    input [31:0] ttype;
-   input [31:0] locale;
+   input [31:0] object;
    input [31:0] ts;
    input [1:0] n_args ;
    input [31:0] arg_0 ;
    input [31:0] arg_1 ;
    begin
       ocl_poke(0, 0, OCL_TASK_ENQ_TTYPE, ttype);
-      ocl_poke(0, 0, OCL_TASK_ENQ_LOCALE, locale);
+      ocl_poke(0, 0, OCL_TASK_ENQ_OBJECT, object);
       if (n_args >0) begin
          ocl_poke(0, 0, OCL_TASK_ENQ_ARG_WORD, 0);
          ocl_poke(0, 0, OCL_TASK_ENQ_ARGS, arg_0);
@@ -298,7 +298,7 @@ task task_enq;
       end
       ocl_poke(0, 0, OCL_TASK_ENQ, ts);
 
-      $display("Enqueued initial task ttype:%2s ts:%3d, locale:%3d", ttype, ts, locale);
+      $display("Enqueued initial task ttype:%2s ts:%3d, object:%3d", ttype, ts, object);
    end
 endtask
 

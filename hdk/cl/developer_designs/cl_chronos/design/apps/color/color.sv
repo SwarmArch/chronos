@@ -96,10 +96,10 @@ typedef enum logic[5:0] {
 
 
 task_t task_rdata, task_wdata; 
-assign {task_rdata.args, task_rdata.ttype, task_rdata.locale, task_rdata.ts} = task_in; 
+assign {task_rdata.args, task_rdata.ttype, task_rdata.object, task_rdata.ts} = task_in; 
 
 assign task_out_V_TDATA = 
-      {task_wdata.args, task_wdata.ttype, task_wdata.locale, task_wdata.ts}; 
+      {task_wdata.args, task_wdata.ttype, task_wdata.object, task_wdata.ts}; 
 
 logic clk, rstn;
 assign clk = ap_clk;
@@ -234,7 +234,7 @@ always_ff @(posedge clk) begin
       join_counter <= 0;
    end else if (state == CALC_INC_IN_DEGREE) begin
       if ( (neighbor_degree > degree) ||
-           ((neighbor_degree == degree) & (cur_neighbor < cur_task.locale))) begin
+           ((neighbor_degree == degree) & (cur_neighbor < cur_task.object))) begin
          join_counter <= join_counter + 1;
       end
    end
@@ -375,7 +375,7 @@ always_comb begin
       ENQUEUER_ENQ_CONTINUATION: begin
          if (enq_end < numV) begin
             task_wdata.ttype = ENQUEUER_TASK;
-            task_wdata.locale = cur_arg_0 << 4; // random
+            task_wdata.object = cur_arg_0 << 4; // random
             task_wdata.args = enq_end;
             task_wdata.ts = 0; 
             task_out_V_TVALID = 1'b1;
@@ -389,7 +389,7 @@ always_comb begin
       ENQUEUER_ENQ_NODE: begin
          if (neighbor_offset < enq_end) begin
             task_wdata.ttype = CALC_TASK;
-            task_wdata.locale = neighbor_offset;
+            task_wdata.object = neighbor_offset;
             task_wdata.args = 'x;
             task_wdata.ts = 0; 
             task_out_V_TVALID = 1'b1;
@@ -400,7 +400,7 @@ always_comb begin
 
 
       CALC_READ_OFFSET: begin
-         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.locale << 2);
+         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.object << 2);
          m_axi_l1_V_ARLEN = 1;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -448,7 +448,7 @@ always_comb begin
                   ? CALC_READ_NEIGHBOR : CALC_READ_NEIGHBOR_OFFSET;
       end
       CALC_READ_JOIN_COUNTER: begin
-         m_axi_l1_V_ARADDR = (base_scratch + (cur_task.locale << 3)) | VID_COUNTER_OFFSET;
+         m_axi_l1_V_ARADDR = (base_scratch + (cur_task.object << 3)) | VID_COUNTER_OFFSET;
          m_axi_l1_V_ARLEN = 0;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -461,7 +461,7 @@ always_comb begin
          end
       end
       CALC_WRITE_JOIN_COUNTER: begin
-         m_axi_l1_V_AWADDR = (base_scratch + (cur_task.locale << 3)) | VID_COUNTER_OFFSET;
+         m_axi_l1_V_AWADDR = (base_scratch + (cur_task.object << 3)) | VID_COUNTER_OFFSET;
          m_axi_l1_V_WDATA = join_counter;
          m_axi_l1_V_AWVALID = 1'b1;
          m_axi_l1_V_WVALID = 1'b1;
@@ -472,7 +472,7 @@ always_comb begin
       end
       CALC_ENQ_COLOR: begin
          task_wdata.ttype = COLOR_TASK;
-         task_wdata.locale = cur_task.locale;
+         task_wdata.object = cur_task.object;
          task_wdata.args = 0;
          task_wdata.ts = 0; 
          task_out_V_TVALID = 1'b1;
@@ -483,7 +483,7 @@ always_comb begin
 
 
       COLOR_READ_BITMAP: begin
-         m_axi_l1_V_ARADDR = (base_scratch + (cur_task.locale << 3)) | VID_BITMAP_OFFSET;
+         m_axi_l1_V_ARADDR = (base_scratch + (cur_task.object << 3)) | VID_BITMAP_OFFSET;
          m_axi_l1_V_ARLEN = 0;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -496,7 +496,7 @@ always_comb begin
          end
       end
       COLOR_CALC_COLOR: begin
-         m_axi_l1_V_AWADDR = (base_color + (cur_task.locale << 4));
+         m_axi_l1_V_AWADDR = (base_color + (cur_task.object << 4));
          m_axi_l1_V_WDATA = assign_color;
          m_axi_l1_V_AWVALID = 1'b1;
          m_axi_l1_V_WVALID = 1'b1;
@@ -506,7 +506,7 @@ always_comb begin
          end
       end
       COLOR_READ_OFFSET: begin
-         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.locale << 2);
+         m_axi_l1_V_ARADDR = base_edge_offset + (cur_task.object << 2);
          m_axi_l1_V_ARLEN = 1;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -521,7 +521,7 @@ always_comb begin
       COLOR_ENQ_CONTINUATION: begin
          if (enq_end < degree) begin
             task_wdata.ttype = COLOR_TASK;
-            task_wdata.locale = cur_task.locale;
+            task_wdata.object = cur_task.object;
             task_wdata.args = enq_end;
             task_wdata.ts = 0; 
             task_out_V_TVALID = 1'b1;
@@ -568,9 +568,9 @@ always_comb begin
       end
       COLOR_ENQ_RECEIVE: begin
          if( (neighbor_degree < degree )  ||
-             ((neighbor_degree == degree) & (cur_neighbor > cur_task.locale))) begin
+             ((neighbor_degree == degree) & (cur_neighbor > cur_task.object))) begin
             task_wdata.ttype = RECEIVE_TASK;
-            task_wdata.locale = cur_neighbor;
+            task_wdata.object = cur_neighbor;
             task_wdata.args = assign_color;
             task_wdata.ts = 0; 
             task_out_V_TVALID = 1'b1;
@@ -584,7 +584,7 @@ always_comb begin
       
       
       RECEIVE_READ_SCRATCH: begin
-         m_axi_l1_V_ARADDR = (base_scratch + (cur_task.locale << 3)) ;
+         m_axi_l1_V_ARADDR = (base_scratch + (cur_task.object << 3)) ;
          m_axi_l1_V_ARLEN = 1;
          m_axi_l1_V_ARVALID = 1'b1;
          if (m_axi_l1_V_ARREADY) begin
@@ -597,7 +597,7 @@ always_comb begin
          end
       end
       RECEIVE_WRITE_COUNTER: begin
-         m_axi_l1_V_AWADDR = (base_scratch + (cur_task.locale << 3));
+         m_axi_l1_V_AWADDR = (base_scratch + (cur_task.object << 3));
          m_axi_l1_V_WDATA = join_counter - 1;
          m_axi_l1_V_AWLEN = (cur_bit_set) ? 0 : 1; 
          m_axi_l1_V_AWVALID = 1'b1;
@@ -622,7 +622,7 @@ always_comb begin
       end
       RECEIVE_ENQ_CALC: begin
          task_wdata.ttype = COLOR_TASK;
-         task_wdata.locale = cur_task.locale;
+         task_wdata.object = cur_task.object;
          task_wdata.args = 0;
          task_wdata.ts = 0; 
          task_out_V_TVALID = 1'b1;

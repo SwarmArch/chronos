@@ -66,10 +66,10 @@ typedef enum logic[3:0] {
 
 
 task_t task_rdata, task_wdata; 
-assign {task_rdata.args, task_rdata.ttype, task_rdata.locale, task_rdata.ts} = task_in; 
+assign {task_rdata.args, task_rdata.ttype, task_rdata.object, task_rdata.ts} = task_in; 
 
 assign task_out_V_TDATA = 
-      {task_wdata.args, task_wdata.ttype, task_wdata.locale, task_wdata.ts}; 
+      {task_wdata.args, task_wdata.ttype, task_wdata.object, task_wdata.ts}; 
 
 logic clk, rstn;
 assign clk = ap_clk;
@@ -119,7 +119,7 @@ end
 
 always_ff @(posedge clk) begin
    if (state == NEXT_TASK) begin
-      virtex_id <= task_rdata.locale;
+      virtex_id <= task_rdata.object;
       enqueuer_start <= task_rdata.args[15:0];
    end
    if ((state == WAIT_EDGE_OFFSET) & m_axi_l1_V_RVALID) begin
@@ -212,7 +212,7 @@ always_comb begin
          if (m_axi_l1_V_RVALID) begin
             task_wdata.ttype = 0;
             task_wdata.ts  = m_axi_l1_V_RDATA[23:0]; 
-            task_wdata.locale = virtex_id; // vid
+            task_wdata.object = virtex_id; // vid
             task_wdata.args = {13'b0, 1'b0 /*port*/, m_axi_l1_V_RDATA[25:24]}; 
             task_out_V_TVALID = 1'b1;
             if (task_out_V_TREADY) begin
@@ -228,7 +228,7 @@ always_comb begin
          if (edge_offset_end > edge_offset_start + 7) begin
             task_wdata.ttype = 1;
             task_wdata.ts  = next_enq_ts; 
-            task_wdata.locale = virtex_id; // vid
+            task_wdata.object = virtex_id; // vid
             task_wdata.args[15:0] = enqueuer_start + 7;  
             task_out_V_TVALID = 1'b1;
             if (task_out_V_TREADY) begin

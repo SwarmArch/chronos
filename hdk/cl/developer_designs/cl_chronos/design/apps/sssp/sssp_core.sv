@@ -68,10 +68,10 @@ typedef enum logic[1:0] {IDLE, UNDO_LOG, AWADDR, BVALID
 
 
 task_t task_rdata, task_wdata; 
-assign {task_rdata.args, task_rdata.ttype, task_rdata.locale, task_rdata.ts} = task_in; 
+assign {task_rdata.args, task_rdata.ttype, task_rdata.object, task_rdata.ts} = task_in; 
 
 assign task_out_V_TDATA = 
-      {task_wdata.args, task_wdata.ttype, task_wdata.locale, task_wdata.ts}; 
+      {task_wdata.args, task_wdata.ttype, task_wdata.object, task_wdata.ts}; 
 
 logic clk, rstn;
 assign clk = ap_clk;
@@ -126,7 +126,7 @@ end
 
 always_ff @(posedge clk) begin
    if (state == NEXT_TASK & ap_start) begin
-      virtex_id <= task_rdata.locale; 
+      virtex_id <= task_rdata.object; 
       virtex_dist <= task_rdata.ts;
    end
 end
@@ -247,7 +247,7 @@ always_comb begin
       WAIT_NEIGHBOR_WEIGHT: begin
          if (m_axi_l1_V_RVALID) begin
             task_wdata.ttype = 0;
-            task_wdata.locale = neighbor; // vid
+            task_wdata.object = neighbor; // vid
             task_wdata.args = 0; // vid
             task_wdata.ts = m_axi_l1_V_RDATA + virtex_dist; //weight
             task_out_V_TVALID = 1'b1;

@@ -37,16 +37,16 @@ module color_rw
    output logic            task_in_ready,
 
    input task_t            in_task, 
-   input object_t          in_data,
+   input rw_data_t          in_data,
    input cq_slice_slot_t   in_cq_slot,
    
    output logic            wvalid,
    output logic [31:0]     waddr,
-   output object_t         wdata,
+   output rw_data_t         wdata,
 
    output logic            out_valid,
    output task_t           out_task,
-   output data_t           out_data,
+   output ro_data_t           out_data,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,
@@ -97,7 +97,7 @@ always_comb begin
 end
 always_comb begin 
    wvalid = 0;
-   waddr = base_data + ( in_task.locale << 4) ;
+   waddr = base_data + ( in_task.object << 4) ;
    write_word = read_word;
    out_valid = 1'b0;
 
@@ -127,7 +127,7 @@ always_comb begin
             wvalid = 1'b1;
             write_word.neighbor_degrees_pending -= 1;
             if ( (neighbor_degree > read_word.degree) || ( 
-               (neighbor_degree == read_word.degree) & (neighbor_id < in_task.locale) )) begin
+               (neighbor_degree == read_word.degree) & (neighbor_id < in_task.object) )) begin
                write_word.neighbor_colors_pending += 1;
             end
             if ((write_word.neighbor_degrees_pending == 0) && (write_word.neighbor_colors_pending==0)) begin
@@ -141,7 +141,7 @@ always_comb begin
          COLOR_RECEIVE_COLOR_TASK: begin
             if (enq_start == 0) begin
                if ( (neighbor_degree > read_word.degree) || ( 
-                  (neighbor_degree == read_word.degree) & (neighbor_id < in_task.locale) )) begin
+                  (neighbor_degree == read_word.degree) & (neighbor_id < in_task.object) )) begin
                   wvalid = 1'b1;
                   write_word.neighbor_colors_pending -= 1;
                   write_word.scratch |= (1<<in_task.args[68:64]);
@@ -188,9 +188,9 @@ end
    end
    always_ff @(posedge clk) begin
       if (task_in_valid & task_in_ready) begin
-         $display("[%5d] [rob-%2d] [rw] [%3d] type:%1d locale:%4d | args: (%4d %4d %4d %4d) | ndp:%4d ncp:%d sc:%4x | eo:%4d d:%4d | out:%1d ",
+         $display("[%5d] [rob-%2d] [rw] [%3d] type:%1d object:%4d | args: (%4d %4d %4d %4d) | ndp:%4d ncp:%d sc:%4x | eo:%4d d:%4d | out:%1d ",
          cycle, TILE_ID, in_cq_slot,
-         in_task.ttype, in_task.locale, 
+         in_task.ttype, in_task.object, 
          in_task.args[15:0], in_task.args[31:16], in_task.args[63:32], in_task.args[79:64],
          read_word.neighbor_degrees_pending, read_word.neighbor_colors_pending, read_word.scratch,
          read_word.eo_begin, read_word.degree, out_valid) ;
@@ -212,7 +212,7 @@ module color_worker
    output logic            task_in_ready,
 
    input task_t            in_task, 
-   input data_t            in_data,
+   input ro_data_t            in_data,
    input byte_t            in_word_id,
    input cq_slice_slot_t   in_cq_slot,
 
@@ -292,12 +292,12 @@ always_comb begin
                   if (in_word_id == enq_limit) begin
                      out_task.ttype = COLOR_ENQ_TASK;
                      out_task.producer = 1'b1;
-                     out_task.locale = enq_start + enq_limit;
+                     out_task.object = enq_start + enq_limit;
                      out_task.args[31:0] = enq_start + enq_limit;
                   end else begin
                      out_task.ttype = COLOR_SEND_DEGREE_TASK;
                      out_task.producer = 1'b1;
-                     out_task.locale = enq_start + in_word_id;
+                     out_task.object = enq_start + in_word_id;
                      out_task.args[31:0] = 0; // enq_start
                   end
                end
@@ -326,19 +326,19 @@ always_comb begin
                   end else begin
                      if (in_task.ttype == COLOR_SEND_DEGREE_TASK) begin
                         out_task.ttype = COLOR_RECEIVE_DEGREE_TASK;
-                        out_task.args[63:32] = in_task.locale;
+                        out_task.args[63:32] = in_task.object;
                         out_task.args[31:16] = degree;
                         out_task.args[15:0] = 0;
                      end else begin
                         out_task.ttype = COLOR_RECEIVE_COLOR_TASK;
-                        out_task.args[63:32] = in_task.locale;
+                        out_task.args[63:32] = in_task.object;
                         out_task.args[79:64] = color;
                         out_task.args[15:0] = 0;
 
                      end
                      out_task.producer = 1'b0;
                      out_task.args[15: 0] = 0;
-                     out_task.locale = in_data;
+                     out_task.object = in_data;
                   end
                end
             endcase

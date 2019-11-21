@@ -10,7 +10,7 @@ module read_only_stage
    input logic           [N_SUB_TYPES-1:0]  task_in_valid,
    output logic          [N_SUB_TYPES-1:0]  task_in_ready,
    input task_t          [N_SUB_TYPES-1:0]  in_task, 
-   input data_t          [N_SUB_TYPES-1:0]  in_data, 
+   input ro_data_t          [N_SUB_TYPES-1:0]  in_data, 
    input cq_slice_slot_t [N_SUB_TYPES-1:0]  in_cq_slot,
    input byte_t          [N_SUB_TYPES-1:0]  in_word_id,
    
@@ -38,7 +38,7 @@ module read_only_stage
    output task_t                 out_task,
    output subtype_t              out_subtype,
    output cq_slice_slot_t        out_task_cq_slot,
-   output data_t                 out_data,
+   output ro_data_t                 out_data,
    output byte_t                 out_word_id,
    
    output logic                  child_valid,
@@ -606,9 +606,9 @@ end
 `ifdef XILINX_SIMULATOR
    always_ff @(posedge clk) begin
       if (task_in_valid[i] & task_in_ready[i]) begin
-         $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8x locale:%4x data:(%5x %5x %5x)",
+         $display("[%5d] [rob-%2d] [ro %2d] [%3d] ts:%8x object:%4x data:(%5x %5x %5x)",
             cycle, TILE_ID, i, in_cq_slot[i],
-            in_task[i].ts, in_task[i].locale, in_data[i][95:64], in_data[i][63:32], in_data[i][31:0] ) ;
+            in_task[i].ts, in_task[i].object, in_data[i][95:64], in_data[i][63:32], in_data[i][31:0] ) ;
       end
    end 
 `endif
@@ -750,7 +750,7 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
       logic s_finish_task_ready;
 
       logic [31:0] out_ts;
-      logic [31:0] out_locale;
+      logic [31:0] out_object;
       
       logic [3:0] mem_subtype;
       logic [3:0] non_mem_subtype;
@@ -760,10 +760,10 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
       logic [7:0] non_mem_cq_slot;
 
       logic [31:0] non_mem_ts;
-      logic [31:0] non_mem_locale;
+      logic [31:0] non_mem_object;
 
       logic [31:0] mem_ts;
-      logic [31:0] mem_locale;
+      logic [31:0] mem_object;
 
       
    } rw_read_log_t;
@@ -824,7 +824,7 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
       log_word.s_finish_task_ready = s_finish_task_ready;
 
       log_word.out_ts = s_out_task[non_mem_subtype].ts;
-      log_word.out_locale = s_out_task[non_mem_subtype].locale;
+      log_word.out_object = s_out_task[non_mem_subtype].object;
       
       log_word.mem_subtype = mem_access_subtype;
       log_word.non_mem_subtype = non_mem_subtype;
@@ -835,9 +835,9 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
       log_word.mem_cq_slot = out_cq_slot[mem_access_subtype];
 
       log_word.non_mem_ts = in_task[non_mem_subtype].ts;
-      log_word.non_mem_locale = in_task[non_mem_subtype].locale;
+      log_word.non_mem_object = in_task[non_mem_subtype].object;
       log_word.mem_ts = in_task[mem_access_subtype].ts;
-      log_word.mem_locale = in_task[mem_access_subtype].locale;
+      log_word.mem_object = in_task[mem_access_subtype].object;
    end
 
    log #(

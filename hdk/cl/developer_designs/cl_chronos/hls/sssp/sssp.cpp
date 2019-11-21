@@ -81,7 +81,7 @@ void sssp_hls (task_t task_in, hls::stream<task_t>* task_out, ap_uint<32>* l1, h
 		//printf("base %d %d\n", base_offset, base_neighbor);
 	}
 
-	ap_uint<32> vid = task_in.hint;
+	ap_uint<32> vid = task_in.object;
 
 	ap_uint<32> cur_dist = l1[base_dist + vid];
 	if (task_in.ts < cur_dist ) {

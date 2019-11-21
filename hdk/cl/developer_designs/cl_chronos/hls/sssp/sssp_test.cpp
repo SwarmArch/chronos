@@ -80,7 +80,7 @@ int main () {
   while(!pq.empty()) {
 	  task_t task_in = pq.top();
 	  pq.pop();
-	  printf("Dequeue (%d,%d)\n", int(task_in.ts), int(task_in.hint));
+	  printf("Dequeue (%d,%d)\n", int(task_in.ts), int(task_in.object));
 
 	  hls::stream<task_t> task_out;
 	  sssp_hls(task_in, &task_out, mem, &undo_log_entry);
@@ -89,7 +89,7 @@ int main () {
 	  while(!task_out.empty()) {
 		  out = task_out.read();
 		  pq.push(out);
-		  printf("\t Enqueue: (%d,%d)\n", int(out.ts), int(out.hint));
+		  printf("\t Enqueue: (%d,%d)\n", int(out.ts), int(out.object));
 	  }
   }
 

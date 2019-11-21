@@ -56,54 +56,54 @@ void undo_log_write(uint* addr, uint data) {
    *(volatile int *)( ADDR_UNDO_LOG_DATA) = data;
 }
 
-void enq_task_arg0(uint ttype, uint ts, uint locale){
-     *(volatile int *)( ADDR_TASK_HINT) = (locale);
+void enq_task_arg0(uint ttype, uint ts, uint object){
+     *(volatile int *)( ADDR_TASK_HINT) = (object);
      *(volatile int *)( ADDR_TASK_TTYPE) = (ttype);
      *(volatile int *)( ADDR_TASK) = ts;
 }
-void enq_task_arg1(uint ttype, uint ts, uint locale, uint arg0){
+void enq_task_arg1(uint ttype, uint ts, uint object, uint arg0){
      *(volatile int *)( ADDR_TASK_ARG) = (arg0);
-     enq_task_arg0(ttype, ts, locale);
+     enq_task_arg0(ttype, ts, object);
 }
-void enq_task_arg2(uint ttype, uint ts, uint locale, uint arg0, uint arg1){
+void enq_task_arg2(uint ttype, uint ts, uint object, uint arg0, uint arg1){
      *(volatile int *)( ADDR_TASK_ARG + 4) = (arg1);
-     enq_task_arg1(ttype, ts, locale, arg0);
+     enq_task_arg1(ttype, ts, object, arg0);
 }
-void enq_task_arg3(uint ttype, uint ts, uint locale, uint arg0, uint arg1, uint arg2){
+void enq_task_arg3(uint ttype, uint ts, uint object, uint arg0, uint arg1, uint arg2){
      *(volatile int *)( ADDR_TASK_ARG + 8) = (arg2);
-     enq_task_arg2(ttype, ts, locale, arg0, arg1);
+     enq_task_arg2(ttype, ts, object, arg0, arg1);
 }
-void enq_task_arg4(uint ttype, uint ts, uint locale, uint arg0, uint arg1, uint arg2, uint arg3){
+void enq_task_arg4(uint ttype, uint ts, uint object, uint arg0, uint arg1, uint arg2, uint arg3){
      *(volatile int *)( ADDR_TASK_ARG + 12) = (arg3);
-     enq_task_arg3(ttype, ts, locale, arg0, arg1, arg2);
+     enq_task_arg3(ttype, ts, object, arg0, arg1, arg2);
 }
 
-void deq_task_arg0(uint* ttype, uint* ts, uint* locale) {
+void deq_task_arg0(uint* ttype, uint* ts, uint* object) {
       *ts = *(volatile uint *)(ADDR_TASK);
-      *locale = *(volatile uint *)(ADDR_TASK_HINT);
+      *object = *(volatile uint *)(ADDR_TASK_HINT);
       *ttype = *(volatile uint *)(ADDR_TASK_TTYPE);
 }
-void deq_task_arg1(uint* ttype, uint* ts, uint* locale, uint* arg0) {
-      deq_task_arg0(ttype, ts, locale);
+void deq_task_arg1(uint* ttype, uint* ts, uint* object, uint* arg0) {
+      deq_task_arg0(ttype, ts, object);
       *arg0 = *(volatile uint *)(ADDR_TASK_ARG);
 }
-void deq_task_arg2(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1) {
-      deq_task_arg1(ttype, ts, locale, arg0);
+void deq_task_arg2(uint* ttype, uint* ts, uint* object, uint* arg0, uint* arg1) {
+      deq_task_arg1(ttype, ts, object, arg0);
       *arg1 = *(volatile uint *)(ADDR_TASK_ARG + 4);
 }
-void deq_task_arg3(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1, uint* arg2) {
-      deq_task_arg2(ttype, ts, locale, arg0, arg1);
+void deq_task_arg3(uint* ttype, uint* ts, uint* object, uint* arg0, uint* arg1, uint* arg2) {
+      deq_task_arg2(ttype, ts, object, arg0, arg1);
       *arg2 = *(volatile uint *)(ADDR_TASK_ARG + 8);
 }
-void deq_task_arg4(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1, uint* arg2, uint* arg3) {
-      deq_task_arg3(ttype, ts, locale, arg0, arg1, arg2);
+void deq_task_arg4(uint* ttype, uint* ts, uint* object, uint* arg0, uint* arg1, uint* arg2, uint* arg3) {
+      deq_task_arg3(ttype, ts, object, arg0, arg1, arg2);
       *arg3 = *(volatile uint *)(ADDR_TASK_ARG + 12);
 }
 
 // backwards compatibility
-void deq_task(uint* ttype, uint* ts, uint* locale, uint* arg0, uint* arg1) {
+void deq_task(uint* ttype, uint* ts, uint* object, uint* arg0, uint* arg1) {
       *ts = *(volatile uint *)(ADDR_TASK);
-      *locale = *(volatile uint *)(ADDR_TASK_HINT);
+      *object = *(volatile uint *)(ADDR_TASK_HINT);
       *ttype = *(volatile uint *)(ADDR_TASK_TTYPE);
       *arg0 = *(volatile uint *)(ADDR_TASK_ARG);
       *arg1 = *(volatile uint *)(ADDR_TASK_ARG + 4);

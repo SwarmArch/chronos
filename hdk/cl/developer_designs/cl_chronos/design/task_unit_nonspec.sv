@@ -199,7 +199,7 @@ module task_unit_nonspec
       .in_ts({reg_next_insert_elem.ts, reg_next_insert_elem.producer}),
       .in_data( {
             reg_next_insert_elem.ttype,
-            reg_next_insert_elem.locale,
+            reg_next_insert_elem.object,
             reg_next_insert_elem.args,
             reg_next_insert_elem.no_write,
             reg_next_insert_elem.no_read,
@@ -211,7 +211,7 @@ module task_unit_nonspec
       .out_ts({next_deque_elem.ts, next_deque_elem.producer}),  
       .out_data( {
             next_deque_elem.ttype,
-            next_deque_elem.locale,
+            next_deque_elem.object,
             next_deque_elem.args,
             next_deque_elem.no_write,
             next_deque_elem.no_read,
@@ -224,7 +224,7 @@ module task_unit_nonspec
       .max_out_ts({spill_fifo_wr_data.ts, spill_fifo_wr_data.producer}),
       .max_out_data( {
             spill_fifo_wr_data.ttype,
-            spill_fifo_wr_data.locale,
+            spill_fifo_wr_data.object,
             spill_fifo_wr_data.args,
             spill_fifo_wr_data.no_write,
             spill_fifo_wr_data.no_read,
@@ -456,9 +456,9 @@ endgenerate
 
       always_ff @(posedge clk) begin
          if (task_enq_valid & task_enq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_enqueue slot:%4d ts:%8x locale:%8x ttype:%1x args:(%4d %4d) tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_enqueue slot:%4d ts:%8x object:%8x ttype:%1x args:(%4d %4d) tied:%d \t\t resp:(ack:%d tile:%2d tsb:%2d) \n", 
                cycle, TILE_ID, n_tasks, 0, 0, 
-               task_enq_data.ts, task_enq_data.locale, 
+               task_enq_data.ts, task_enq_data.object, 
                task_enq_data.ttype,
                0, task_enq_data[31:0],
                task_enq_tied, 0,
@@ -466,24 +466,24 @@ endgenerate
             ) ;
          end
          if (coal_child_valid & coal_child_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) coal_child   slot:%4d ts:%8x locale:%8x \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) coal_child   slot:%4d ts:%8x object:%8x \n",
                cycle, TILE_ID, n_tasks, 0, 0,
-               coal_child_data.ts, coal_child_data.locale) ;
+               coal_child_data.ts, coal_child_data.object) ;
          end
          if (overflow_valid & overflow_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) overflow     slot:%4d ts:%8x locale:%8x \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) overflow     slot:%4d ts:%8x object:%8x \n",
                cycle, TILE_ID, n_tasks, 0, 0,
-               overflow_data.ts, overflow_data.locale) ;
+               overflow_data.ts, overflow_data.object) ;
          end
          if (task_deq_valid & task_deq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_deq     slot:%4d ts:%8x locale:%8x cq_slot:%2d\n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) task_deq     slot:%4d ts:%8x object:%8x cq_slot:%2d\n",
                cycle, TILE_ID, n_tasks, 0, 0,
-               task_deq_data.ts, task_deq_data.locale, task_deq_cq_slot) ;
+               task_deq_data.ts, task_deq_data.object, task_deq_cq_slot) ;
          end
          if (splitter_deq_valid & splitter_deq_ready) begin
-            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) splitter_deq slot:%4d ts:%8x locale:%8x \n",
+            $fwrite(file,"[%5d] [rob-%2d] (%4d:%4d) splitter_deq slot:%4d ts:%8x object:%8x \n",
                cycle, TILE_ID, n_tasks, 0, 0, 
-               splitter_deq_task.ts, splitter_deq_task.locale ) ;
+               splitter_deq_task.ts, splitter_deq_task.object ) ;
          end
          $fflush(file);
       end
@@ -637,11 +637,11 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       logic [31:0] gvt_tb;
       logic [31:0] gvt_ts;
       
-      logic [31:0] deq_locale;
+      logic [31:0] deq_object;
       logic [31:0] deq_ts;
 
       msg_type_t  commit_task_abort_child;
-      logic [31:0] overflow_locale;
+      logic [31:0] overflow_object;
       logic [31:0] overflow_ts;
       msg_type_t  deq_task;
       msg_type_t  overflow_task;
@@ -649,7 +649,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
 
 
       // enq parameters 
-      logic [31:0] enq_locale; 
+      logic [31:0] enq_object; 
       logic [31:0] enq_ts;
       
       logic [3:0] enq_ttype;
@@ -685,13 +685,13 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
       if (task_enq_valid & task_enq_ready) begin
         log_word.enq_task_n_coal_child = 1'b1;
         log_word.enq_ttype = task_enq_data.ttype;
-        log_word.enq_locale  = task_enq_data.locale;
+        log_word.enq_object  = task_enq_data.object;
         log_word.enq_ts    = task_enq_data.ts; 
         log_word.enq_task_coal_child.tied  = task_enq_tied;
         log_word.enq_task_coal_child.valid = task_enq_valid;
         log_word.enq_task_coal_child.ready = task_enq_ready;
         if (alt_log_word & ARG_WIDTH >= 32) begin
-           log_word.deq_locale = task_enq_data.args[0+:32] ;
+           log_word.deq_object = task_enq_data.args[0+:32] ;
         end
         if (alt_log_word & ARG_WIDTH >= 64) begin
            log_word.deq_ts = task_enq_data.args[32+:32] ;
@@ -700,7 +700,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
      end else if (coal_child_valid & coal_child_ready) begin
         log_word.enq_task_n_coal_child = 1'b0;
         log_word.enq_ttype = coal_child_data.ttype;
-        log_word.enq_locale  = coal_child_data.locale;
+        log_word.enq_object  = coal_child_data.object;
         log_word.enq_ts    = coal_child_data.ts;
         log_word.enq_task_coal_child.valid = coal_child_valid;
         log_word.enq_task_coal_child.ready = coal_child_ready;
@@ -709,7 +709,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
      if (task_deq_valid) begin
         log_word.deq_task.slot    = task_deq_data.ttype;
         if (!alt_log_word) begin
-           log_word.deq_locale = task_deq_data.locale;
+           log_word.deq_object = task_deq_data.object;
            log_word.deq_ts   = task_deq_data.ts;
         end
         if (task_deq_ready) begin
@@ -718,7 +718,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
      end else if (splitter_deq_valid) begin
         log_word.deq_task.slot    = splitter_deq_task.ttype;
         if (!alt_log_word) begin
-          log_word.deq_locale = splitter_deq_task.locale;
+          log_word.deq_object = splitter_deq_task.object;
           log_word.deq_ts   = splitter_deq_task.ts;
         end
         if (splitter_deq_ready) begin
@@ -743,7 +743,7 @@ if (TASK_UNIT_LOGGING[TILE_ID]) begin
      if (overflow_valid & overflow_ready) begin
         log_valid = 1'b1;
      end
-     log_word.overflow_locale = overflow_data.locale;
+     log_word.overflow_object = overflow_data.object;
      log_word.overflow_ts = overflow_data.ts;
 
 

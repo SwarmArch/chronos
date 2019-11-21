@@ -40,11 +40,11 @@ int main() {
    edge_neighbors  =(uint32_t*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
 
    while (1) {
-      uint ttype, ts, locale;
-      deq_task_arg0(&ttype, &ts, &locale);
+      uint ttype, ts, object;
+      deq_task_arg0(&ttype, &ts, &object);
       switch(ttype){
           case VISIT_NODE_TASK:
-              visit_node_task(ts, locale);
+              visit_node_task(ts, object);
               break;
           default:
               break;

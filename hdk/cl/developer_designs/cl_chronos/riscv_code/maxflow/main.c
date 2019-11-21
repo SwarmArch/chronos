@@ -250,24 +250,24 @@ void main() {
    global_relabel_mask = ((1<<(log_global_relabel_bits)) - 1 ) << (TX_ID_OFFSET_BITS);
    //global_relabel_mask = ~0;
    while (1) {
-      uint ttype, ts, locale, arg0, arg1;
-      deq_task_arg2(&ttype, &ts, &locale, &arg0, &arg1);
+      uint ttype, ts, object, arg0, arg1;
+      deq_task_arg2(&ttype, &ts, &object, &arg0, &arg1);
       switch(ttype) {
         case DISCHARGE_START_TASK:
         case DISCHARGE_START_TASK_CONT:
-           discharge_start_task(ts, locale, arg0, arg1);
+           discharge_start_task(ts, object, arg0, arg1);
            break;
         case GET_HEIGHT_TASK:
-           get_height_task(ts, locale, arg0, arg1);
+           get_height_task(ts, object, arg0, arg1);
            break;
         case PUSH_FROM_TASK:
-           push_from_task(ts, locale, arg0, arg1);
+           push_from_task(ts, object, arg0, arg1);
            break;
         case PUSH_TO_TASK:
-           push_to_task(ts, locale, arg0, arg1);
+           push_to_task(ts, object, arg0, arg1);
            break;
         case GLOBAL_RELABEL_VISIT_TASK:
-           global_relabel_visit_task(ts, locale, arg0, arg1);
+           global_relabel_visit_task(ts, object, arg0, arg1);
            break;
         default:
            break;

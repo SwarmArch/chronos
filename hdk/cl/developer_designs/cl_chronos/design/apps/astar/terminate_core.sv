@@ -59,10 +59,10 @@ typedef enum logic[1:0] {
       FINISH_TASK} sssp_state_t;
 
 task_t task_rdata, task_wdata; 
-assign {task_rdata.args, task_rdata.ttype, task_rdata.locale, task_rdata.ts} = task_in; 
+assign {task_rdata.args, task_rdata.ttype, task_rdata.object, task_rdata.ts} = task_in; 
 
 assign task_out_V_TDATA = 
-      {task_wdata.args, task_wdata.ttype, task_wdata.locale, task_wdata.ts}; 
+      {task_wdata.args, task_wdata.ttype, task_wdata.object, task_wdata.ts}; 
 
 logic clk, rstn;
 assign clk = ap_clk;

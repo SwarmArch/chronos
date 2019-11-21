@@ -35,18 +35,18 @@ module conflict_serializer #(
 );
 
    // Takes Task Read requeusts from the cores, serves them while ensuring that
-   // no two tasks with the same locale are running at the same time.
+   // no two tasks with the same object are running at the same time.
    //
    // This module maintains a shift register of pending tasks (ready_list), as well as
    // a bit for each task indicating if it conflicts with any running task.
    // When a core makes new a request, earliest conflict-free entry 
    // that matches the request's task-type will be served. 
    // Upon a task-finish, the earliest entry in the shift register with the
-   // finishing tasks's locale will be set conflict-free.
+   // finishing tasks's object will be set conflict-free.
    
    typedef struct packed {
       logic [LOG_READY_LIST_SIZE-1:0] id;
-      logic [LOCALE_WIDTH-1:0] locale;
+      logic [OBJECT_WIDTH-1:0] object;
    } task_t_ser;
 
 
@@ -58,10 +58,10 @@ module conflict_serializer #(
    logic [LOG_READY_LIST_SIZE-1:0] almost_full_threshold;
    logic [LOG_READY_LIST_SIZE-1:0] full_threshold;
 
-   locale_t [N_THREADS-1:0] running_task_locale; // Hint of the current task running on each core.
+   object_t [N_THREADS-1:0] running_task_object; // Object of the current task running on each core.
                                     // Packed array because all entries are
                                     // accessed simulataneously
-   logic [N_THREADS-1:0] running_task_locale_valid;
+   logic [N_THREADS-1:0] running_task_object_valid;
 
    task_t_ser [READY_LIST_SIZE-1:0] ready_list;
 
@@ -99,7 +99,7 @@ module conflict_serializer #(
       s_valid = task_ready[task_select] & next_thread_valid & 
                            (n_running_tasks < max_running_tasks);
    end
-   assign all_cores_idle = (ready_list_valid ==0) && (running_task_locale_valid==0); 
+   assign all_cores_idle = (ready_list_valid ==0) && (running_task_object_valid==0); 
 
    logic ready_list_free_empty;
    logic ready_list_free_full;
@@ -168,15 +168,15 @@ module conflict_serializer #(
 
 
    // Stage 2: Update ready_list
-   locale_t finished_task_locale;
-   logic [READY_LIST_SIZE-1:0] finished_task_locale_match;
-   logic [LOG_READY_LIST_SIZE-1:0] finished_task_locale_match_select;
+   object_t finished_task_object;
+   logic [READY_LIST_SIZE-1:0] finished_task_object_match;
+   logic [LOG_READY_LIST_SIZE-1:0] finished_task_object_match_select;
    always_comb begin
-      finished_task_locale = running_task_locale[unlock_thread];
+      finished_task_object = running_task_object[unlock_thread];
    end
    generate 
       for(i=0;i<READY_LIST_SIZE;i++) begin
-         assign finished_task_locale_match[i] = (finished_task_locale == ready_list[i].locale) &
+         assign finished_task_object_match[i] = (finished_task_object == ready_list[i].object) &
                                                 unlock_valid & ready_list_valid[i];
       end
    endgenerate
@@ -184,9 +184,9 @@ module conflict_serializer #(
    lowbit #(
       .OUT_WIDTH(LOG_READY_LIST_SIZE),
       .IN_WIDTH(READY_LIST_SIZE)   
-   ) FINISHED_TASK_LOCALE_MATCH_SELECT (
-      .in(finished_task_locale_match),
-      .out(finished_task_locale_match_select)
+   ) FINISHED_TASK_OBJECT_MATCH_SELECT (
+      .in(finished_task_object_match),
+      .out(finished_task_object_match_select)
    );
    logic [LOG_READY_LIST_SIZE-1:0] next_insert_location;
    
@@ -215,11 +215,11 @@ module conflict_serializer #(
    generate 
       for (i=0;i<READY_LIST_SIZE;i++) begin
          assign next_insert_task_conflict_ready_list[i] = ready_list_valid[i] & 
-                     (ready_list[i].locale == new_enq_task.locale);
+                     (ready_list[i].object == new_enq_task.object);
       end
       for (i=0;i<N_THREADS;i++) begin
-         assign next_insert_task_conflict_running_tasks[i] = running_task_locale_valid[i] & 
-                     (running_task_locale[i] == new_enq_task.locale) & 
+         assign next_insert_task_conflict_running_tasks[i] = running_task_object_valid[i] & 
+                     (running_task_object[i] == new_enq_task.object) & 
                      !(unlock_valid & unlock_thread ==i) ;
       end
    endgenerate
@@ -241,13 +241,13 @@ module conflict_serializer #(
             // back
             if (m_valid & m_ready & (next_insert_location== i+1)) begin
                ready_list[i].id <= ready_list_next_free_id;
-               ready_list[i].locale <= new_enq_task.locale;
+               ready_list[i].object <= new_enq_task.object;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
             end else if (i != READY_LIST_SIZE-1) begin
                ready_list[i] <= ready_list[i+1];
                ready_list_valid[i] <= ready_list_valid[i+1];
-               if ((finished_task_locale_match_select == i+1) & finished_task_locale_match[i+1]) begin
+               if ((finished_task_object_match_select == i+1) & finished_task_object_match[i+1]) begin
                   ready_list_conflict[i] <= 1'b0;
                end else begin
                   ready_list_conflict[i] <= ready_list_conflict[i+1];
@@ -263,11 +263,11 @@ module conflict_serializer #(
             // No dequeue, only enqueue
             if (m_valid & m_ready & (next_insert_location== i)) begin
                ready_list[i].id <= ready_list_next_free_id;
-               ready_list[i].locale <= new_enq_task.locale;
+               ready_list[i].object <= new_enq_task.object;
                ready_list_valid[i] <= 1'b1;
                ready_list_conflict[i] <= next_insert_task_conflict; 
             end else begin 
-               if ((finished_task_locale_match_select == i) & finished_task_locale_match[i]) begin
+               if ((finished_task_object_match_select == i) & finished_task_object_match[i]) begin
                   ready_list_conflict[i] <= 1'b0;
                end
                // other fields unchanged
@@ -295,21 +295,21 @@ module conflict_serializer #(
    
    
 
-   // update locale tables
+   // update object tables
    always_ff @(posedge clk) begin
       if (!rstn) begin
-         running_task_locale_valid <= 0;
+         running_task_object_valid <= 0;
          for (integer j=0;j<N_THREADS;j=j+1) begin
-            running_task_locale[j] <= 'x;
+            running_task_object[j] <= 'x;
          end
       end else begin
          for (integer j=0;j<N_THREADS;j=j+1) begin
             if (s_valid & s_ready & (j==s_thread)) begin
-               running_task_locale_valid[j] <= 1'b1;
-               running_task_locale[j] <= s_rdata.locale;
+               running_task_object_valid[j] <= 1'b1;
+               running_task_object[j] <= s_rdata.object;
             end else if (unlock_valid & (unlock_thread ==j)) begin
-               running_task_locale_valid[j] <= 1'b0;
-               running_task_locale[j] <= 'x;
+               running_task_object_valid[j] <= 1'b0;
+               running_task_object[j] <= 'x;
             end
          end
       end
@@ -393,7 +393,7 @@ endgenerate
             DEBUG_CAPACITY : reg_bus.rdata <= log_size;
             SERIALIZER_READY_LIST : reg_bus.rdata <= {ready_list_valid, ready_list_conflict};
             SERIALIZER_DEBUG_WORD  : reg_bus.rdata <= {free_list_size, s_thread, s_valid};
-            SERIALIZER_S_LOCALE : reg_bus.rdata <= s_rdata.locale;
+            SERIALIZER_S_OBJECT : reg_bus.rdata <= s_rdata.object;
             SERIALIZER_STAT + 0 : reg_bus.rdata <= stat_no_task;
             SERIALIZER_STAT + 4 : reg_bus.rdata <= stat_cq_stall;
             SERIALIZER_STAT + 8 : reg_bus.rdata <= stat_task_issued;
@@ -418,7 +418,7 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
 
       logic [15:0] s_arvalid;
       logic [15:0] s_rvalid;
-      logic [31:0] s_rdata_locale;
+      logic [31:0] s_rdata_object;
       logic [31:0] s_rdata_ts;
 
       // 32
@@ -431,13 +431,13 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       logic [31:0] ready_list_conflict;
 
       logic [31:0] m_ts;
-      logic [31:0] m_locale;
+      logic [31:0] m_object;
 
       logic [3:0] m_ttype;
       logic [6:0] m_cq_slot;
       logic m_valid;
       logic m_ready;
-      logic [15:0] finished_task_locale_match;
+      logic [15:0] finished_task_object_match;
       logic [2:0] unused_2;
       
    
@@ -455,7 +455,7 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
 
       log_word.s_arvalid = s_valid;
       log_word.s_rvalid = s_ready;
-      log_word.s_rdata_locale = s_rdata.locale;
+      log_word.s_rdata_object = s_rdata.object;
       log_word.s_rdata_ts = s_rdata.ts;
       log_word.s_rdata_ttype = s_rdata.ttype;
       log_word.s_cq_slot = s_cq_slot;
@@ -466,12 +466,12 @@ if (SERIALIZER_LOGGING[TILE_ID]) begin
       log_word.ready_list_valid = ready_list_valid;
       log_word.ready_list_conflict = ready_list_conflict;
 
-      log_word.m_locale = new_enq_task.locale;
+      log_word.m_object = new_enq_task.object;
       log_word.m_ts = new_enq_task.ts;
       log_word.m_ttype = new_enq_task.ttype;
       log_word.m_cq_slot = m_cq_slot;
 
-      log_word.finished_task_locale_match = finished_task_locale_match;
+      log_word.finished_task_object_match = finished_task_object_match;
 
       log_word.m_valid = m_valid;
       log_word.m_ready = m_ready;
