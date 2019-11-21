@@ -14,4 +14,4 @@ A version can be found at /afs/csail.mit.edu/u/m/maleen/repos/aws-fpga/hdk/commo
 
 4. set $XILINX_VIVADO to point to XIlinx installation. eg. (Xilinx/Vivado/2017.1)
 
-5. set $CL_DIR to hdk/cl/developer_designs/cl_swarm
+5. set $CL_DIR to hdk/cl/developer_designs/cl_chronos

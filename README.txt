@@ -1,7 +1,7 @@
 This repo contains Chronos, an FPGA Framework to accelerate ordered
 applications, on the Amazon AWS FPGA platform.
 
-All Chronos specific code is in hdk/cl/developer_designs/cl_swarm/. 
+All Chronos specific code is in hdk/cl/developer_designs/cl_chronos/. 
 Refer to the README file there for instructions on how to build and run Chronos. 
 
 Setting up the environment
@@ -17,7 +17,7 @@ instance for FPGA testing.
 To configure enviroment variable for synthesis/simulation:
 
 source hdk_setup.sh
-(cd hdk/cl/developer_designs/cl_swarm; export CL_DIR=$(pwd))
+(cd hdk/cl/developer_designs/cl_chronos; export CL_DIR=$(pwd))
 
 To configure enviroment for FPGA testing:
 

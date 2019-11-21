@@ -45,7 +45,7 @@ ignore_memory_requirement=0
 expected_memory_usage=30000000
 uram_option=2
 vdefine=""
-module="cl_swarm"
+module="cl_chronos"
 
 # Use timestamp for logs and output files
 timestamp=$(date +"%y_%m_%d-%H%M%S") 
