@@ -124,10 +124,6 @@ initial begin
       ocl_poke(i, ID_ALL_CORES, CORE_START, '1);
    end
    #4us;
-   for (int i=0;i<N_CORES;i++) begin
-    ocl_peek(0, 16+i, CORE_PC, ocl_data);
-      $display("core %d pc %x\n", i, ocl_data);
-   end
    //check_log(0, ID_COAL);
    
    // Wait until application completes
