@@ -133,7 +133,7 @@ module tsb
 
 
 generate 
-if (NON_SPEC) begin
+if (NO_ROLLBACK) begin
 
 
    always_ff @(posedge clk) begin

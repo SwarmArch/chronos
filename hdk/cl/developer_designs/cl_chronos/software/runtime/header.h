@@ -65,7 +65,7 @@
 #define OCL_PARAM_LOG_CQ_SIZE         0x5c
 #define OCL_PARAM_APP_ID              0x60
 #define OCL_PARAM_LOG_SPILL_Q_SIZE    0x64
-#define OCL_PARAM_NON_SPEC            0x68
+#define OCL_PARAM_ROLLBACK            0x68
 #define OCL_PARAM_LOG_READY_LIST_SIZE 0x6c
 #define OCL_PARAM_LOG_L2_BANKS        0x70
 #define OCL_PARAM_N_CORES             0x74
@@ -279,7 +279,7 @@ extern uint32_t ID_CQ;
 extern uint32_t ID_LAST;
 extern uint32_t LOG_TQ_SIZE, LOG_CQ_SIZE;
 extern uint32_t TQ_STAGES, SPILLQ_STAGES;
-extern uint32_t NON_SPEC;
+extern uint32_t NO_ROLLBACK;
 
 /*
  * pci_vendor_id and pci_device_id values below are Amazon's and avaliable to use for a given FPGA slot.

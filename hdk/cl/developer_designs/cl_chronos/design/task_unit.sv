@@ -1240,7 +1240,7 @@ endgenerate
 
    always_ff @(posedge clk) begin
       if (!rstn) begin
-         task_unit_throttle_margin <= NON_SPEC ? 1000 : 0;
+         task_unit_throttle_margin <= NO_ROLLBACK ? 1000 : 0;
          task_spill_threshold <= SPILL_THRESHOLD;
          task_unit_tied_capacity <= (2**(LOG_TQ_SIZE-2) -1 );
          task_unit_clean_threshold <= 40;

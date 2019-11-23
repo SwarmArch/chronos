@@ -37,8 +37,8 @@ package chronos;
    parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in object serializer
    parameter CACHE_INDEX_WIDTH = 11; // index bits in cache
    parameter CACHE_NUM_WAYS = 4;     // number of cache ways
-   parameter NON_SPEC = 0;  // Non-spec version. 
    
+   parameter NO_ROLLBACK = 0; // aborted tasks are not rolled back  
    //If you kno that the TQ will not overflow, set this to save some area.
    parameter NO_SPILLING = 0; 
 
@@ -86,7 +86,7 @@ package chronos;
    // `define inside and if block in SV.
    parameter UNORDERED = 0;
    `define TASK_UNIT_MODULE task_unit
-   //`define TASK_UNIT_MODULE task_unit_nonspec
+   //`define TASK_UNIT_MODULE task_unit_non_rollback
    //`define TASK_UNIT_MODULE task_unit_unordered
 
    

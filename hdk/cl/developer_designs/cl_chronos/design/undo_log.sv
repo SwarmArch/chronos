@@ -46,7 +46,7 @@ module undo_log
 localparam ENTRIES_PER_TASK = 2**LOG_UNDO_LOG_ENTRIES_PER_TASK;
 
 generate 
-if (NON_SPEC) begin
+if (NO_ROLLBACK) begin
    assign undo_log_ready = '1;
    assign restore_arvalid = 0;
    assign restore_araddr = 'x;

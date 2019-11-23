@@ -121,7 +121,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
 
 
          if (enq_task.valid & enq_task.ready) {
-             if (NON_SPEC) {
+             if (NO_ROLLBACK) {
 
                 fprintf(fw,"[%6d][%10u][] (%4d:%4d:%5d) task_enqueue slot:%4d ts:%6x object:%6x ttype:%1d arg0:%5d arg1:%8x\n",
                    seq, cycle,
@@ -201,7 +201,7 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
                 fprintf(fw," abort child mismatch\n");
              }
          }
-         if (commit_task.valid & commit_task.ready &!NON_SPEC) {
+         if (commit_task.valid & commit_task.ready &!NO_ROLLBACK) {
             fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) commit_task  slot:%4d epoch:(%3d,%3d) tied:%1d \n",
                seq, cycle,
                gvt_ts, gvt_tb,
@@ -1446,7 +1446,7 @@ pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_ABORT_TASK           ,&stat_TASK_U
 pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_COAL_CHILD           ,&stat_TASK_UNIT_STAT_N_COAL_CHILD          );
 pci_peek(tile, ID_TASK_UNIT, TASK_UNIT_STAT_N_OVERFLOW             ,&stat_TASK_UNIT_STAT_N_OVERFLOW            );
 
-if (NON_SPEC) {
+if (NO_ROLLBACK) {
 printf("STAT_N_UNTIED_ENQ           %9d\n",stat_TASK_UNIT_STAT_N_UNTIED_ENQ          );
 printf("STAT_N_DEQ_TASK             %9d\n",stat_TASK_UNIT_STAT_N_DEQ_TASK            );
 printf("STAT_N_COAL_CHILD           %9d\n",stat_TASK_UNIT_STAT_N_COAL_CHILD          );

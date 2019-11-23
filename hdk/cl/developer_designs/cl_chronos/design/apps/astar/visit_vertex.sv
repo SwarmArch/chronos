@@ -230,8 +230,8 @@ always_comb begin
       end
       WAIT_PARENT: begin
          if (m_axi_l1_V_RVALID) begin
-            if( (NON_SPEC & ( gScore < m_axi_l1_V_RDATA)) |
-                (!NON_SPEC &  (m_axi_l1_V_RDATA == '1) ) ) begin 
+            if( (NO_ROLLBACK & ( gScore < m_axi_l1_V_RDATA)) |
+                (!NO_ROLLBACK &  (m_axi_l1_V_RDATA == '1) ) ) begin 
                state_next = CHECK_TARGET; // can write dist in parallel
                wr_begin = 1'b1;
             end else begin

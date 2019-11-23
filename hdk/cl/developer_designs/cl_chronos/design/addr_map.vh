@@ -67,7 +67,7 @@
    parameter OCL_PARAM_LOG_CQ_SIZE         = 8'h5c;
    parameter OCL_PARAM_APP_ID              = 8'h60;
    parameter OCL_PARAM_LOG_SPILL_Q_SIZE    = 8'h64;
-   parameter OCL_PARAM_NON_SPEC            = 8'h68;
+   parameter OCL_PARAM_NO_ROLLBACK         = 8'h68;
    parameter OCL_PARAM_LOG_READY_LIST_SIZE = 8'h6c;
    parameter OCL_PARAM_LOG_L2_BANKS        = 8'h70;
    parameter OCL_PARAM_N_CORES             = 8'h74;

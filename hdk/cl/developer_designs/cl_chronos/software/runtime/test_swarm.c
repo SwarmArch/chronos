@@ -48,7 +48,7 @@ uint32_t ID_SERIALIZER;
 uint32_t ID_LAST;
 uint32_t LOG_TQ_SIZE, LOG_CQ_SIZE;
 uint32_t TQ_STAGES, SPILLQ_STAGES;
-uint32_t NON_SPEC;
+uint32_t NO_ROLLBACK;
 
 uint32_t USING_PIPELINED_TEMPLATE;
 
@@ -102,9 +102,9 @@ void init_params() {
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_N_TILES, &N_TILES);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_N_CORES, &N_CORES);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_TQ_HEAP_STAGES, &TQ_STAGES);
-    pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_NON_SPEC, &NON_SPEC);
+    pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_NO_ROLLBACK, &NO_ROLLBACK);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_TQ_SIZE, &LOG_TQ_SIZE);
-    if (NON_SPEC) LOG_TQ_SIZE = TQ_STAGES;
+    if (NO_ROLLBACK) LOG_TQ_SIZE = TQ_STAGES;
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_CQ_SIZE, &LOG_CQ_SIZE);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_SPILL_Q_SIZE, &SPILLQ_STAGES);
     pci_peek(0, ID_OCL_SLAVE, OCL_PARAM_LOG_READY_LIST_SIZE, &READY_LIST_SIZE);
@@ -116,7 +116,7 @@ void init_params() {
     printf("APP_ID %x Pipelined:%d\n", APP_ID, USING_PIPELINED_TEMPLATE);
 
     printf("%d tiles %d cores\n", N_TILES, N_CORES);
-    printf("Non spec %d\n", NON_SPEC);
+    printf("Non rollback %d\n", NO_ROLLBACK);
     printf("TQ Size %d CQ Size %d\n", LOG_TQ_SIZE, LOG_CQ_SIZE);
     //L2_BANKS = 1;
     //READY_LIST_SIZE = 32;
@@ -657,7 +657,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_TASK_UNIT, TASK_UNIT_PRE_ENQ_BUF,
                 (pre_enq_fifo_thresh << 16) | deq_tolerance);
         // Do not dequeue a task with a timestamp larger by this much than the gvt
-        if (NON_SPEC) {
+        if (NO_ROLLBACK) {
             // astar - 900
             // sssp - 5000
             pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 1000);
@@ -816,7 +816,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
    while(true) {
        uint32_t gvt;
-       if (NON_SPEC) {
+       if (NO_ROLLBACK) {
            pci_peek(0, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
            //loop_debuggin_nonspec(iters);
        } else {
@@ -829,7 +829,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            pci_peek(0, ID_OCL_SLAVE, OCL_CUR_CYCLE_LSB, &endCycle);
            endCycle64 = (endCycle64 << 32) | endCycle;
            bool done = true;
-           if (NON_SPEC) {
+           if (NO_ROLLBACK) {
                // under non-spec, the exact gvt cannot be computed,
                // and the pseudo-gvt is not non-decreasing.
                // Hence sample a few times before terminating
@@ -902,7 +902,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    printf("iters %d\n", iters);
    cycles = endCycle64 - startCycle64;
    //core_stats(0, cycles);
-   for (int i=0;i< (NON_SPEC?active_tiles:1); i++) {
+   for (int i=0;i< (NO_ROLLBACK?active_tiles:1); i++) {
            task_unit_stats(i, cycles);
        if (i==0) {
            serializer_stats(i, ID_SERIALIZER);
@@ -918,7 +918,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
    // Stage 7: Application completed. Read counters for analysis.
 
-   if (!NON_SPEC) {
+   if (!NO_ROLLBACK) {
        cq_stats(0, cycles);
    }
 
@@ -1438,7 +1438,7 @@ void loop_debuggin_spec(uint32_t iters){
     uint32_t rw_write_fifo_occ = 0;
     for (int i=0;i<(active_tiles);i++) {
         pci_peek(i, ID_CQ, CQ_GVT_TS, &gvt);
-        if (NON_SPEC) {
+        if (NO_ROLLBACK) {
             pci_peek(i, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
         }
         pci_peek(i, ID_CQ, CQ_GVT_TB, &gvt_tb);

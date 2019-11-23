@@ -131,7 +131,7 @@ initial begin
       // If non-spec, need to query each tile individually and see if it finished.
       // If spec, we are done when gvt == '1 
       #300ns;
-      if (NON_SPEC) begin
+      if (NO_ROLLBACK) begin
          for (int i=0;i<N_TILES;i++) begin
             ocl_peek(i, 0, OCL_DONE, ocl_data); 
             if (ocl_data != '1) begin

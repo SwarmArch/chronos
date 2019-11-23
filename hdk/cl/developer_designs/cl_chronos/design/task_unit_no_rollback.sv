@@ -1,7 +1,7 @@
 
 import chronos::*;
 
-module task_unit_nonspec 
+module task_unit_non_rollback 
 #( 
    parameter TILE_ID = 0
 ) (
@@ -566,7 +566,7 @@ endgenerate
          tq_stall <= 0;
          tq_started <= 0;
          alt_log_word <= 0;
-         task_unit_throttle_margin <= NON_SPEC ? 1000 : 0;
+         task_unit_throttle_margin <= NO_ROLLBACK ? 1000 : 0;
          deq_tolerance <= 1;
          pre_enq_fifo_full_thresh <= 0;
       end else begin

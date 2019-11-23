@@ -54,7 +54,7 @@ ${CL_ROOT}/design/pci_arbiter.sv
 ${CL_ROOT}/design/l2.sv
 ${CL_ROOT}/design/task_unit.sv
 ${CL_ROOT}/design/task_unit_unordered.sv
-${CL_ROOT}/design/task_unit_nonspec.sv
+${CL_ROOT}/design/task_unit_no_rollback.sv
 ${CL_ROOT}/design/cq_slice.sv
 ${CL_ROOT}/design/axi_decoder.sv
 ${CL_ROOT}/design/axi_pipe.sv

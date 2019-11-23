@@ -194,7 +194,7 @@ end
 genvar i;
 generate
    for (i=0;i<N_SUB_TYPES;i++) begin
-      assign s_out_child_untied[i] = NON_SPEC | ( gvt_task_slot_valid & (gvt_task_slot == out_cq_slot[i]));
+      assign s_out_child_untied[i] = NO_ROLLBACK | ( gvt_task_slot_valid & (gvt_task_slot == out_cq_slot[i]));
       if (i != N_SUB_TYPES-1) begin
          assign task_in_can_schedule[i] = task_in_valid[i] 
                & (   (in_fifo_occ[i+1] < fifo_out_almost_full_thresh) 
@@ -954,7 +954,7 @@ end
 logic is_non_mem_task_finished;
 always_comb begin
    is_non_mem_task_finished = 1'b0;
-   if ((!NON_SPEC | (N_TILES==1)) & task_valid[non_mem_subtype]) begin
+   if ((!NO_ROLLBACK | (N_TILES==1)) & task_valid[non_mem_subtype]) begin
       if (mem_task_enq_child) begin
          is_non_mem_task_finished = 1'b0;
       end else begin
@@ -1022,7 +1022,7 @@ end
 generate 
 // enable finish_task messages on 1-tile nonspec systems to count the number of
 // running tasks
-if (!NON_SPEC | (N_TILES == 1)) begin
+if (!NO_ROLLBACK | (N_TILES == 1)) begin
    always_ff @(posedge clk) begin
       if (process_mem_task) begin
          n_enqueues[ mem_access_cq_slot] <= n_enqueues[mem_access_cq_slot] 

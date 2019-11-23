@@ -112,7 +112,7 @@ module cq_slice
 typedef enum logic[2:0] {IDLE, DEQ_CHECK_TS, ABORT_REQUEUE, UNDO_LOG_RESTORE,
       DEQ_PUSH_TASK } cq_fsm_state_t;
 generate
-if (NON_SPEC) begin : gen 
+if (NO_ROLLBACK) begin : gen 
    
    ts_t drop_task_ts;
 
@@ -1502,7 +1502,7 @@ always_ff @(posedge clk) begin
       lvt <= (cur_task_lvt_fixed < array_lvt_fixed) ? cur_task_lvt_fixed : array_lvt_fixed;
    end   
 end
-end // else  NON_SPEC
+end // else  ROLLBACK
 endgenerate
 endmodule
 

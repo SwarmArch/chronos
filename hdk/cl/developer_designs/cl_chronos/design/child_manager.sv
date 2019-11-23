@@ -135,7 +135,7 @@ module child_manager #(
    //    each cut_tie message and reset when the cut_tie_ack is sent
    
 generate
-if (NON_SPEC) begin : gen
+if (NO_ROLLBACK) begin : gen
 
    localparam LOG_NUM_SI = $clog2(NUM_SI);
    logic [LOG_NUM_SI-1:0] write_select; 

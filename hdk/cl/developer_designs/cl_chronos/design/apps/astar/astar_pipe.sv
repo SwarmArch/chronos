@@ -51,8 +51,8 @@ always_comb begin
 
    if (task_in_valid) begin
       if (in_task.ttype == 0) begin
-         if( (NON_SPEC & ( gScore < in_data)) |
-             (!NON_SPEC &  (in_data == '1) ) ) begin 
+         if( (NO_ROLLBACK & ( gScore < in_data)) |
+             (!NO_ROLLBACK &  (in_data == '1) ) ) begin 
             wvalid = 1'b1;
             out_valid = 1'b1;
          end

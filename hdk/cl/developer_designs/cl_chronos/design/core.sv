@@ -179,7 +179,7 @@ end
 
 task_t task_in;
 generate 
-if (!NON_SPEC) begin
+if (!NO_ROLLBACK) begin
    always_ff @(posedge clk) begin
       if (task_arvalid & task_rvalid) begin
          task_in <= task_rdata;
@@ -202,7 +202,7 @@ always_comb begin
    case(state)
       NEXT_TASK: begin
          if (task_arvalid & task_rvalid) begin
-            state_next = (NON_SPEC) ? WAIT_CORE : INFORM_CQ;
+            state_next = (NO_ROLLBACK) ? WAIT_CORE : INFORM_CQ;
          end
       end
       INFORM_CQ: begin
@@ -453,7 +453,7 @@ always_ff @(posedge clk) begin
 end
 
 generate
-if (NON_SPEC) begin
+if (NO_ROLLBACK) begin
    // 1-task/cycle, don't do this if SPEC beacuse of possible critical path
    // issues
    assign task_out_ready = !task_wvalid |(task_wvalid & task_wready);

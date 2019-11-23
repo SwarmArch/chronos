@@ -250,9 +250,9 @@ module ocl_slave
                         state <= OCL_SEND_R;
                         data <= LOG_TQ_SPILL_SIZE;
                      end
-                     OCL_PARAM_NON_SPEC: begin
+                     OCL_PARAM_NO_ROLLBACK: begin
                         state <= OCL_SEND_R;
-                        data <= UNORDERED + NON_SPEC;
+                        data <= UNORDERED + NO_ROLLBACK;
                      end
                      OCL_PARAM_LOG_L2_BANKS: begin
                         state <= OCL_SEND_R;
