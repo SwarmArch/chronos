@@ -1,0 +1,2 @@
+sssp pipe sssp_nr_1t
+astar pipe astar_r_1t
