@@ -485,6 +485,10 @@ endtask
 task read_and_transfer_input_file;
    
    fid = $fopen(input_file, "rb");
+   if (fid==0) begin
+      $display("File %s not found", input_file);
+      $finish();
+   end
    line[7:0] = $fgetc(fid);
    line[15:8] = $fgetc(fid);
    line[23:16] = $fgetc(fid);
@@ -497,6 +501,7 @@ task read_and_transfer_input_file;
    end else begin
       fid = $fopen(input_file, "r");
    end
+
 
    line = 0;
    n_lines = 0;
