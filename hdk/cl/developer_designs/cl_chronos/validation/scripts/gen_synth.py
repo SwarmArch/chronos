@@ -30,13 +30,30 @@ for line in fapps:
     os.chdir(synth_dir)
     words = line.split()
     config = words[-1];
+    app = words[0];
+    pipe = ""
+    if (words[1] == "pipe"):
+        pipe = "pipe"
     print("making directory "+config)
     os.mkdir(config)
+    print("copying all RTL")
     cmd = "cp -r ../../../design " + config
     os.system(cmd)
+    cmd = "cp ../../scripts/configs/" + config +".sv " + config+"/design/config.sv"
+    os.system(cmd)
+    print(cmd)
+
+    print("copying build scripts")
     os.mkdir(config +"/build")
     cmd = os.path.join(scripts_dir, "build_scripts")
     cmd = "cp -r " + cmd +"/* " +config+ "/build/" 
-    os.system(cmd)
     print(cmd)
+    os.system(cmd)
+
+
+    print("configuring app")
+    os.chdir(config + "/design")
+    cmd = "python ./scripts/gen_cores.py "+app +" " + pipe
+    print(cmd)
+    os.system(cmd)
 
