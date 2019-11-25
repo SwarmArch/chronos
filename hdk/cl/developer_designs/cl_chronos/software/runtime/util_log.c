@@ -942,7 +942,7 @@ int log_rw_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
 
            unsigned int out_object = buf[i*16+2] ;
            unsigned int out_ts = buf[i*16+3] ;
-           unsigned int out_object = buf[i*16+4] ;
+           unsigned int out_data = buf[i*16+4] ;
            unsigned int araddr = buf[i*16+5] ;
 
            unsigned int in_object = buf[i*16+6] ;
@@ -978,7 +978,7 @@ int log_rw_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
                fprintf(fw,"[%6d][%10u] [%2x] task_out ts:%5d object:%5d data:%10d | fifo:%2d\n",
                    seq, cycle,
                    out_thread,
-                   out_ts, out_object, out_object, out_fifo_occ
+                   out_ts, out_object, out_data, out_fifo_occ
 
                       );
                f = true;

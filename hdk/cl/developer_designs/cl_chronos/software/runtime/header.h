@@ -65,7 +65,7 @@
 #define OCL_PARAM_LOG_CQ_SIZE         0x5c
 #define OCL_PARAM_APP_ID              0x60
 #define OCL_PARAM_LOG_SPILL_Q_SIZE    0x64
-#define OCL_PARAM_ROLLBACK            0x68
+#define OCL_PARAM_NO_ROLLBACK         0x68
 #define OCL_PARAM_LOG_READY_LIST_SIZE 0x6c
 #define OCL_PARAM_LOG_L2_BANKS        0x70
 #define OCL_PARAM_N_CORES             0x74
