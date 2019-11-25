@@ -50,6 +50,9 @@ for line in fapps:
     print(cmd)
     os.system(cmd)
 
+    cmd = "mv " + config + "/build/run_synth.py " + config + "/"
+    print(cmd)
+    os.system(cmd)
 
     print("configuring app")
     os.chdir(config + "/design")

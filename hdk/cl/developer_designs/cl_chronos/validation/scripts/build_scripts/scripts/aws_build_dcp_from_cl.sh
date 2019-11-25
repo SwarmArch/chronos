@@ -34,16 +34,16 @@ function usage
 }
 
 # Default arguments for script and strategy
-strategy=DEFAULT
+strategy=EXPLORE
 clock_recipe_a=A0
 clock_recipe_b=B0
 clock_recipe_c=C0
 vivado_script="create_dcp_from_cl.tcl"
-foreground=0
+foreground=1
 notify=0
 ignore_memory_requirement=0
 expected_memory_usage=30000000
-uram_option=2
+uram_option=3
 vdefine=""
 module="cl_chronos"
 
