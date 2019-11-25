@@ -147,7 +147,7 @@ int main(int argc, char **argv) {
     int rc;
     int slot_id;
 
-    char* usage = "Usage ./test_chronos app <input> <riscv_hex_file>";
+    char* usage = "Usage ./test_chronos <--options=val> app <input> <riscv_hex_file>";
     if ( (argc <2) || (argc >4)) {
         printf("%s\n", usage);
         exit(0);
@@ -169,7 +169,6 @@ int main(int argc, char **argv) {
     rc = fpga_mgmt_init();
     fail_on(rc, out, "Unable to initialize the fpga_mgmt library");
 
-    /* Accessing the CL registers via AppPF BAR0, which maps to sh_cl_ocl_ AXI-Lite bus between AWS FPGA Shell and the CL*/
     int app = -1; // Invalid number
     FILE* fg;
     fhex = 0;
@@ -818,7 +817,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        uint32_t gvt;
        if (NO_ROLLBACK) {
            pci_peek(0, ID_OCL_SLAVE, OCL_DONE, (uint32_t*) &gvt);
-           //loop_debuggin_nonspec(iters);
+           //loop_debuggin_no_rollback(iters);
        } else {
            pci_peek(0, ID_CQ, CQ_GVT_TS, &gvt);
        }
@@ -1321,7 +1320,7 @@ out:
     return (rc != 0 ? 1 : 0);
 }
 
-void loop_debuggin_nonspec(uint32_t iters){
+void loop_debuggin_no_rollback(uint32_t iters){
 
     uint32_t gvt, gvt_tb;
     uint32_t n_tasks, n_tied_tasks, heap_capacity;
