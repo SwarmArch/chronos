@@ -53,6 +53,7 @@ uint32_t NO_ROLLBACK;
 uint32_t USING_PIPELINED_TEMPLATE;
 
 uint32_t active_tiles = 1;
+uint32_t active_threads = 0;
 bool logging_on = false;
 uint32_t logging_phase_tasks = 0x100;
 uint32_t reading_binary_file = false;
@@ -143,12 +144,16 @@ void init_params() {
 
 }
 
+int prefix(const char* pre, char* str) {
+    return strncmp(pre, str, strlen(pre)) ==0;
+}
+
 int main(int argc, char **argv) {
     int rc;
     int slot_id;
 
     char* usage = "Usage ./test_chronos <--options=val> app <input> <riscv_hex_file>";
-    if ( (argc <2) || (argc >4)) {
+    if (argc <2)  {
         printf("%s\n", usage);
         exit(0);
     }
@@ -169,38 +174,52 @@ int main(int argc, char **argv) {
     rc = fpga_mgmt_init();
     fail_on(rc, out, "Unable to initialize the fpga_mgmt library");
 
+    int n_options = 0;
+    int cur_arg = 1;
+    while( prefix("--", argv[cur_arg])){
+        const char* val = strstr(argv[cur_arg], "=");
+        val++; // skip the '=' sign
+        printf("opt %s %s\n", argv[cur_arg], val);
+        if (prefix("--n_tiles", argv[cur_arg])) active_tiles = atoi(val);
+        if (prefix("--n_threads", argv[cur_arg])) active_threads = atoi(val);
+        if (prefix("--logging", argv[cur_arg])) logging_on = (atoi(val)==1);
+
+        cur_arg++;
+    }
+
     int app = -1; // Invalid number
     FILE* fg;
     fhex = 0;
-    if (strcmp(argv[1], "dma_test") ==0) {
+    char* str_app = argv[cur_arg];
+    if (strcmp(str_app, "dma_test") ==0) {
         dma_example(slot_id);
         exit(0);
     }
-    if (strcmp(argv[1], "sssp") ==0) {
+    if (strcmp(str_app, "sssp") ==0) {
         app = APP_SSSP;
     }
-    if (strcmp(argv[1], "des") ==0) {
+    if (strcmp(str_app, "des") ==0) {
         app = APP_DES;
     }
-    if (strcmp(argv[1], "astar") ==0) {
+    if (strcmp(str_app, "astar") ==0) {
         app = APP_ASTAR;
     }
-    if (strcmp(argv[1], "maxflow") ==0) {
+    if (strcmp(str_app, "maxflow") ==0) {
         app = APP_MAXFLOW;
     }
-    if (strcmp(argv[1], "color") ==0) {
+    if (strcmp(str_app, "color") ==0) {
         app = APP_COLOR;
     }
-    if (strcmp(argv[1], "silo") ==0) {
+    if (strcmp(str_app, "silo") ==0) {
         app = APP_SILO;
     }
-    if (argc >=4 ) fhex = fopen(argv[3], "r"); // code hex
+    if (argc >=4 ) fhex = fopen(argv[cur_arg+2], "r"); // code hex
     if ( (app > 0) & (argc <3)) {
         printf("Need input file\n");
         exit(0);
     }
     // Read the first word to determine if file is binary
-    fg = fopen(argv[2], "rb");
+    fg = fopen(argv[cur_arg+1], "rb");
     fail_on((rc = (fg == 0)? 1:0), out, "unable to open input file. ");
     uint32_t magic_op;
     fread( &magic_op, 1, 4, fg);
@@ -572,7 +591,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     FILE* fwtu = fopen("task_unit_log", "w");
     FILE* fwddr = fopen("ddr_log", "w");
     FILE* fwser = fopen("serializer_log", "w");
-    FILE* fwundo = fopen("undolog_log", "w");
+    //FILE* fwundo = fopen("undolog_log", "w");
     FILE* fwcoal = fopen("coalescer_log", "w");
     FILE* fwsp = fopen("splitter_log", "w");
     FILE* fwro = fopen("ro_log", "w");
@@ -625,7 +644,8 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         pci_poke(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 14);
         pci_poke(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 14);
         pci_poke(i, ID_RO_STAGE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 14);
-        pci_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS, 16);
+        pci_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS,
+                (USING_PIPELINED_TEMPLATE & (active_threads > 0)) ? active_threads : 16 );
 
         // Spilling config
         pci_poke(i, ID_COAL_AND_SPLITTER, SPILL_ADDR_STACK_PTR ,
@@ -659,7 +679,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         if (NO_ROLLBACK) {
             // astar - 900
             // sssp - 5000
-            pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 1000);
+            pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, 2000);
         }
 
         if (app == APP_MAXFLOW) {
@@ -786,6 +806,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     }
     uint32_t core_mask = 0;
     uint32_t active_cores = N_CORES;
+    if (!USING_PIPELINED_TEMPLATE & active_threads > 0) active_cores = active_threads;
     core_mask = (1<<(active_cores))-1;
     if (!USING_PIPELINED_TEMPLATE) core_mask <<= 16;
     core_mask |= (1<<ID_COALESCER);
