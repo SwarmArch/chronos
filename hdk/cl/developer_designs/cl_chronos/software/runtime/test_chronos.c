@@ -219,6 +219,7 @@ int main(int argc, char **argv) {
         exit(0);
     }
     // Read the first word to determine if file is binary
+    printf("Opening input file %s\n", argv[cur_arg+1]);
     fg = fopen(argv[cur_arg+1], "rb");
     fail_on((rc = (fg == 0)? 1:0), out, "unable to open input file. ");
     uint32_t magic_op;
@@ -227,7 +228,7 @@ int main(int argc, char **argv) {
     reading_binary_file = (magic_op == 0xdead);
     if (!reading_binary_file) {
         fclose(fg);
-        fg=fopen(argv[2], "r");
+        fg=fopen(argv[cur_arg+1], "r");
     }
     if (app == -1) {
         printf("Invalid app\n"); exit(0);
