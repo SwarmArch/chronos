@@ -8,8 +8,8 @@ test sssp sssp_nr_1t 1 2
 test sssp sssp_nr_1t 1 4 
 test sssp sssp_nr_1t 1 8  
 test sssp sssp_nr_1t 1 16  
-test star astar_r_1t 1 1 
-test star astar_r_1t 1 2 
-test star astar_r_1t 1 4 
-test star astar_r_1t 1 8  
-test star astar_r_1t 1 16  
+test astar astar_r_1t 1 1 
+test astar astar_r_1t 1 2 
+test astar astar_r_1t 1 4 
+test astar astar_r_1t 1 8  
+test astar astar_r_1t 1 16  

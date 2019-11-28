@@ -12,7 +12,7 @@ from os import listdir
 
 def run_cmd(cmd):
     print(cmd)
-    os.system(cmd)
+    #os.system(cmd)
 
 if len(sys.argv)<2:
     print("Usage: python run.py agfi_list.txt")
@@ -31,6 +31,11 @@ for line in fagfi:
 
 print(agfi_list)
 
+# Initialize with a random agfi
+agfi = agfi_list[ list(agfi_list)[0]]
+cmd = "sudo fpga-load-local-image -S 0 -I " + agfi
+run_cmd(cmd)
+
 downloaded_inputs = listdir("../inputs")
 AWS_PATH = "~/.local/bin/aws"
 #AWS_PATH = "aws"
@@ -45,6 +50,7 @@ AWS_PATH = "~/.local/bin/aws"
 #   Where each experiment is a tuple [app, agfi-tag, n_tiles, n_threads]
 S3_BUCKET = "chronos_inputs"
 fexp = open("experiments.txt", "r")
+tests = []
 for line in fexp:
     if line.startswith("s3_bucket"):
         S3_BUCKET = line.split()[1]
@@ -58,20 +64,23 @@ for line in fexp:
         if file_name not in downloaded_inputs:
             cmd = AWS_PATH + " s3 cp s3://" + S3_BUCKET + "/"+s[2] +" ../inputs/"
             run_cmd(cmd)
+    if line.startswith("test"):
+        s = line.split()
+        tests.append([s[1], s[2], s[3], s[4]])
 
 print(inputs_list)
+print(tests)
 
 ## Locate runtime (and compile if necessary)
-if "test_swarm" not in listdir("../../software/runtime"):
+if "test_chronos" not in listdir("../../software/runtime"):
     os.chdir("../../software/runtime")
     os.system("make")
     os.chdir(scripts_dir)
 
-if "test_swarm" not in listdir("../../software/runtime"):
+if "test_chronos" not in listdir("../../software/runtime"):
     print("ERROR: Runtime cannot be compiled. Please investigate manually....")
-    exit(0)
+    #exit(0)
 
-exit(0)
 
 d = datetime.datetime.today()
 index = 0
@@ -89,6 +98,26 @@ while(True):
 
 
 ## Runs the specified experiments and save the output to ...
+
+n_repeats = 1;
+
+for t in tests:
+    app = t[0]
+    if (t[1] not in agfi_list):
+        print("%s not found in agfi-list" % t[1])
+    agfi = agfi_list[t[1]]
+    n_tiles = t[2]
+    n_threads = t[3]
+
+    for r in range(n_repeats):
+        cmd = "sudo fpga-load-local-image -S 0 -I " + agfi
+        run_cmd(cmd)
+        cmd = "sudo ../../software/runtime/test_chronos --n_tiles=" +n_tiles
+        cmd += " --n_threads=" + n_threads +" " + app  
+        cmd += " ../inputs/" + inputs_list[app]
+        cmd += " > " + t[1] +"_"+n_tiles+"_"+n_threads 
+        run_cmd(cmd)
+
 
 
 
