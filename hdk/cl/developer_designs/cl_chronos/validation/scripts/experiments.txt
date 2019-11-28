@@ -1,0 +1,15 @@
+s3_bucket chronos-inputs
+input sssp inputs/sssp/USA-road-d.USA.gr.sssp
+input astar inputs/astar/germany_1227737_11049637.csr
+input maxflow inputs/maxflow/genrmf_wide_37_6_1_10000_0.in.flow
+input des inputs/des/csaArray32.net.csr
+test sssp sssp_nr_1t 1 1 
+test sssp sssp_nr_1t 1 2 
+test sssp sssp_nr_1t 1 4 
+test sssp sssp_nr_1t 1 8  
+test sssp sssp_nr_1t 1 16  
+test star astar_r_1t 1 1 
+test star astar_r_1t 1 2 
+test star astar_r_1t 1 4 
+test star astar_r_1t 1 8  
+test star astar_r_1t 1 16  
