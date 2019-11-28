@@ -12,7 +12,7 @@ from os import listdir
 
 def run_cmd(cmd):
     print(cmd)
-    #os.system(cmd)
+    os.system(cmd)
 
 if len(sys.argv)<2:
     print("Usage: python run.py agfi_list.txt")
@@ -37,8 +37,8 @@ cmd = "sudo fpga-load-local-image -S 0 -I " + agfi
 run_cmd(cmd)
 
 downloaded_inputs = listdir("../inputs")
-AWS_PATH = "~/.local/bin/aws"
-#AWS_PATH = "aws"
+#AWS_PATH = "~/.local/bin/aws"
+AWS_PATH = "aws"
 
 ## Read experiments
 
@@ -99,7 +99,7 @@ while(True):
 
 ## Runs the specified experiments and save the output to ...
 
-n_repeats = 1;
+n_repeats = 2;
 
 for t in tests:
     app = t[0]
@@ -112,10 +112,11 @@ for t in tests:
     for r in range(n_repeats):
         cmd = "sudo fpga-load-local-image -S 0 -I " + agfi
         run_cmd(cmd)
-        cmd = "sudo ../../software/runtime/test_chronos --n_tiles=" +n_tiles
+        cmd = "sudo ../../../software/runtime/test_chronos --n_tiles=" +n_tiles
         cmd += " --n_threads=" + n_threads +" " + app  
-        cmd += " ../inputs/" + inputs_list[app]
-        cmd += " > " + t[1] +"_"+n_tiles+"_"+n_threads 
+        cmd += " ../../inputs/" + inputs_list[app]
+        cmd += " | tee " + t[1] +"_tiles_"+n_tiles+"_threads_"+n_threads
+        cmd += "_"+str(r) +".result" 
         run_cmd(cmd)
 
 

@@ -1151,6 +1151,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                        astar_low_fail_node, astar_low_fail_node, astar_low_fail_ref);
            }
            if (app == APP_SSSP) {
+               /*
                 FILE* fs = fopen("sssp_verif", "w");
                 for (int i=0;i<numV;i++) {
                     fprintf(fs, "vid:%8d dist:%8d, ref:%8d, %s\n",
@@ -1163,6 +1164,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                     }
                 }
                 fclose(fs);
+                */
            }
            break;
        case APP_COLOR:
