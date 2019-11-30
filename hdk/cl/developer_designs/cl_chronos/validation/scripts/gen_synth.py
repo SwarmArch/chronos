@@ -26,6 +26,8 @@ while(True):
     index = index+1
 
 for line in fapps:
+    if line.strip().startswith("#"):
+        continue
     print(line)
     os.chdir(synth_dir)
     words = line.split()
