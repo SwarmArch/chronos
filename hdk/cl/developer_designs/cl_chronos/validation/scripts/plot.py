@@ -1,16 +1,40 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-fres = open('runtime.txt','r')
-##TODO read from ../runs/<date>/
+import sys
+
+if (len(sys.argv)<3):
+    print("Usage: python plot.py chronos_runtimes.txt baseline_runtimes.txt")
+    exit(0)
+
+fbaseline = open(sys.argv[2],'r')
 data = {}
-for line in fres:
+for line in fbaseline:
     s = line.split()
     if (len(s) <3): 
         continue
     app = s[0]
-    l = s[1]
-    c = int(s[2])
+    l = 'c' # (C)pu baseline
+    c = int(s[1])
+    time = float(s[2])
+    if (app not in data):
+        data[app] = {}
+    if (l not in data[app]):
+        data[app][l] = {}
+    data[app][l][c] = time 
+    print(s)
+
+fchronos = open(sys.argv[1],'r')
+for line in fchronos:
+    s = line.split()
+    if (len(s) <3): 
+        continue
+    app = s[0]
+    if app == "sssp" or app == "astar":
+        l = 'n' # (N)o rollback
+    else: 
+        l = 's' # (S)peculative, aka. with rollback
+    c = int(s[2]) * int(s[1])
     time = float(s[3])
     if (app not in data):
         data[app] = {}
@@ -24,6 +48,8 @@ print(data)
 speedups = {}
 for app in data:
     speedups[app] = {}
+    print(app)
+    print(data[app])
     norm = data[app]['c'][1]
     print([app, norm])
     for l in data[app]:
@@ -34,12 +60,11 @@ for app in data:
             speedups[app][l][1].append( norm /  data[app][l][c])
 print(speedups)
 for app in data:
-    max_cpu_cores = 40
-    if (app=='maxflow'):
-        max_cpu_cores = 6;
-    if (app=='color'):
-        max_cpu_cores = 20;
-    cpu_self_relative = data[app]['c'][1] / data[app]['c'][max_cpu_cores]
+    opt_cpu_cores = 1
+    for c in data[app]['c']:
+        if (data[app]['c'][c] < data[app]['c'][opt_cpu_cores]):
+            opt_cpu_cores = c;
+    cpu_self_relative = data[app]['c'][1] / data[app]['c'][opt_cpu_cores]
     print([app, 'cpu self-relative', cpu_self_relative])
     for l in data[app]:
         if (l=='c'):
@@ -61,7 +86,6 @@ app_plot_loc = {'des':[0,0],
                 'maxflow' : [0, 1],
                 'sssp' : [1, 0],
                 'astar' : [1,1],
-                #'color' : [2,0]
                 }
 fontsize = 19
 lw = 3
@@ -125,26 +149,3 @@ f.subplots_adjust(hspace=0.45, wspace=0.3)
 #plt.show()
 
 f.savefig("speedup.pdf",bbox_extra_artists=(lgd,))#, bbox_inches='tight')
-print(speedups['color']['c'])
-
-f, ax = plt.subplots(figsize=[4,4])
-l1 =ax.plot( speedups['color']['c'][0], speedups['color']['c'][1],
-        color=color_baseline, linewidth=lw)[0]
-l2 =ax.plot( speedups['color']['n'][0], speedups['color']['n'][1],
-        color=color_nonspec, linewidth=lw)[0]
-ax.set_ylabel('Speedup', fontsize=fontsize-1)
-ax.set_xlabel('% System used', fontsize=fontsize-1)
-plt.gcf().subplots_adjust(bottom=0.155)
-#plt.gcf().subplots_adjust(top=0.795)
-plt.text(35 ,6.5 , 'Baseline CPU',
-    ha='left', va='bottom', rotation=5, rotation_mode='anchor', fontsize=16)
-plt.text(10 ,0.6 , 'Chronos non-speculative',
-    ha='left', va='bottom', rotation=15, rotation_mode='anchor', fontsize=16)
-#lgd= f.legend( [l1, l2] ,
-#          labels = ['Baseline', 'Chronos Non-Speculative'],
-#          loc = 'lower right',
-#          bbox_to_anchor=(0.93,0.805),
-#          ncol = 1,
-#          fontsize = 14
-#          )
-f.savefig("color.pdf",bbox_extra_artists=(lgd,))#, bbox_inches='tight')
