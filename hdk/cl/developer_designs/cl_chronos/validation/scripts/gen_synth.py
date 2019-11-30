@@ -26,6 +26,8 @@ while(True):
     index = index+1
 
 for line in fapps:
+    if line.strip() == "":
+        continue
     if line.strip().startswith("#"):
         continue
     print(line)

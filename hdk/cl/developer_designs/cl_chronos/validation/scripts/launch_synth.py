@@ -29,9 +29,7 @@ for app in apps:
     print(app)
     os.chdir(os.path.join(cwd, app))
     print(os.getcwd())
-    pid = os.fork() #Uncomment to run serially
-    if (pid==0):
-        cmd = "python run_synth.py > synth_out"
-        os.system(cmd)
+    cmd = "python run_synth.py > synth_out"
+    os.system(cmd)
 
 

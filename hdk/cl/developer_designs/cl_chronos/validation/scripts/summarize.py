@@ -53,7 +53,7 @@ for f in file_list:
             n_instances[index] += 1
 
 os.chdir(scripts_dir)
-fout = open("chronos_runtime.txt","w")
+fout = open("chronos_runtimes.txt","w")
 for index in sorted(cum_time.keys()):
     avg_time = cum_time[index] / n_instances[index]
     print([index, avg_time])

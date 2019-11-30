@@ -79,7 +79,7 @@ if "test_chronos" not in listdir("../../software/runtime"):
 
 if "test_chronos" not in listdir("../../software/runtime"):
     print("ERROR: Runtime cannot be compiled. Please investigate manually....")
-    #exit(0)
+    exit(0)
 
 
 d = datetime.datetime.today()
