@@ -3,13 +3,34 @@ input sssp inputs/sssp/USA-road-d.USA.gr.sssp
 input astar inputs/astar/germany_1227737_11049637.csr
 input maxflow inputs/maxflow/genrmf_wide_37_6_1_10000_0.in.flow
 input des inputs/des/csaArray32.net.csr
-test sssp sssp_nr_1t 1 1 
-test sssp sssp_nr_1t 1 2 
-test sssp sssp_nr_1t 1 4 
-test sssp sssp_nr_1t 1 8  
-test sssp sssp_nr_1t 1 16  
-test astar astar_r_1t 1 1 
-test astar astar_r_1t 1 2 
-test astar astar_r_1t 1 4 
-test astar astar_r_1t 1 8  
-test astar astar_r_1t 1 16  
+
+test sssp sssp_nr_6t 1 1 
+test sssp sssp_nr_6t 1 16 
+test sssp sssp_nr_6t 2 16 
+test sssp sssp_nr_6t 4 16  
+test sssp sssp_nr_16t 8 16  
+test sssp sssp_nr_16t 12 16  
+test sssp sssp_nr_16t 14 16  
+test sssp sssp_nr_16t 16 16  
+
+test astar astar_nr_4t 1 1  
+test astar astar_nr_4t 1 16  
+test astar astar_nr_4t 2 16  
+test astar astar_nr_4t 4 16  
+test astar astar_nr_10t 7 16  
+test astar astar_nr_10t 10 16  
+
+test des des_r_8t 1 1
+test des des_r_8t 1 16
+test des des_r_8t 2 16
+test des des_r_8t 4 16
+test des des_r_8t 6 16
+test des des_r_8t 8 16
+
+test maxflow maxflow_r_2t 1 1
+test maxflow maxflow_r_2t 1 16
+test maxflow maxflow_r_2t 2 16
+test maxflow maxflow_r_8t 4 16
+test maxflow maxflow_r_8t 6 16
+test maxflow maxflow_r_8t 8 16
+

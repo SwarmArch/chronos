@@ -99,12 +99,13 @@ while(True):
 
 ## Runs the specified experiments and save the output to ...
 
-n_repeats = 2;
+n_repeats = 5;
 
 for t in tests:
     app = t[0]
     if (t[1] not in agfi_list):
         print("%s not found in agfi-list" % t[1])
+        continue
     agfi = agfi_list[t[1]]
     n_tiles = t[2]
     n_threads = t[3]
