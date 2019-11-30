@@ -1,2 +1,8 @@
-sssp pipe sssp_nr_1t
-astar pipe astar_r_1t
+sssp pipe sssp_nr_14t
+sssp pipe sssp_nr_6t
+astar pipe astar_nr_10t
+astar pipe astar_nr_4t
+des pipe des_r_8t
+des pipe des_r_2t
+maxflow pipe maxflow_r_8t
+maxflow pipe maxflow_r_2t
