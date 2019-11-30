@@ -1,3 +1,7 @@
+# Each app has two configs.
+# The larger system disables some spilling hardware for increased chance of
+# routing closure. 
+
 sssp pipe sssp_nr_16t
 sssp pipe sssp_nr_6t
 astar pipe astar_nr_10t
