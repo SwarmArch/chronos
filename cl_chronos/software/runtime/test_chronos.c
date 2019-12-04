@@ -180,6 +180,9 @@ int main(int argc, char **argv) {
         printf("%s\n", usage);
         exit(0);
     }
+    /* initialize the fpga_plat library */
+    rc = fpga_mgmt_init();
+    fail_on(rc, out, "Unable to initialize the fpga_mgmt library");
 
     /* initialize the fpga_pci library so we could have access to FPGA PCIe from this applications */
     rc = fpga_pci_init();
@@ -193,9 +196,6 @@ int main(int argc, char **argv) {
     rc = check_afi_ready(slot_id);
     fail_on(rc, out, "AFI not ready");
 
-    /* initialize the fpga_plat library */
-    rc = fpga_mgmt_init();
-    fail_on(rc, out, "Unable to initialize the fpga_mgmt library");
 
     int n_options = 0;
     int cur_arg = 1;
