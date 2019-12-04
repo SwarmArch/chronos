@@ -14,5 +14,5 @@ else
    echo "Creating symlink aws_fpga/hdk/cl/developer_designs/cl_chronos" 
 fi
 
-## source aws_setup.sh
+source aws_setup.sh
 ## TODO install DMA drivers

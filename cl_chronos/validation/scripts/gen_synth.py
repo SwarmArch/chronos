@@ -63,4 +63,6 @@ for line in fapps:
     cmd = "python ./scripts/gen_cores.py "+app +" " + pipe
     print(cmd)
     os.system(cmd)
+ 
+os.chdir(scripts_dir)
 

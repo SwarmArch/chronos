@@ -15,6 +15,11 @@ def get_latest_dir(dir_name):
     dirs = sorted([d for d in dirs if d.startswith("20")])
     return dirs[-1]
 
+# Step 0: Configure environment variables
+scripts_dir = os.getcwd();
+os.chdir("../../../")
+run_cmd("source aws_setup.sh")
+os.chdir(scripts_dir)
 
 # Step 1: Create Synthesis scripts for each application (gen_synth.py) 
 # This script reads apps.txt and generates the synthesis scripts for each
