@@ -15,4 +15,11 @@ else
 fi
 
 source aws_setup.sh
-## TODO install DMA drivers
+## install DMA drivers
+# (https://github.com/aws/aws-fpga/blob/master/sdk/linux_kernel_drivers/xdma/xdma_install.md)
+sudo rmmod xocl 
+sudo yum install kernel kernel-devel
+cd aws-fpga/sdk/linux_kernel_drivers/xdma/
+make
+sudo make install
+sudo modprobe xdma
