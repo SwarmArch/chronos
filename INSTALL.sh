@@ -12,4 +12,7 @@ then
 else
    ln -s cl_chronos aws-fpga/hdk/cl/developer_designs/cl_chronos 
    echo "Creating symlink aws_fpga/hdk/cl/developer_designs/cl_chronos" 
-fi 
+fi
+
+## source aws_setup.sh
+## TODO install DMA drivers
