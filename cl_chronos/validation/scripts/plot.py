@@ -69,10 +69,14 @@ for app in data:
     for l in data[app]:
         if (l=='c'):
             continue
-        eff_factor = (data[app]['c'][1] / data[app][l][1])
+        fpga_1task = (data[app]['c'][1] / data[app][l][1])
+        fpga_1tile = (data[app]['c'][1] / data[app][l][16])
         max_cores = max(data[app][l].keys())
+        fpga_all_tiles = (data[app]['c'][1] / data[app][l][max_cores])
         fpga_self_relative = (data[app][l][1] / data[app][l][max_cores])
-        print([app,l, eff_factor, fpga_self_relative] ) 
+        overall = (data[app]['c'][opt_cpu_cores] / data[app][l][max_cores])
+        print([app,l, fpga_1task, fpga_1tile, fpga_all_tiles,
+            fpga_self_relative, overall] ) 
 
 x = np.linspace(0, 2, 130)
 

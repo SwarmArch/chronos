@@ -11,6 +11,7 @@ Galois-2.4/: Contains the source code for sssp, astar and maxflow applications
     in Galois-2.4/lonestar/<sssp/astar/preflowpush> respectively
 Galois-2.1/: Contains source code for des in Galois-2.1/apps/des. 
     (DES is from an older version of Galois beacuse DES is deprecated in 2.4)
+color      : Contains source code for baseline graph coloring.
 binaries/: Precompiled binaries for the four applications. 
 inputs/  : Inputs for four applications
 run_experiments.py : Runs the binaries with the inputs for all applications at
