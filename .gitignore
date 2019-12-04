@@ -1,0 +1,98 @@
+cscope.files
+cscope.out
+tags
+simv
+simv.daidir
+csrc
+ucli.key
+vc_hdrs.h
+INCA_libs
+irun.log
+irun.key
+
+fpga-local-cmd*
+static-fpga-local-cmd
+
+*_compile.log
+*_run.log
+*.vpd
+.simvision
+*.vcd
+*.vcdplus*
+waves.shm
+*.mod.c
+*.order
+*.symvers
+
+.*
+*~
+.\#*
+\#*
+
+*.swp
+*.o
+.nfs*
+*.so
+*.a
+*.ko
+*.csr
+*.swo
+*.swn
+*.swm
+
+nohup.out
+*.nohup.out
+
+# Shell DCP files are stored in S3 and downloaded by hdk_setup.sh
+hdk/common/shell_*/build/checkpoints/from_aws/SH_CL_BB_routed.dcp*
+
+# Generated checkpoints
+checkpoints
+
+# Created when building DDR4 models
+build.lock
+hdk/common/verif/models/.vivado_version
+
+# These get created when you run vivado interactively or batch
+vivado_pid*.str
+vivado*.jou
+vivado*.log
+
+# Pycharm projects
+.idea/
+
+# Python compiled code
+*.pyc
+
+# all files from vivado simulations except tb.wcfg
+**sim/
+!tb.wcfg
+
+
+# graph inputs
+*.net
+*.gr
+
+# auto generated files
+**/cl_clocks_aws.xdc
+obj_dir
+debug_probes
+*.log
+test_chronos
+#graph_gen
+sdk/userspace/lib
+*.hex
+*.dump
+*.out
+a
+*.color
+*.sssp
+*.edges
+*.bin
+*.flow
+cl_chronos/design/config_app.vh
+cl_chronos/design/gen_core_spec.vh
+cl_chronos/design/gen_core_spec_tile.vh
+cl_chronos/design/app_config.vh
+aws-fpga/
+
