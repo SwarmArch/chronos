@@ -57,9 +57,9 @@ else:
 # Step 4: Averages the result from experiments. Writes output to
 # chronos_runtimes.txt
 # Also generates the cycle breakdown and queue utilization plots.
-#run_dir = get_latest_dir("../runs/")
-#run_cmd("python summarize.py " + run_dir)
+run_dir = get_latest_dir("../runs/")
+run_cmd("python summarize.py " + run_dir)
 
 
 # Step 5: Generates the speedup plot in Figure 10. (speedup.pdf)
-#run_cmd("python plot.py chronos_runtimes.txt ../baseline/baseline_ref.txt") 
+run_cmd("python plot.py chronos_runtimes.txt ../baselines/runtime_ref.txt") 
