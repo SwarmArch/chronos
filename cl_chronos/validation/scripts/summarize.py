@@ -332,7 +332,7 @@ plt.gcf().subplots_adjust(top=0.80)
 
 mpl_fig.savefig("queue.pdf")#, bbox_inches='tight')
 
-
+os.chdir(scripts_dir)
 
 exit(0)
 

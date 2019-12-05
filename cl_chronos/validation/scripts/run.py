@@ -55,9 +55,11 @@ for line in fexp:
     if line.startswith("zenodo"):
         url = line.split()[1]
         print(url)
-	if not downloaded_inputs:
+	if 'chronos-inputs.zip' not in downloaded_inputs:
+	    os.chdir("../inputs/")
 	    run_cmd("wget "+url)
 	    run_cmd("unzip chronos-inputs.zip") 
+	    os.chdir(scripts_dir)
     if line.startswith("input"):
         s = line.split()
         app = s[1]
