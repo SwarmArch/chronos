@@ -1,9 +1,15 @@
 # Validation of results in the paper is done by running five separate python
 # scripts one after the other. This script specifies this sequence. 
+
 # However, running the entire script might take about a week (mostly to run the
 # FPGA build flow), hence it is recommended that the scripts are run
 # individually in the specified order
 
+# To facilitate quick evaluation, we also provide precompiled images. 
+# To use them, run this script with the --precompile option. 
+# Note that precompiled images are not available for some high-tile count systems,
+# (sssp 16 tiles, maxflow - 8t, astar - 10t) since they didn't finish synthesis
+# before the submission deadline. 
 
 import os
 import sys
@@ -51,9 +57,9 @@ else:
 # Step 4: Averages the result from experiments. Writes output to
 # chronos_runtimes.txt
 # Also generates the cycle breakdown and queue utilization plots.
-run_dir = get_latest_dir("../runs/")
-run_cmd("python summarize.py " + run_dir)
+#run_dir = get_latest_dir("../runs/")
+#run_cmd("python summarize.py " + run_dir)
 
 
 # Step 5: Generates the speedup plot in Figure 10. (speedup.pdf)
-run_cmd("python plot.py chronos_runtimes.txt ../baseline/baseline_ref.txt") 
+#run_cmd("python plot.py chronos_runtimes.txt ../baseline/baseline_ref.txt") 
