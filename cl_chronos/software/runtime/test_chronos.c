@@ -913,7 +913,9 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
            loop_debuggin_spec(iters);
        }
+       usleep(1);
        iters++;
+       if (iters > 300000) exit(0);
 
    }
    // disable new dequeues from cores; for accurate counting of no tasks stalls
