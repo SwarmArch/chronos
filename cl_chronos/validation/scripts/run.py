@@ -101,7 +101,7 @@ while(True):
 
 ## Runs the specified experiments and save the output to ...
 
-n_repeats = 5;
+n_repeats = 10;
 
 for t in tests:
     app = t[0]
