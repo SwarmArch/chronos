@@ -1,8 +1,9 @@
 # Some apps have two configs.
-# The larger system disables some spilling hardware for increased chance of
+# The larger system is optimized for increased chance of
 # routing closure. 
 
 sssp pipe sssp_nr_16t
+sssp pipe sssp_nr_6t
 astar pipe astar_nr_6t
 astar pipe astar_nr_10t
 des pipe des_r_8t
@@ -10,10 +11,10 @@ des pipe des_r_2t
 maxflow pipe maxflow_r_8t
 maxflow pipe maxflow_r_2t
 
-color pipe color_nr_5t
+# color pipe color_nr_5t
 
 # Needed for sensitivity studies
-sssp pipe sssp_r_8t
-astar pipe astar_r_6t
-riscv riscv_nr_4t
-riscv riscv_r_4t
+# sssp pipe sssp_r_8t
+# astar pipe astar_r_6t
+# riscv riscv_nr_4t
+# riscv riscv_r_4t
