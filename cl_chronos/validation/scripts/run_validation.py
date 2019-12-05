@@ -6,6 +6,7 @@
 
 
 import os
+import sys
 def run_cmd(cmd):
     print(cmd)
     os.system(cmd)
@@ -17,17 +18,12 @@ def get_latest_dir(dir_name):
     return dirs[-1]
 
 Use_Precompiled_Images = False
-if len(argv)>1:
-    if argv[1] == '--precompiled':
+if len(sys.argv)>1:
+    if sys.argv[1] == '--precompiled':
         Use_Precompiled_Images = True
 
-if not Use_Precompiled_Images:
-# Step 0: Configure environment variables
-    scripts_dir = os.getcwd();
-    os.chdir("../../../")
-    run_cmd("source aws_setup.sh")
-    os.chdir(scripts_dir)
 
+if not Use_Precompiled_Images:
 # Step 1: Create Synthesis scripts for each application (gen_synth.py) 
 # This script reads apps.txt and generates the synthesis scripts for each
 # application. These synthesis scripts are placed in

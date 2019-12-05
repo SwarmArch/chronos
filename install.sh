@@ -19,7 +19,8 @@ source aws_setup.sh
 # (https://github.com/aws/aws-fpga/blob/master/sdk/linux_kernel_drivers/xdma/xdma_install.md)
 sudo rmmod xocl 
 sudo yum install kernel kernel-devel
-cd aws-fpga/sdk/linux_kernel_drivers/xdma/
-make
-sudo make install
+(cd aws-fpga/sdk/linux_kernel_drivers/xdma/; make; sudo make install)
 sudo modprobe xdma
+
+## Needed for plotting
+sudo yum install python-matplotlib

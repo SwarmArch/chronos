@@ -193,6 +193,8 @@ def getDataNonspec(file, baselineTasks):
 print("Cycle breakdown plot")
 os.chdir("../runs/"+result_dir)
 print(best_result_file)
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 

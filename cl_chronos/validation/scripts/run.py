@@ -52,18 +52,18 @@ S3_BUCKET = "chronos_inputs"
 fexp = open("experiments.txt", "r")
 tests = []
 for line in fexp:
-    if line.startswith("s3_bucket"):
-        S3_BUCKET = line.split()[1]
-        print(S3_BUCKET)
+    if line.startswith("zenodo"):
+        url = line.split()[1]
+        print(url)
+	if not downloaded_inputs:
+	    run_cmd("wget "+url)
+	    run_cmd("unzip chronos-inputs.zip") 
     if line.startswith("input"):
         s = line.split()
         app = s[1]
         s3_loc = s[2]
         file_name = s[2].split("/")[-1]
         inputs_list[app] = file_name
-        if file_name not in downloaded_inputs:
-            cmd = AWS_PATH + " s3 cp s3://" + S3_BUCKET + "/"+s[2] +" ../inputs/"
-            run_cmd(cmd)
     if line.startswith("test"):
         s = line.split()
         tests.append([s[1], s[2], s[3], s[4]])
@@ -115,10 +115,11 @@ for t in tests:
         run_cmd(cmd)
         cmd = "sudo ../../../software/runtime/test_chronos --n_tiles=" +n_tiles
         cmd += " --n_threads=" + n_threads +" " + app  
-        cmd += " ../../inputs/" + inputs_list[app]
+        cmd += " ../../inputs/chronos-inputs/" + inputs_list[app]
         cmd += " | tee " + t[1] +"_tiles_"+n_tiles+"_threads_"+n_threads
         cmd += "_"+str(r) +".result" 
         run_cmd(cmd)
+	#exit(0)
 
 
 
