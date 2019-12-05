@@ -1,4 +1,4 @@
-s3_bucket chronos-inputs
+zenodo https://zenodo.org/record/3563178/files/chronos-inputs.zip
 input sssp inputs/sssp/USA-road-d.USA.gr.sssp
 input astar inputs/astar/germany_1227737_11049637.csr
 input maxflow inputs/maxflow/genrmf_wide_37_6_1_10000_0.in.flow

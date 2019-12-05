@@ -42,9 +42,9 @@ AWS_PATH = "aws"
 
 ## Read experiments
 
-## The inputs are locates in a public S3 bucket. (set below)
+## The inputs are locates in a Zenodo hosted zip file
 ## The experiments.txt file specifies the 
-## 1. This public S3 bucket
+## 1. The link to the zip file
 ## 2. The input file names for each application
 ## 3. The experiments to run with these inputs 
 #   Where each experiment is a tuple [app, agfi-tag, n_tiles, n_threads]

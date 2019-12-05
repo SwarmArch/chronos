@@ -4,6 +4,7 @@
 # FPGA build flow), hence it is recommended that the scripts are run
 # individually in the specified order
 
+
 import os
 def run_cmd(cmd):
     print(cmd)
@@ -15,27 +16,37 @@ def get_latest_dir(dir_name):
     dirs = sorted([d for d in dirs if d.startswith("20")])
     return dirs[-1]
 
+Use_Precompiled_Images = False
+if len(argv)>1:
+    if argv[1] == '--precompiled':
+        Use_Precompiled_Images = True
+
+if not Use_Precompiled_Images:
 # Step 0: Configure environment variables
-scripts_dir = os.getcwd();
-os.chdir("../../../")
-run_cmd("source aws_setup.sh")
-os.chdir(scripts_dir)
+    scripts_dir = os.getcwd();
+    os.chdir("../../../")
+    run_cmd("source aws_setup.sh")
+    os.chdir(scripts_dir)
 
 # Step 1: Create Synthesis scripts for each application (gen_synth.py) 
 # This script reads apps.txt and generates the synthesis scripts for each
 # application. These synthesis scripts are placed in
 # validation/synth/<date-index>
-run_cmd("python gen_synth.py")
+    run_cmd("python gen_synth.py")
 
 
 # Step 2: Launch these synthesis scripts for each app sequentially.
 # The output of this is the agfi_list.txt specifying AGFI-ID for each FPGA image
-syn_dir = get_latest_dir("../synth/")
-run_cmd("python launch_synth.py " + syn_dir)
+    syn_dir = get_latest_dir("../synth/")
+    run_cmd("python launch_synth.py " + syn_dir)
 
 # Step 3: Runs a set of experiments (experiments.txt) on the generated FPGA images and records
 # their output ("../runs/<date-index>")
-run_cmd("python run.py ../synth/" +  syn_dir + "/agfi_list.txt")
+    run_cmd("python run.py ../synth/" +  syn_dir + "/agfi_list.txt")
+else: 
+    run_cmd("aws s3 cp s3://chronos-images/agfi_list.txt ." )
+    run_cmd("python run.py agfi_list.txt")
+    
 
 ## Following steps require matplotlib
 ## Please run 'sudo yum install python-matplotlib' if necessary
