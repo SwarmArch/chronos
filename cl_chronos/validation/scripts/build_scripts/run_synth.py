@@ -8,10 +8,9 @@
 ## Need to be run from validation/synth/<date>/<app>/
 
 #Set the location of aws executable, if running on AWS instances it is just "aws"
-#AWS_PATH = "aws"
-AWS_PATH = "~/.local/bin/aws"
+AWS_PATH = "aws"
 
-S3_BUCKET = "maleen"
+S3_BUCKET = "chronos-runs"
 S3_KEY = "dcp/"
 S3_PATH = "s3://" + S3_BUCKET + "/" + S3_KEY 
 
@@ -27,7 +26,7 @@ app = cwd.split("/")[-1]
 
 ## Run synthesis
 os.chdir("build/scripts")
-cmd = "CL_DIR=" + cwd + " aws_build_dcp_from_cl.sh"
+cmd = "CL_DIR=" + cwd + " ./aws_build_dcp_from_cl.sh"
 run_cmd(cmd)
 
 ## copy tar to aws s3

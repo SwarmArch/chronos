@@ -3,8 +3,8 @@
 # routing closure. 
 
 sssp pipe sssp_nr_16t
-sssp pipe sssp_nr_6t
 astar pipe astar_nr_6t
+astar pipe astar_nr_16t
 des pipe des_r_8t
 des pipe des_r_2t
 maxflow pipe maxflow_r_8t

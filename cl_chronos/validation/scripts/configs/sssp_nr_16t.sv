@@ -55,8 +55,8 @@ package chronos;
    parameter N_TILES = 16;   // Number of tiles
    parameter N_THREADS = 16; 
    parameter LOG_CQ_SLICE_SIZE = 7; // log of Commit Queue size per tile
-   parameter LOG_TQ_SIZE = 12;  // Task Queue: Task Array size
-   parameter TQ_STAGES = 12;  // Task Queue: min_heap size (has to be >= array size)
+   parameter LOG_TQ_SIZE = 11;  // Task Queue: Task Array size
+   parameter TQ_STAGES = 11;  // Task Queue: min_heap size (has to be >= array size)
    parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in object serializer
    parameter CACHE_INDEX_WIDTH = 11; // index bits in cache
    parameter CACHE_NUM_WAYS = 4;     // number of cache ways

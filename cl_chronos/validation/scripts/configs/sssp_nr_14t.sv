@@ -52,16 +52,16 @@ package chronos;
    `include "app_config.vh"
 
    // most used onfiguration options
-   parameter N_TILES = 8;   // Number of tiles
+   parameter N_TILES = 14;   // Number of tiles
    parameter N_THREADS = 16; 
    parameter LOG_CQ_SLICE_SIZE = 7; // log of Commit Queue size per tile
    parameter LOG_TQ_SIZE = 12;  // Task Queue: Task Array size
-   parameter TQ_STAGES = 13;  // Task Queue: min_heap size (has to be >= array size)
+   parameter TQ_STAGES = 12;  // Task Queue: min_heap size (has to be >= array size)
    parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in object serializer
-   parameter CACHE_INDEX_WIDTH = 12; // index bits in cache
+   parameter CACHE_INDEX_WIDTH = 11; // index bits in cache
    parameter CACHE_NUM_WAYS = 4;     // number of cache ways
    
-   parameter NO_ROLLBACK = 0; // aborted tasks are not rolled back  
+   parameter NO_ROLLBACK = 1; // aborted tasks are not rolled back  
    //If you kno that the TQ will not overflow, set this to save some area.
    parameter NO_SPILLING = 1; 
 
@@ -96,11 +96,11 @@ package chronos;
    // Number of DDR controllers (1, 2 or 4).  If your application is not memory bound,
    // reducing the number of controllers can save area. (Each DDR controllers takes roughly
    // the same area as a tile).
-   parameter N_DDR_CTRL = 1;
+   parameter N_DDR_CTRL = 4;
 
    // how many tiles go directly into the memory xbar. has to be a power of two
    // Increase this parameter if this xbar becomes the bottleneck.
-   parameter XBAR_IN_TILES = 1;
+   parameter XBAR_IN_TILES = 4;
 
    // Specifies whether to use a simple unordered FIFO as the task queue; 
    // The default settings uses the ordered min_heap. 
@@ -108,8 +108,8 @@ package chronos;
    // both of the following should be changed together. Unfortunately cannot 
    // `define inside and if block in SV.
    parameter UNORDERED = 0;
-   `define TASK_UNIT_MODULE task_unit
-   //`define TASK_UNIT_MODULE task_unit_non_rollback
+   //`define TASK_UNIT_MODULE task_unit
+   `define TASK_UNIT_MODULE task_unit_non_rollback
    //`define TASK_UNIT_MODULE task_unit_unordered
 
    
