@@ -54,7 +54,7 @@ package chronos;
    // most used onfiguration options
    parameter N_TILES = 8;   // Number of tiles
    parameter N_THREADS = 16; 
-   parameter LOG_CQ_SLICE_SIZE = 7; // log of Commit Queue size per tile
+   parameter LOG_CQ_SLICE_SIZE = 8; // log of Commit Queue size per tile
    parameter LOG_TQ_SIZE = 12;  // Task Queue: Task Array size
    parameter TQ_STAGES = 13;  // Task Queue: min_heap size (has to be >= array size)
    parameter LOG_READY_LIST_SIZE = 4; // Size of the ready list in object serializer
