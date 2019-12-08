@@ -703,7 +703,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         if (NO_ROLLBACK) {
             // astar - 900
             // sssp - 5000
-            uint32_t throttle_margin = (app == APP_ASTAR) ? 900 : 2000;
+            uint32_t throttle_margin = (app == APP_ASTAR) ? 900 : 5000;
             pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, throttle_margin);
         }
 
