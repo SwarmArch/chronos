@@ -49,8 +49,10 @@ module write_rw
    output logic            task_out_valid,
    input                   task_out_ready,
    output task_t           task_out,  
-   output ro_data_t           data_out,  
+   output rw_data_t        data_out,  
+   output logic            task_out_is_rw,
    output cq_slice_slot_t  task_out_cq_slot,  
+   output thread_id_t      task_out_thread_id,  
    
    input fifo_size_t   task_out_fifo_occ, 
    
@@ -82,7 +84,8 @@ rw_data_t s_wdata;
 
 logic s_out_valid, s_out_ready;
 task_t s_out_task;
-ro_data_t s_out_data;
+rw_data_t s_out_data;
+logic s_out_task_rw;
 
 logic s_sched_valid, s_sched_ready;
 
@@ -90,7 +93,9 @@ always_ff @(posedge clk) begin
    if (s_task_out_valid) begin
       task_out <= s_out_task;
       data_out <= s_out_data;
+      task_out_is_rw <= s_out_task_rw;
       task_out_cq_slot <= task_in.cq_slot;
+      task_out_thread_id <= task_in.thread;
    end
 end
 
@@ -254,10 +259,12 @@ end
    .wvalid (s_wvalid),
    .waddr  (),
    .wdata  (s_wdata),
+   .wsize  (),
 
    .out_valid (s_out_valid),
    .out_task  (s_out_task),
    .out_data  (s_out_data),
+   .out_task_rw (s_out_task_rw), 
 
    .sched_task_valid (s_sched_valid),
    .sched_task_ready (s_sched_ready),
