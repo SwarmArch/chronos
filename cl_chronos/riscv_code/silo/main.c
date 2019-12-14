@@ -67,6 +67,13 @@ table_info tbl_stock;
 
 uint32_t* chronos_mem = 0;
 
+void save_record(uint32_t* base_ptr, int len) {
+    for (int i=0;i<len;i++) {
+        undo_log_write((base_ptr +i), *(base_ptr+i));
+    }
+
+}
+
 
 // gets a ptr into a data structure in chronos memory located
 // starting at word 'offset'
@@ -129,6 +136,7 @@ void tx_enqueuer_task(uint32_t ts, uint32_t object, uint32_t start) {
 
 void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uint32_t _tx_info) {
    uint32_t d = (object >> 4) & 0xf;
+   save_record(&districts_rw[d].d_next_o_id, 1);
    uint32_t d_next_o_id = districts_rw[d].d_next_o_id++;
    printf("\td_next_o_id %d %d\n", d, d_next_o_id);
    enq_task_arg2(NEW_ORDER_INSERT_NEW_ORDER, ts, OBJECT_NEW_ORDER, _tx_info, d_next_o_id);
@@ -160,6 +168,8 @@ void new_order_insert_new_order(uint32_t ts, uint32_t object, uint32_t _tx_info,
    struct new_order* fifo = (struct new_order*) tbl_new_order.fifo_base;
    struct tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
    struct new_order n = {o_id, tx_info.d_id, tx_info.w_id};
+   save_record(&tbl_new_order.wr_ptr, 1);
+   save_record((uint32_t*) &fifo[tbl_new_order.wr_ptr], 1);
    fifo[tbl_new_order.wr_ptr] = n;
    tbl_new_order.wr_ptr++;
 }
@@ -171,6 +181,8 @@ void new_order_insert_order(uint32_t ts, uint32_t object, uint32_t pkey, uint32_
    order* order_ptr = (order*) find_record(&tbl_order, pkey, bucket, offset);
 
    uint32_t* o_int_ptr = (uint32_t*) order_ptr;
+   save_record(o_int_ptr, 2);
+   // TODO ol_cnt
    o_int_ptr[0] = pkey;
    order_ptr->o_c_id = (offset_cid & 0xffff);
    printf("\tinsert_order %d %d %d %d\n", tbl_order.table_base, bucket, offset, order_ptr->o_c_id);
@@ -233,6 +245,8 @@ void new_order_update_stock(uint32_t ts, uint32_t object, uint32_t pkey, uint32_
    stock_ptr->s_ytd++;
    int new_qty = (stock_ptr->s_quantity - qty);
    if (new_qty < 10) new_qty += 91;
+
+   save_record(&stock_ptr->s_quantity, 1);
    stock_ptr->s_quantity = new_qty;
    // TODO To update s_remote_cnt need to pass in o_wid
 }
@@ -245,6 +259,7 @@ void new_order_insert_order_line(uint32_t ts, uint32_t object, uint32_t pkey, ui
    order_line* order_line_ptr = (order_line*) find_record(&tbl_order_line, pkey, bucket, offset);
 
    uint32_t* o_int_ptr = (uint32_t*) order_line_ptr;
+   save_record(o_int_ptr, 3);
    o_int_ptr[0] = pkey;
    order_line_ptr->ol_supply_w_id = (wid_qty_amt >> 24);
    order_line_ptr->ol_i_id = offset_i_id & 0xffffff;
