@@ -149,7 +149,7 @@ module task_unit_unordered
    logic [LOG_TQ_SPILL_SIZE-1:0] task_unit_spill_size;
    logic [LOG_TQ_SPILL_SIZE-1:0] spills_remaining;
 
-   tq_slot_t n_tasks, n_producer_tasks;
+   logic [LOG_TQ_SIZE:0] n_tasks, n_producer_tasks;
 
    logic tq_stall;
    logic tq_started;
@@ -233,7 +233,7 @@ module task_unit_unordered
       fifo_rd_en = 1'b0;
       producer_fifo_rd_en = 1'b0;
       splitter_deq_valid = 1'b0;
-      if (spills_remaining == 0) begin
+      if (spills_remaining == 0 && tq_started) begin
          if (deq_producer) begin
             if (producer_fifo_rd_data.ttype == TASK_TYPE_SPLITTER) begin
                splitter_deq_valid = 1'b1;

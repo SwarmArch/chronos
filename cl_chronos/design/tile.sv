@@ -1028,7 +1028,7 @@ assign fifo_cc_valid = !out_task_fifo_empty;
 logic out_task_fifo_wr_en;
 assign out_task_fifo_wr_en = cq_out_task_valid & cq_out_task_ready;
 
-logic [4:0] out_task_fifo_size;
+logic [6:0] out_task_fifo_size;
 assign out_task_fifo_almost_full = (out_task_fifo_size >1);
 
 fifo #(
