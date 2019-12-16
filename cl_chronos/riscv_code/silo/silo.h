@@ -132,8 +132,8 @@ struct fifo_table_info {
    void* fifo_base;
    uint32_t num_records;
    uint32_t record_size;
-   uint32_t rd_ptr;
-   uint32_t wr_ptr;
+   uint32_t* rd_ptr;
+   uint32_t* wr_ptr;
 };
 struct table_info {
    uint8_t log_bucket_size;
