@@ -121,15 +121,15 @@ void* get_record(table_info* tbl, uint32_t pkey){
 }
 
 void tx_enqueuer_task(uint32_t ts, uint32_t object, uint32_t start) {
-   if (start + 7 < num_tx) {
-      //enq_task_arg1(TX_ENQUEUER_TASK, (start+7)<<8, object, start+7);
-   }
    int end = start+7; if (num_tx < end) end = num_tx;
    for (int i=start;i<end;i++) {
       struct tx_info_new_order* tx_info = (tx_info_new_order*) (&tx_data[tx_offset[i]]);
       //printf("offset %d %d %x\n", i, tx_offset[i], tx_data[tx_offset[i]]);
       enq_task_arg2(NEW_ORDER_UPDATE_DISTRICT, (i<<8), OBJECT_DISTRICT | (tx_info->d_id << 4) , i,
             *(uint32_t*) tx_info);
+   }
+   if (start + 7 < num_tx) {
+      enq_task_arg1(TX_ENQUEUER_TASK, (start+7)<<8, object, start+7);
    }
 }
 
@@ -242,12 +242,12 @@ void new_order_update_stock(uint32_t ts, uint32_t object, uint32_t pkey, uint32_
 
    stock* stock_ptr = (stock*) find_record(&tbl_stock, pkey, bucket, offset);
    printf("\t stock %d %d\n", stock_ptr->s_i_id, stock_ptr->s_quantity);
+   save_record(&stock_ptr->s_quantity, 4);
 
    stock_ptr->s_ytd++;
    int new_qty = (stock_ptr->s_quantity - qty);
    if (new_qty < 10) new_qty += 91;
 
-   save_record(&stock_ptr->s_quantity, 1);
    stock_ptr->s_quantity = new_qty;
    // TODO To update s_remote_cnt need to pass in o_wid
 }

@@ -165,13 +165,23 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
              }
          }
 
+         /*
          if (deq_max.valid) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) deq_max      slot:%4d tied:%d heap_cap:%4d\n",
-               seq, cycle,
-               gvt_ts, gvt_tb,
-               n_tasks, n_tied_tasks, heap_capacity,
-               deq_max.slot, deq_max.tied, deq_object>>16);
+            if (NO_ROLLBACK) {
+                fprintf(fw,"[%6d][%10u][] (%4d:%4d:%5d) deq_max      slot:%4d tied:%d heap_cap:%4d\n",
+                   seq, cycle,
+                   n_tasks, n_tied_tasks, heap_capacity,
+                   deq_max.slot, deq_max.tied, deq_object>>16);
+            } else {
+                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) deq_max      slot:%4d tied:%d heap_cap:%4d\n",
+                   seq, cycle,
+                   gvt_ts, gvt_tb,
+                   n_tasks, n_tied_tasks, heap_capacity,
+                   deq_max.slot, deq_max.tied, deq_object>>16);
+
+            }
          }
+         */
          if (coal_child.valid & coal_child.ready) {
             fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) coal_child   slot:%4d ts:%4d object:%6d ttype:%1d (%6x)\n",
                seq, cycle,
@@ -187,11 +197,20 @@ void write_task_unit_log(unsigned char* log_buffer, FILE* fw, uint32_t log_size,
                overflow_task.slot, buf[i*16+9], buf[i*16+10]) ;
          }
          if (deq_task.valid & deq_task.ready ) {
-            fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_deq     slot:%4d ts:%4d object:%6d cq_slot %2d, epoch:%3d \n",
-               seq, cycle,
-               gvt_ts, gvt_tb,
-               n_tasks, n_tied_tasks, heap_capacity,
-               deq_task.slot, deq_ts, deq_object, deq_task.epoch_1, deq_task.epoch_2) ;
+            if (NO_ROLLBACK) {
+                fprintf(fw,"[%6d][%10u][] (%4d:%4d:%5d) task_deq     slot:%4d ts:%4d object:%6d cq_slot %2d, epoch:%3d \n",
+                   seq, cycle,
+                   n_tasks, n_tied_tasks, heap_capacity,
+                   deq_task.slot, deq_ts, deq_object,
+                   deq_task.epoch_1, deq_task.epoch_2) ;
+            } else {
+                fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) task_deq     slot:%4d ts:%6x object:%6x cq_slot %2d, epoch:%3d \n",
+                   seq, cycle,
+                   gvt_ts, gvt_tb,
+                   n_tasks, n_tied_tasks, heap_capacity,
+                   deq_task.slot, deq_ts, deq_object,
+                   deq_task.epoch_1, deq_task.epoch_2) ;
+            }
          }
          if (splitter_deq_valid & splitter_deq_ready) {
             fprintf(fw,"[%6d][%10u][%6u:%10u] (%4d:%4d:%5d) splitter_deq slot:%4d ts:%4d object:%6d cq_slot %2d, epoch:%3d \n",
@@ -629,7 +648,7 @@ int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log
         unsigned int start_task_ready = buf[i*16 + 6] >> 30 & 1;
         unsigned int start_task_core = buf[i*16 + 6] >> 24 & 0x3f;
         unsigned int start_task_slot = buf[i*16 + 6] >> 17 & 0x7f;
-        fprintf(fw, " \t \t %x %x %x %x\n", buf[i*16], buf[i*16+1], buf[i*16+14], buf[i*16+11]);
+    //    fprintf(fw, " \t \t %x %x %x %x\n", buf[i*16], buf[i*16+1], buf[i*16+14], buf[i*16+11]);
         unsigned int gvt_ts = buf[i*16+10];
         unsigned int gvt_tb = buf[i*16+11];
 
@@ -735,6 +754,7 @@ int log_cq(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log
    return 0;
 }
 
+uint32_t last_awid=0;
 int log_ddr(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
 
    uint32_t log_size;
@@ -817,7 +837,6 @@ int log_ddr(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* lo
            unsigned int pci_awlen = (buf[i*16+15] >> 24) & 0xff;
 
            bool f = false;
-           uint32_t last_awid;
            if (arvalid) {
                fprintf(fw,"[%6d][%10u][%d%d] arvalid addr:%8x id:%4x (%1x:%1x:%2x) \n",
                        seq, cycle,

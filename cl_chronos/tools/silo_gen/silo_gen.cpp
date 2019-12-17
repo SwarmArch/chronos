@@ -28,7 +28,7 @@ const int n_districts_per_warehouse = 10;
 const int n_districts = n_warehouses * n_districts_per_warehouse;
 const int num_customers_per_district = 3000;
 const int num_items = 100000;
-const int num_tx = 1000;
+const int num_tx = 10000;
 
 // Warehouse and Distric tables are simple arrays.
 bool debug = false;
