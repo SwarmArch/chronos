@@ -300,3 +300,107 @@ assign b.rlast = out.rlast;
    );
 
 endmodule
+
+module axi_debug(
+   input clk,
+   input rstn,
+
+   axi_bus_t.snoop a,
+   axi_bus_t.snoop b,
+   axi_bus_t.snoop out,
+
+
+   pci_debug_bus_t.master                 pci_debug,
+   reg_bus_t.master                       reg_bus
+
+);
+   logic log_valid;
+   typedef struct packed {
+        
+      logic [31:0] a_awaddr;
+      logic [31:0] b_awaddr;
+      logic [31:0] out_awaddr;
+      logic [15:0] a_awid;
+      logic [15:0] a_wid;
+      logic [15:0] b_awid;
+      logic [15:0] b_wid;
+      logic [15:0] out_awid;
+      logic [15:0] out_wid;
+
+      logic [19:0] unused_1;
+      logic a_awvalid;
+      logic a_awready;
+      logic a_wvalid;
+      logic a_wready;
+      logic b_awvalid;
+      logic b_awready;
+      logic b_wvalid;
+      logic b_wready;
+      logic out_awvalid;
+      logic out_awready;
+      logic out_wvalid;
+      logic out_wready;
+
+
+
+   } axi_log_t;
+   axi_log_t log_word;
+
+logic [LOG_LOG_DEPTH:0] log_size; 
+always_comb begin
+   log_word = 0;
+      log_word.a_awaddr = a.awaddr;
+      log_word.b_awaddr = b.awaddr;
+      log_word.out_awaddr = out.awaddr;
+      log_word.a_awid = a.awid;
+      log_word.b_awid = b.awid;
+      log_word.out_awid = out.awid;
+      log_word.a_wid = a.wid;
+      log_word.b_wid = b.wid;
+      log_word.out_wid = out.wid;
+
+      log_word.a_awvalid = a.awvalid;
+      log_word.a_awready = a.awready;
+      log_word.a_wvalid = a.wvalid;
+      log_word.a_wready = a.wready;
+      log_word.b_awvalid = b.awvalid;
+      log_word.b_awready = b.awready;
+      log_word.b_wvalid = b.wvalid;
+      log_word.b_wready = b.wready;
+      log_word.out_awvalid = out.awvalid;
+      log_word.out_awready = out.awready;
+      log_word.out_wvalid = out.wvalid;
+      log_word.out_wready = out.wready;
+
+      log_valid = (a.awvalid | a.wvalid | b.awvalid | b.wvalid | out.awvalid | out.wvalid);
+end
+   log #(
+      .WIDTH($bits(log_word)),
+      .LOG_DEPTH(LOG_LOG_DEPTH)
+   ) AXI_LOG (
+      .clk(clk),
+      .rstn(rstn),
+
+      .wvalid(log_valid),
+      .wdata(log_word),
+
+      .pci(pci_debug),
+
+      .size(log_size)
+
+   );
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      reg_bus.rvalid <= 1'b0;
+      reg_bus.rdata <= 'x;
+   end else
+   if (reg_bus.arvalid) begin
+      reg_bus.rvalid <= 1'b1;
+      case (reg_bus.araddr) 
+         DEBUG_CAPACITY : reg_bus.rdata <= log_size;
+      endcase
+   end
+end
+
+endmodule

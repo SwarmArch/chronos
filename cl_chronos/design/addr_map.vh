@@ -56,7 +56,7 @@
    parameter L2_ID_COAL = 2;
    parameter L2_ID_SPLITTER = 3;
    parameter L2_ID_UNDO_LOG = 10; // does not matter
-   parameter ID_LAST = 13;
+   parameter ID_LAST = 15;
 `else
    parameter CM_PORTS = 3 + N_CORES;
    parameter L2_ID_COAL = N_CORES;

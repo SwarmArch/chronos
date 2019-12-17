@@ -664,6 +664,28 @@ axi_mux
    .out_q(mem_bus)
 );
 
+axi_bus_t debug_mem_bus();
+always_comb begin
+    debug_mem_bus.awvalid = mem_bus.awvalid;
+    debug_mem_bus.awready = mem_bus.awready;
+    debug_mem_bus.wvalid = mem_bus.wvalid;
+    debug_mem_bus.wready = mem_bus.wready;
+    debug_mem_bus.awaddr = mem_bus.awaddr;
+    debug_mem_bus.awid = mem_bus.awid;
+    debug_mem_bus.wid = mem_bus.wid;
+end
+axi_debug AXI_DEBUG (
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
+   .a(l2_out_d[0]),
+   .b(l2_out_d[1]),
+   .out(debug_mem_bus),
+
+   .reg_bus(reg_bus[ID_UNDO_LOG + 1]),
+
+   .pci_debug(pci_debug[ID_UNDO_LOG+1])
+);
+
 
 logic tq_empty;
 logic tsb_empty;
