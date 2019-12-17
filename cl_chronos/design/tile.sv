@@ -686,7 +686,6 @@ axi_debug AXI_DEBUG (
    .pci_debug(pci_debug[ID_UNDO_LOG+1])
 );
 
-
 logic tq_empty;
 logic tsb_empty;
 logic all_cores_idle;

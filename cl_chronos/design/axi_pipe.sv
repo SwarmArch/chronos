@@ -314,6 +314,12 @@ module axi_debug(
    reg_bus_t.master                       reg_bus
 
 );
+
+// Ideally this should be in the top-level config.sv
+// However this should be very rarely used, so putting it here.
+// Also helps maintain backwards compatibility with validation scripts
+localparam AXI_DEBUG=0;
+
    logic log_valid;
    typedef struct packed {
         
@@ -374,6 +380,8 @@ always_comb begin
 
       log_valid = (a.awvalid | a.wvalid | b.awvalid | b.wvalid | out.awvalid | out.wvalid);
 end
+generate
+if (AXI_DEBUG) begin
    log #(
       .WIDTH($bits(log_word)),
       .LOG_DEPTH(LOG_LOG_DEPTH)
@@ -389,6 +397,11 @@ end
       .size(log_size)
 
    );
+end else begin 
+    assign log_size=0;
+end
+endgenerate
+
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
