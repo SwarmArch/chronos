@@ -958,7 +958,7 @@ module lru_repl
       logic hit;
    } tree_node;   
 
-   tree_node tree [CACHE_LOG_WAYS+1][CACHE_NUM_WAYS];
+   tree_node tree [CACHE_LOG_WAYS+1][2**CACHE_LOG_WAYS];
    genvar i,j;
    
    generate 
@@ -969,6 +969,11 @@ module lru_repl
                is_flush ? 
                   (tag_rdata[i].state == VALID) && (tag_rdata[i].dirty):
                   ( tag_rdata[i].state != INVALID) && (tag_rdata[i].tag == ref_tag);
+      end
+      for (i=CACHE_NUM_WAYS; i<2**CACHE_LOG_WAYS;i++) begin
+         assign tree[CACHE_LOG_WAYS][i].prio    = '1;
+         assign tree[CACHE_LOG_WAYS][i].id    = i;
+         assign tree[CACHE_LOG_WAYS][i].hit   = 1'b0;
       end
 
    endgenerate
