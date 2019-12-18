@@ -127,13 +127,9 @@ genvar i,j;
 // AW Channel
 slave_vec_t          [NUM_MI-1:0] aw_sched_in;
 slave_index_t        [NUM_MI-1:0] aw_sched_out;
+
 logic                [NUM_MI-1:0] aw_can_take_new;
-
-// If awvalid and wvalid is asserted for the same transaction, they are consumed
-// sequentially, maintaing the AXI requirement of no out-of-order Ws.
-logic                [NUM_MI-1:0] waiting_for_w;
-slave_index_t        [NUM_MI-1:0] w_sched_out;
-
+logic                [NUM_MI-1:0] w_can_take_new;
 
 generate
 for (i=0;i<NUM_SI;i++) begin
@@ -152,8 +148,8 @@ for (i=0;i<NUM_MI;i++) begin : aw_sched
    for (j=0;j<NUM_SI;j++) begin
       assign aw_sched_in[i][j] = s_awvalid[j] & (i== s_aw_port[j]);
    end
-   assign aw_can_take_new[i] = (!m_awvalid[i] | m_awready[i]) &
-               (!waiting_for_w[i] ) ; 
+   assign aw_can_take_new[i] = (!m_awvalid[i] | m_awready[i]);
+   assign w_can_take_new[i] = (!m_wvalid[i] | m_wready[i]); 
 
    rr_sched #(
       .OUT_WIDTH(LOG_NUM_SI),
@@ -171,8 +167,10 @@ for (i=0;i<NUM_MI;i++) begin : aw_sched
    always @(posedge clk) begin
       if (!rstn) begin
          m_awvalid[i] <= 1'b0;
+         m_wvalid[i] <= 1'b0;
       end else begin
          if (s_awvalid[aw_sched_out[i]] & s_awready[aw_sched_out[i]] &
+             s_wvalid[aw_sched_out[i]] & s_wready[aw_sched_out[i]] &
                (s_aw_port[ aw_sched_out[i] ] == i) ) begin 
             m_awid   [i] <= s_awid   [aw_sched_out[i]];
             if (num_mem_ctrl == 1) begin
@@ -184,12 +182,22 @@ for (i=0;i<NUM_MI;i++) begin : aw_sched
             end
             m_awlen  [i] <= s_awlen  [aw_sched_out[i]];
             m_awsize [i] <= s_awsize [aw_sched_out[i]];
+            m_wid    [i] <= s_wid   [aw_sched_out[i]];
+            m_wdata  [i] <= s_wdata [aw_sched_out[i]];
+            m_wstrb  [i] <= s_wstrb [aw_sched_out[i]];
+            m_wlast  [i] <= s_wlast [aw_sched_out[i]];
+
 
             m_awvalid[i] <= 1'b1;
+            m_wvalid [i] <= 1'b1;
 
-            w_sched_out[i] <= aw_sched_out[i];
-         end else if (m_awvalid[i] & m_awready[i]) begin
-            m_awvalid[i] <= 1'b0;
+        end else begin
+            if (m_awvalid[i] & m_awready[i]) begin
+                m_awvalid[i] <= 1'b0;
+            end 
+            if (m_wvalid[i] & m_wready[i]) begin
+                m_wvalid[i] <= 1'b0;
+            end 
          end
       end
    end
@@ -199,11 +207,15 @@ endgenerate
 generate 
 for (i=0;i <NUM_SI; i=i+1) begin   
    always_comb begin
-      if (aw_can_take_new[ s_aw_port[i] ] & s_awvalid[i] & (i==aw_sched_out[s_aw_port[i]])) begin 
+      if (aw_can_take_new[ s_aw_port[i] ] & s_awvalid[i] &
+          w_can_take_new[s_aw_port[i]] & s_wvalid[i] &
+          (i==aw_sched_out[s_aw_port[i]])) begin 
          // master can take new req & we are valid & scheduler chose us 
          s_awready[i] = 1'b1;
+         s_wready[i] = 1'b1;
       end else begin
          s_awready[i] = 1'b0;
+         s_wready[i] = 1'b0;
       end
    end
 
@@ -215,6 +227,7 @@ for (i=0;i <NUM_SI; i=i+1) begin
 end
 endgenerate
 
+/*
 generate 
 for (i=0; i<NUM_MI;i++) begin
    always_ff @(posedge clk) begin
@@ -237,7 +250,6 @@ end
 endgenerate
 
 // W Channel
-logic                [NUM_MI-1:0] w_can_take_new;
 
 
 generate
@@ -276,6 +288,7 @@ for (i=0;i <NUM_SI; i=i+1) begin
    end
 end
 endgenerate
+*/
 
 // AR Channel
 slave_vec_t          [NUM_MI-1:0] ar_sched_in;

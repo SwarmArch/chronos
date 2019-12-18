@@ -141,10 +141,12 @@ axi_bus_t sh_ocl_bus_q();
 axi_bus_t sh_cl_dma_pcis_bus();
 axi_bus_t sh_cl_dma_pcis_bus_q();
 axi_bus_t pci_arb_mem_arb_bus();
+axi_bus_t axi_tree_0_p();
 
 axi_pipe 
 #(
-   .STAGES(1)
+   .STAGES(1),
+   .WRITE_TOGETHER(0)
 ) OCL_PIPE (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
@@ -155,7 +157,8 @@ axi_pipe
 
 axi_pipe 
 #(
-   .STAGES(1)
+   .STAGES(1),
+   .WRITE_TOGETHER(0)
 ) PCIS_PIPE (
    .clk(clk_main_a0),
    .rstn(rst_main_n_sync),
@@ -649,7 +652,8 @@ generate;
    for (i=0;i<4;i=i+1) begin
       axi_pipe 
       #(
-         .STAGES(1)
+         .STAGES(1),
+         .WRITE_TOGETHER(0)
       ) DDR_PIPE (
          .clk(clk_main_a0),
          .rstn(rst_main_n_sync),
@@ -940,7 +944,8 @@ for (i=0;i<N_TILES;i=i+1) begin
       
    axi_pipe 
    #(
-      .STAGES(2)
+      .STAGES(2),
+      .WRITE_TOGETHER(0)
    ) OCL_PIPE (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1032,7 +1037,18 @@ axi_decoder #(
   .rstn(rst_main_n_sync),
 
   .core(pci_arb_mem_arb_bus),
-  .l2(axi_tree[0])
+  .l2(axi_tree_0_p)
+);
+   
+axi_pipe 
+#(
+  .STAGES(1)
+) PCI_OUT_PIPE (
+  .clk(clk_main_a0),
+  .rstn(rst_main_n_sync),
+
+  .in(axi_tree_0_p),
+  .out(axi_tree[0])
 );
 
 

@@ -25,13 +25,33 @@
 module axi_pipe
 #( 
    parameter STAGES = 1,
-   parameter NO_RESP = 0 // only register AW,W,AR channels
+   parameter NO_RESP = 0, // only register AW,W,AR channels
+   parameter WRITE_TOGETHER = 1
 ) (
    input clk,
    input rstn,
    axi_bus_t in,
    axi_bus_t out
 );
+
+logic i_awvalid;
+logic i_wvalid;
+logic i_awready;
+logic i_wready;
+
+generate 
+if (WRITE_TOGETHER) begin
+    assign out.awvalid = i_awvalid & i_wvalid;
+    assign out.wvalid = i_awvalid & i_wvalid;
+    assign i_awready = out.awready & out.wready & out.awvalid;
+    assign i_wready = out.awready & out.wready & out.awvalid;
+end else begin
+    assign out.awvalid = i_awvalid;
+    assign out.wvalid = i_wvalid;
+    assign i_awready = out.awready;
+    assign i_wready = out.wready;
+end
+endgenerate
 
 register_slice
 #(
@@ -45,8 +65,8 @@ AW_SLICE (
    .s_valid(in.awvalid),
    .s_ready(in.awready),
    
-   .m_valid(out.awvalid),
-   .m_ready(out.awready),
+   .m_valid(i_awvalid),
+   .m_ready(i_awready),
 
    .s_data( { in.awid,  in.awaddr,  in.awlen,  in.awsize}),
    .m_data( {out.awid, out.awaddr, out.awlen, out.awsize})
@@ -65,8 +85,8 @@ W_SLICE (
    .s_valid(in.wvalid),
    .s_ready(in.wready),
    
-   .m_valid(out.wvalid),
-   .m_ready(out.wready),
+   .m_valid(i_wvalid),
+   .m_ready(i_wready),
 
    .s_data( { in.wid,  in.wdata,  in.wstrb,  in.wlast}),
    .m_data( {out.wid, out.wdata, out.wstrb, out.wlast})
@@ -217,7 +237,7 @@ always_comb begin
    if (!awsel) begin
       out.awid       = a.awid;
       out.awaddr     = a.awaddr;
-      out.awvalid    = a.awvalid & !w_waiting;
+      out.awvalid    = a.awvalid & !w_waiting & (out.awready & out.wready);
       out.awlen      = a.awlen;
       out.awsize     = a.awsize;
 

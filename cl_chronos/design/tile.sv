@@ -200,7 +200,8 @@ axi_bus_t ocl_bus_q();
    
    axi_pipe 
    #(
-      .STAGES(2)
+      .STAGES(2),
+      .WRITE_TOGETHER(0)
    ) OCL_PIPE (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
