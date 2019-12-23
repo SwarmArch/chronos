@@ -88,7 +88,7 @@ d = datetime.datetime.today()
 index = 0
 runs = listdir("../runs")
 while(True):
-    dirname = str(d.year) + "-" + str(d.month) + "-" + str(d.day) + "_" +  str(index)
+    dirname = str(d.year) + "-" + format(d.month, '02') + "-" + format(d.day,'02') + "_" +  format(index, '02')
     if dirname not in runs:
         print("creating directory "+dirname)
         os.mkdir("../runs/" + dirname)
@@ -123,6 +123,7 @@ for t in tests:
         run_cmd(cmd)
 	#exit(0)
 
+os.chdir(scripts_dir)
 
 
 
