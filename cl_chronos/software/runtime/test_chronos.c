@@ -859,8 +859,8 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     int iters = 0;
    
-   clock_t t1, t2;
-   t1 = clock();
+   time_t t1,t2;
+   t1 = time(NULL);
    while(true) {
        uint32_t gvt;
        if (NO_ROLLBACK) {
@@ -917,11 +917,13 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        }
        usleep(1);
        iters++;
-	t2 = clock() - t1;
-       int time_s = t2/ CLOCKS_PER_SEC;
+       t2 = time(NULL); 
+       double time_s = (double)(t2-t1);
        if (time_s > 30) exit(0);
 
    }
+       double time_s = (double) (t2-t1) ;
+   printf("time_s %f\n", time_s);
    // disable new dequeues from cores; for accurate counting of no tasks stalls
    pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES ,0x0);
    for (int i=0;i<N_TILES;i++) {
