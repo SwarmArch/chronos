@@ -213,7 +213,7 @@ assign l1.bready = ((state == COAL_WRITE_STACK_PTR_WAIT) & (l1.bid[3:0] == write
 logic [4:0] coal_child_fifo_size;
    fifo #(
       .LOG_DEPTH(4),
-      .WIDTH(32+16)
+      .WIDTH(TS_WIDTH+16)
    ) COAL_CHILD_FIFO (
       .clk(clk),
       .rstn(rstn),

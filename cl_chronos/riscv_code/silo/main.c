@@ -67,6 +67,12 @@ table_info tbl_stock;
 
 uint32_t* chronos_mem = 0;
 
+void save_record(uint32_t* base_ptr, int len) {
+    for (int i=0;i<len;i++) {
+        undo_log_write((base_ptr +i), *(base_ptr+i));
+    }
+}
+
 
 // gets a ptr into a data structure in chronos memory located
 // starting at word 'offset'
@@ -129,6 +135,7 @@ void tx_enqueuer_task(uint32_t ts, uint32_t object, uint32_t start) {
 
 void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uint32_t _tx_info) {
    uint32_t d = (object >> 4) & 0xf;
+   save_record(&districts_rw[d].d_next_o_id, 1);
    uint32_t d_next_o_id = districts_rw[d].d_next_o_id++;
    printf("\td_next_o_id %d %d\n", d, d_next_o_id);
    enq_task_arg2(NEW_ORDER_INSERT_NEW_ORDER, ts, OBJECT_NEW_ORDER, _tx_info, d_next_o_id);
@@ -157,11 +164,15 @@ void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uin
 
 
 void new_order_insert_new_order(uint32_t ts, uint32_t object, uint32_t _tx_info, uint32_t o_id) {
+    // TODO: break this into two tasks, update wr_ptr and write fifo_entry
    struct new_order* fifo = (struct new_order*) tbl_new_order.fifo_base;
    struct tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
    struct new_order n = {o_id, tx_info.d_id, tx_info.w_id};
-   fifo[tbl_new_order.wr_ptr] = n;
-   tbl_new_order.wr_ptr++;
+   save_record(tbl_new_order.wr_ptr, 1);
+   save_record((uint32_t*) &fifo[*tbl_new_order.wr_ptr], 1);
+   printf("\t\tnew_order %d\n", *tbl_new_order.wr_ptr);
+   fifo[*tbl_new_order.wr_ptr] = n;
+   (*tbl_new_order.wr_ptr)++;
 }
 
 void new_order_insert_order(uint32_t ts, uint32_t object, uint32_t pkey, uint32_t offset_cid) {
@@ -171,6 +182,8 @@ void new_order_insert_order(uint32_t ts, uint32_t object, uint32_t pkey, uint32_
    order* order_ptr = (order*) find_record(&tbl_order, pkey, bucket, offset);
 
    uint32_t* o_int_ptr = (uint32_t*) order_ptr;
+   save_record(o_int_ptr, 2);
+   // TODO ol_cnt
    o_int_ptr[0] = pkey;
    order_ptr->o_c_id = (offset_cid & 0xffff);
    printf("\tinsert_order %d %d %d %d\n", tbl_order.table_base, bucket, offset, order_ptr->o_c_id);
@@ -233,6 +246,8 @@ void new_order_update_stock(uint32_t ts, uint32_t object, uint32_t pkey, uint32_
    stock_ptr->s_ytd++;
    int new_qty = (stock_ptr->s_quantity - qty);
    if (new_qty < 10) new_qty += 91;
+
+   save_record(&stock_ptr->s_quantity, 1);
    stock_ptr->s_quantity = new_qty;
    // TODO To update s_remote_cnt need to pass in o_wid
 }
@@ -245,6 +260,7 @@ void new_order_insert_order_line(uint32_t ts, uint32_t object, uint32_t pkey, ui
    order_line* order_line_ptr = (order_line*) find_record(&tbl_order_line, pkey, bucket, offset);
 
    uint32_t* o_int_ptr = (uint32_t*) order_line_ptr;
+   save_record(o_int_ptr, 3);
    o_int_ptr[0] = pkey;
    order_line_ptr->ol_supply_w_id = (wid_qty_amt >> 24);
    order_line_ptr->ol_i_id = offset_i_id & 0xffffff;
@@ -253,16 +269,23 @@ void new_order_insert_order_line(uint32_t ts, uint32_t object, uint32_t pkey, ui
    printf("\tinsert_order_line %d %d %d %d\n",
       tbl_order_line.table_base, bucket, offset, order_line_ptr->ol_i_id);
    order_line* p1 = (order_line*) get_record(&tbl_order_line, pkey);
-   printf("\t %d\n", p1->ol_i_id);
 }
 
 
-int main() {
+int main(int argc, char** argv) {
    chronos_init();
 
 #ifndef RISCV
    // Simulator code
-   const char* fname = "../../tools/silo_gen/silo_tx";
+
+   if (argc <3) {
+       printf("usage: silo_sim in_file out_file\n");
+       exit(0);
+   }
+
+   //const char* fname = "../../tools/silo_gen/silo_tx";
+   char* fname = argv[1];
+   char* fout_name = argv[2];
    FILE* fp = fopen(fname, "rb");
    // obtain file size:
    fseek (fp , 0 , SEEK_END);
@@ -290,8 +313,8 @@ int main() {
    tbl_new_order.fifo_base =  chronos_ptr(24);
    tbl_new_order.num_records = chronos_mem[25] >> 16;
    tbl_new_order.record_size = chronos_mem[25] & 0xffff;
-   tbl_new_order.wr_ptr = chronos_mem[chronos_mem[26]];
-   tbl_new_order.rd_ptr = chronos_mem[chronos_mem[26]+1];
+   tbl_new_order.wr_ptr = &chronos_mem[chronos_mem[26]];
+   tbl_new_order.rd_ptr = &chronos_mem[chronos_mem[26]+1];
 
    fill_tbl_header(&tbl_cust_ro, 12);
    fill_tbl_header(&tbl_cust_rw, 14);
@@ -301,13 +324,15 @@ int main() {
    fill_tbl_header(&tbl_stock, 22);
 
    printf("new order wr_ptr %d, rd_ptr %d\n",
-         tbl_new_order.wr_ptr, tbl_new_order.rd_ptr);
+         *tbl_new_order.wr_ptr, *tbl_new_order.rd_ptr);
    printf("order %d %d %d\n", tbl_order.log_bucket_size, tbl_order.log_num_buckets, tbl_order.record_size);
 
    uint ttype, ts, object, arg0, arg1, arg2;
    while (1) {
       deq_task_arg3(&ttype, &ts, &object, &arg0, &arg1, &arg2);
-//      if (ttype == -1) break;
+#ifndef RISCV
+      if (ttype == -1) break;
+#endif
       switch(ttype){
           case TX_ENQUEUER_TASK:
               tx_enqueuer_task(ts, object, arg0);
@@ -337,6 +362,12 @@ int main() {
 
       finish_task();
    }
+#ifndef RISCV
+    // Write current state
+    FILE* fout = fopen(fout_name,"wb");
+    fwrite( (void*) chronos_mem, 1, lSize, fout);
+    fclose(fout);
+#endif
    return 0;
 }
 

@@ -62,6 +62,7 @@ module color_rw
    input task_t            in_task, 
    input rw_data_t          in_data,
    input cq_slice_slot_t   in_cq_slot,
+   output logic [2:0]      wsize,
    
    output logic            wvalid,
    output logic [31:0]     waddr,
@@ -70,6 +71,7 @@ module color_rw
    output logic            out_valid,
    output task_t           out_task,
    output ro_data_t           out_data,
+   output logic            out_task_rw,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,
@@ -90,6 +92,8 @@ assign wdata = write_word;
 
 assign task_in_ready = sched_task_valid & sched_task_ready;
 assign sched_task_valid = task_in_valid;
+assign out_task_rw = 1'b0;
+assign wsize = 4;
 
 logic [31:0] neighbor_id; 
 logic [15:0] neighbor_degree;

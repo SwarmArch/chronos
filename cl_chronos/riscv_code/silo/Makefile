@@ -17,22 +17,23 @@
 
 INCLUDES = -I$(SDK_DIR)/userspace/include 
 
-#CC = riscv-none-embed-gcc
-#CFLAGS = -march=rv32i -mabi=ilp32 -T linker_script 
+#CC = g++
 CC = riscv-none-embed-g++
 CFLAGS = -march=rv32i -mabi=ilp32 -T linker_script -DRISCV -specs=nosys.specs 
 
 
 SRC = main.c silo.h 
 OBJ = $(SRC:.c=.o)
-BIN = main 
+BIN = riscv
 
 all: $(BIN) 
 
-$(BIN): $(OBJ)
+riscv: $(OBJ)
 	$(CC) $(CFLAGS) -O3 -o $^ $(SRC)  
 	riscv-none-embed-objdump -D main.o > main.dump
 	riscv-none-embed-objcopy --output-target=ihex main.o main.hex
+sim: $(OBJ)
+	g++ -O3 -o silo_sim  $(SRC)
 
 clean:
 	rm -f *.o $(BIN)

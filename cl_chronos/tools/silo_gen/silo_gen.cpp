@@ -219,7 +219,7 @@ void initialize_item() {
 void initialize_stock() {
    printf("Initializing Stock\n");
    initialize_table(&tbl_stock);
-   debug = true;
+   //debug = true;
    for (int w=0;w<n_warehouses;w++) {
       for (int i=1;i<=num_items;i++){
          stock s;
@@ -232,7 +232,7 @@ void initialize_stock() {
          insert_record(&tbl_stock, &s);
       }
    }
-   debug = false;
+   //debug = false;
 }
 
 void generate_tx() {
@@ -388,7 +388,7 @@ void write_output(FILE* fp) {
    data[29] = history_ptr;
    data[history_ptr] = 0;
    data[history_ptr + 1] = 0;
-   // histroy table is not initialized;
+   // history table is not initialized;
 
    data[30] = base_end;
 

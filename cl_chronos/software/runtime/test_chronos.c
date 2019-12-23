@@ -556,6 +556,10 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         headers[13] = 3;
         printf("dest lat %d %x\n", dest_lat_addr, headers[11]);
     }
+    if (app == APP_SILO) {
+        headers[1] = 1000; // num_tx
+
+    }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
 
@@ -703,7 +707,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         if (NO_ROLLBACK) {
             // astar - 900
             // sssp - 5000
-            uint32_t throttle_margin = (app == APP_ASTAR) ? 900 : 2000;
+            uint32_t throttle_margin = (app == APP_ASTAR) ? 900 : 5000;
             pci_poke(i, ID_TASK_UNIT, TASK_UNIT_THROTTLE_MARGIN, throttle_margin);
         }
 
@@ -893,22 +897,22 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        }
        if (logging_on) {
 
-           log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
-                       (N_TILES << 8) | ID_GLOBAL);
+           //log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
+           //            (N_TILES << 8) | ID_GLOBAL);
            log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
            if (APP_ID == RISCV_ID) {
-              log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
+              //log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
            } else if (USING_PIPELINED_TEMPLATE) {
               log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
               log_rw_stage(pci_bar_handle, read_fd, fwrw, log_buffer, ID_RW_READ) ;
            }
 
-           log_cache(pci_bar_handle, read_fd, fwl2, log_buffer, ID_L2_RW);
-           log_cache(pci_bar_handle, read_fd, fwl2ro, log_buffer, ID_L2_RO);
-           log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
-           log_coalescer(pci_bar_handle, read_fd, fwcoal, log_buffer, ID_COALESCER);
-           log_splitter(pci_bar_handle, read_fd, fwsp, log_buffer, ID_SPLITTER);
-           log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
+           //log_cache(pci_bar_handle, read_fd, fwl2, log_buffer, ID_L2_RW);
+           //log_cache(pci_bar_handle, read_fd, fwl2ro, log_buffer, ID_L2_RO);
+           //log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
+           //log_coalescer(pci_bar_handle, read_fd, fwcoal, log_buffer, ID_COALESCER);
+           //log_splitter(pci_bar_handle, read_fd, fwsp, log_buffer, ID_SPLITTER);
+           //log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
            fflush(fwtu); fflush(fwro); fflush(fwcq); fflush(fwl2); fflush(fwrv_0);
            fflush(fwl2ro); fflush(fwcoal); fflush(fwsp);
            usleep(200);

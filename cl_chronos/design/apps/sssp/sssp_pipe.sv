@@ -40,12 +40,14 @@ module sssp_rw
    // Data write
    output logic            wvalid,
    output logic [31:0]     waddr,
-   output rw_data_t         wdata,
+   output object_t         wdata,
+   output logic [2:0]      wsize,
 
-   // Data to be passed to the RO stage
+   // Continuation task
    output logic            out_valid,
    output task_t           out_task,
-   output ro_data_t           out_data,
+   output ro_data_t        out_data,
+   output logic            out_task_rw,
 
    // The following denotes that the RW portion of the current task has been completed 
    // For now this is the same as task_in_valid/ready. But may not be if the RW
@@ -61,6 +63,8 @@ module sssp_rw
 logic [31:0] base_rw_addr;
 assign task_in_ready = sched_task_valid & sched_task_ready;
 assign sched_task_valid = task_in_valid;
+assign out_task_rw = 1'b0;
+assign wsize = 2;
 always_comb begin 
    wvalid = 0;
    wdata = 'x;

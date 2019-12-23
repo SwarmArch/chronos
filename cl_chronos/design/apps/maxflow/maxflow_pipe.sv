@@ -87,10 +87,12 @@ module maxflow_rw
    output logic            wvalid,
    output logic [31:0]     waddr,
    output rw_data_t         wdata,
+   output logic [2:0]      wsize,
 
    output logic            out_valid,
    output task_t           out_task,
    output ro_data_t           out_data,
+   output logic            out_task_rw,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,
@@ -131,6 +133,8 @@ assign push_task_reverse_edge_id = in_task.args[27:24];
 
 logic signed [31:0] flow_amount;
 
+assign out_task_rw = 1'b0;
+assign wsize = 6;
 always_comb begin 
    wvalid = 0;
    waddr = base_vertex_data + ( in_task.object << 6) ;

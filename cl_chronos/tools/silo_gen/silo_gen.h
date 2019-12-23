@@ -43,6 +43,7 @@ struct district_ro {
 struct district_rw {
    uint32_t d_next_o_id;
    uint32_t d_ytd;
+   uint8_t __padding__[24];
 };
 
 struct customer_ro {
@@ -53,7 +54,7 @@ struct customer_ro {
    char c_credit[2];
    uint32_t c_credit_lim;
    uint32_t c_discount;
-   char c_string_data[128];
+   char c_string_data[10];
 
 };
 
@@ -66,7 +67,7 @@ struct customer_rw {
    uint32_t c_payment_cnt;
    uint32_t c_delivery_cnt;
 
-   char c_data [450]; // to fit into a cache line
+   char c_data [10]; // to fit into 32 B
 };
 
 struct order{
@@ -78,7 +79,7 @@ struct order{
    uint8_t o_carrier_id;
    uint8_t o_ol_cnt;
    uint8_t o_all_local;
-   uint8_t __padding__;
+   uint8_t __padding__[16];
 };
 
 struct order_line {
@@ -91,15 +92,15 @@ struct order_line {
    uint8_t ol_quantity;
    uint16_t ol_amount;
    uint32_t ol_delivery_d;
-   char ol_dist_info[24];
+   char ol_dist_info[16];
 };
 
 struct item {
    uint32_t i_id;
    uint32_t i_im_id;
    uint32_t i_price;
-   char i_name[24];
-   char i_data[50];
+   char i_name[10];
+   char i_data[10];
 };
 
 struct stock {
@@ -109,6 +110,7 @@ struct stock {
    uint32_t s_order_cnt;
    uint32_t s_remote_cnt;
    uint32_t s_ytd;
+   char __padding__ [12]; // to fit into 32 B
 };
 
 struct new_order {

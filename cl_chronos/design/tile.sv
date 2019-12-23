@@ -1028,12 +1028,14 @@ assign fifo_cc_valid = !out_task_fifo_empty;
 logic out_task_fifo_wr_en;
 assign out_task_fifo_wr_en = cq_out_task_valid & cq_out_task_ready;
 
-logic [4:0] out_task_fifo_size;
+localparam LOG_OUT_TASK_FIFO_SIZE = 7;
+
+logic [LOG_OUT_TASK_FIFO_SIZE:0] out_task_fifo_size;
 assign out_task_fifo_almost_full = (out_task_fifo_size >1);
 
 fifo #(
       .WIDTH( $bits(cq_out_task) + $bits(cq_out_task_slot)),
-      .LOG_DEPTH(6)
+      .LOG_DEPTH( LOG_OUT_TASK_FIFO_SIZE )
    ) OUT_TASK_FIFO (
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
@@ -1095,6 +1097,41 @@ logic ro_idle;
 generate 
 `ifdef USE_PIPELINED_TEMPLATE
 
+logic rw_in_fifo_full;
+logic rw_in_fifo_empty;
+fifo_size_t rw_in_fifo_occ;
+
+logic rw_in_fifo_in_valid;
+task_t rw_in_fifo_in_task, rw_in_fifo_out_task;
+cq_slice_slot_t rw_in_fifo_in_cq_slot, rw_in_fifo_out_cq_slot;
+thread_id_t rw_in_fifo_in_thread, rw_in_fifo_out_thread;
+logic rw_in_fifo_out_valid;
+logic rw_in_fifo_out_ready;
+
+always_comb begin
+   issue_task_ready = 1'b0;
+   rw_in_fifo_in_valid = 1'b0;
+   rw_in_fifo_in_cq_slot = 'x;
+   rw_in_fifo_in_task = 'x;
+   rw_in_fifo_in_thread = 'x;
+   if (!rw_in_fifo_full) begin
+      if (rw_write_out_valid & rw_write_out_is_rw) begin
+         rw_in_fifo_in_valid = 1'b1;
+         rw_in_fifo_in_task = rw_write_out_task;
+         rw_in_fifo_in_cq_slot = rw_write_out_cq_slot;
+         rw_in_fifo_in_thread = rw_write_out_thread;
+         
+      end else if (issue_task_valid) begin
+         issue_task_ready = 1'b1;
+         rw_in_fifo_in_valid = 1'b1;
+         rw_in_fifo_in_task = issue_task;
+         rw_in_fifo_in_cq_slot = issue_task_cq_slot;
+         rw_in_fifo_in_thread = issue_task_thread;
+      end
+   end
+
+end
+ 
 logic rw_read_out_fifo_full;
 logic rw_read_out_fifo_empty;
 fifo_size_t rw_read_out_fifo_occ;
@@ -1108,6 +1145,28 @@ logic rw_write_in_ready;
 assign rw_read_out_ready = !rw_read_out_fifo_full;
 assign rw_write_in_valid = !rw_read_out_fifo_empty;
 
+assign rw_in_fifo_out_valid = !rw_in_fifo_empty;
+
+// Add a fifo here between serializer and read_rw
+recirculating_fifo #(
+      .WIDTH( $bits(issue_task) + $bits(issue_task_cq_slot) + $bits(issue_task_thread)),
+      .LOG_DEPTH(LOG_STAGE_FIFO_SIZE)
+   ) RW_IN_FIFO (
+      .clk(clk_main_a0),
+      .rstn(rst_main_n_sync),
+      .wr_en(rw_in_fifo_in_valid & !rw_in_fifo_full),
+      .wr_data( {rw_in_fifo_in_task, rw_in_fifo_in_cq_slot, rw_in_fifo_in_thread} ),
+
+      .full(  rw_in_fifo_full ),
+      .empty( rw_in_fifo_empty),
+
+      .rd_en( rw_in_fifo_out_ready ),
+      .rd_data( {rw_in_fifo_out_task, rw_in_fifo_out_cq_slot, rw_in_fifo_out_thread} ),
+
+      .size(rw_in_fifo_occ)
+
+   );
+
 read_rw  
 #(
    .TILE_ID(TILE_ID)
@@ -1115,12 +1174,12 @@ read_rw
       .clk(clk_main_a0),
       .rstn(rst_main_n_sync),
 
-   .task_in_valid (issue_task_valid),
-   .task_in_ready (issue_task_ready),
+   .task_in_valid (rw_in_fifo_out_valid),
+   .task_in_ready (rw_in_fifo_out_ready),
 
-   .task_in       (issue_task      ), 
-   .cq_slot_in    (issue_task_cq_slot),
-   .thread_id_in  (issue_task_thread),
+   .task_in       (rw_in_fifo_out_task     ), 
+   .cq_slot_in    (rw_in_fifo_out_cq_slot),
+   .thread_id_in  (rw_in_fifo_out_thread),
    
    .gvt_task_slot_valid  (gvt_task_slot_valid ),
    .gvt_task_slot        (gvt_task_slot       ),
@@ -1172,10 +1231,12 @@ fifo_size_t rw_write_out_fifo_occ;
 logic rw_write_out_valid;
 logic rw_write_out_ready;
 task_t rw_write_out_task;
-ro_data_t rw_write_out_data;
+rw_data_t rw_write_out_data;
+logic rw_write_out_is_rw;
 cq_slice_slot_t rw_write_out_cq_slot;
+thread_id_t     rw_write_out_thread;
 
-assign rw_write_out_ready = !rw_write_out_fifo_full;
+assign rw_write_out_ready = rw_write_out_is_rw ? !rw_in_fifo_full : !rw_write_out_fifo_full;
 
 logic           [N_SUB_TYPES-1:0]  fifo_wr_en;
 logic           [N_SUB_TYPES-1:0]  fifo_rd_en;
@@ -1230,7 +1291,9 @@ write_rw
    .task_out_ready(rw_write_out_ready),
    .task_out(rw_write_out_task),  
    .data_out(rw_write_out_data),  
+   .task_out_is_rw(rw_write_out_is_rw),  
    .task_out_cq_slot(rw_write_out_cq_slot),  
+   .task_out_thread_id (rw_write_out_thread),
    .task_out_fifo_occ (fifo_occ[0]),
 
    .unlock_object (unlock_thread_valid),
@@ -1282,9 +1345,9 @@ for (i=0;i<N_SUB_TYPES;i++) begin
       );
 
    if (i==0) begin
-      assign fifo_wr_en[i] = rw_write_out_valid;
+      assign fifo_wr_en[i] = rw_write_out_valid & !rw_write_out_is_rw;
       assign fifo_in_task[i] = rw_write_out_task;
-      assign fifo_in_data[i] = rw_write_out_data;
+      assign fifo_in_data[i] = rw_write_out_data; // should be unused for current apps
       assign fifo_in_cq_slot[i] = rw_write_out_cq_slot;
       assign fifo_in_word_id[i] = 0;
    end else begin

@@ -42,10 +42,12 @@ module astar_rw
    output logic            wvalid,
    output logic [31:0]     waddr,
    output ro_data_t           wdata,
+   output logic [2:0]      wsize,
 
    output logic            out_valid,
    output task_t           out_task,
    output ro_data_t           out_data,
+   output logic            out_task_rw,
 
    output logic            sched_task_valid,
    input logic             sched_task_ready,
@@ -59,6 +61,9 @@ logic skip_type_1_rw;
 logic skip_type_1_ro;
 assign task_in_ready = sched_task_valid & sched_task_ready;
 assign sched_task_valid = task_in_valid;
+
+assign out_task_rw = 1'b0;
+assign wsize = 2;
 
 logic [31:0] gScore;
 assign gScore = in_task.ts;
