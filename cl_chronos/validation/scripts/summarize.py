@@ -106,15 +106,15 @@ def getData(file): # For apps with rollback
         if (line.find('stall cycles')>=0):
             sp = line.replace(':',' ').replace(',',' ').split()
             print(sp)
-            cq_full = int(sp[3])
-            no_task = int(sp[-1])
+            cq_full = float(sp[3])
+            no_task = float(sp[-1])
         if (line.find('STAT_N_DEQ_TASK')>=0):
             sp = line.split()
             print(sp)
-            n_deq = int(sp[-1])
+            n_deq = float(sp[-1])
         if (line.find('STAT_N_ABORT_TASK')>=0):
             sp = line.split()
-            n_aborts = int(sp[-1])
+            n_aborts = float(sp[-1])
 
         if (line.find('avg Tasks')>=0):
             sp = line.replace(':', ' ').split()
@@ -123,8 +123,8 @@ def getData(file): # For apps with rollback
             print(sp)
 
 
-    ret['cq_full'] = cq_full * 100 / tot_cycles 
-    ret['no_task'] = no_task * 100 / tot_cycles 
+    ret['cq_full'] = float(cq_full) * 100 / tot_cycles 
+    ret['no_task'] = float(no_task) * 100 / tot_cycles 
     ret['work'] = 100 - ret['cq_full'] - ret['no_task'] 
 
     ret['commit_frac'] = 1-(n_aborts/n_deq);
@@ -152,11 +152,11 @@ def getDataNonspec(file, baselineTasks):
             n_tiles = int(sp[2])
         if (line.find('FPGA cycles') >=0):
             sp = line.split()
-            tot_cycles = int(sp[2])
+            tot_cycles = float(sp[2])
             print(['cycles' ,tot_cycles])
         if (line.find('Non spec') >=0):
             sp = line.split()
-            non_spec = int(sp[2])
+            non_spec = float(sp[2])
             if (non_spec != 1):
                 exit(0)
         if (line.find('task_issued')>=0):
@@ -173,11 +173,11 @@ def getDataNonspec(file, baselineTasks):
             print(sp)
         if (line.find('STAT_N_DEQ_TASK')>=0):
             sp = line.split()
-            n_deq += int(sp[-1])
+            n_deq += float(sp[-1])
             tiles_read += 1
         if (line.find('ro read stall')>=0):
             sp = line.split()
-            serializer_full = int(sp[-1])
+            serializer_full = float(sp[-1])
     
     work_cycles = n_deq * 2 / tiles_read + serializer_full;
     ret['cq_full'] = 0

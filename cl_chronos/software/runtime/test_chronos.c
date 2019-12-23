@@ -858,7 +858,9 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
    uint32_t* results;
 
     int iters = 0;
-
+   
+   clock_t t1, t2;
+   t1 = clock();
    while(true) {
        uint32_t gvt;
        if (NO_ROLLBACK) {
@@ -915,7 +917,9 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        }
        usleep(1);
        iters++;
-       if (iters > 300000) exit(0);
+	t2 = clock() - t1;
+       int time_s = t2/ CLOCKS_PER_SEC;
+       if (time_s > 30) exit(0);
 
    }
    // disable new dequeues from cores; for accurate counting of no tasks stalls
