@@ -1043,9 +1043,10 @@ initial begin
    end
 end
 generate 
-// enable finish_task messages on 1-tile nonspec systems to count the number of
-// running tasks
-if (!NO_ROLLBACK | (N_TILES == 1)) begin
+// enable finish_task messages on 1-8 tile nonspec systems to count the number of
+// running tasks. 
+// Disable on large systems 
+if (!NO_ROLLBACK | (N_TILES <= 8)) begin
    always_ff @(posedge clk) begin
       if (process_mem_task) begin
          n_enqueues[ mem_access_cq_slot] <= n_enqueues[mem_access_cq_slot] 

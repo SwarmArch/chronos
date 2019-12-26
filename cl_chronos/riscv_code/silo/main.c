@@ -53,11 +53,12 @@ table_info tbl_stock;
 
 #define TX_ENQUEUER_TASK  0
 #define NEW_ORDER_UPDATE_DISTRICT 1
-#define NEW_ORDER_INSERT_NEW_ORDER 2
-#define NEW_ORDER_INSERT_ORDER 3
-#define NEW_ORDER_ENQ_OL_CNT 4
-#define NEW_ORDER_UPDATE_STOCK 5
-#define NEW_ORDER_INSERT_ORDER_LINE 6
+#define NEW_ORDER_UPDATE_WR_PTR 2
+#define NEW_ORDER_INSERT_NEW_ORDER 3
+#define NEW_ORDER_INSERT_ORDER 4
+#define NEW_ORDER_ENQ_OL_CNT 5
+#define NEW_ORDER_UPDATE_STOCK 6
+#define NEW_ORDER_INSERT_ORDER_LINE 7
 
 #define OBJECT_DISTRICT (1<<20)
 #define OBJECT_NEW_ORDER (2<<20)
@@ -138,7 +139,7 @@ void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uin
    save_record(&districts_rw[d].d_next_o_id, 1);
    uint32_t d_next_o_id = districts_rw[d].d_next_o_id++;
    printf("\td_next_o_id %d %d\n", d, d_next_o_id);
-   enq_task_arg2(NEW_ORDER_INSERT_NEW_ORDER, ts, OBJECT_NEW_ORDER, _tx_info, d_next_o_id);
+   enq_task_arg2(NEW_ORDER_UPDATE_WR_PTR, ts, OBJECT_NEW_ORDER, _tx_info, d_next_o_id);
    // get bucket id for order
    order o;
    tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
@@ -151,8 +152,8 @@ void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uin
    uint32_t bucket, offset;
    get_bucket(&tbl_order, pkey, &bucket, &offset);
 
-   enq_task_arg2(NEW_ORDER_INSERT_ORDER, ts, OBJECT_ORDER | (bucket << 4), pkey,
-         (offset << 16) | tx_info.c_id);
+   enq_task_arg3(NEW_ORDER_INSERT_ORDER, ts, OBJECT_ORDER | (bucket << 4), pkey,
+         (offset << 16) | tx_info.c_id, tx_info.num_items);
 
    // enq ol_cnt enqueuers
    for (int i=0;i<tx_info.num_items;i+=4) {
@@ -163,19 +164,22 @@ void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uin
 }
 
 
-void new_order_insert_new_order(uint32_t ts, uint32_t object, uint32_t _tx_info, uint32_t o_id) {
-    // TODO: break this into two tasks, update wr_ptr and write fifo_entry
-   struct new_order* fifo = (struct new_order*) tbl_new_order.fifo_base;
-   struct tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
-   struct new_order n = {o_id, tx_info.d_id, tx_info.w_id};
+void new_order_update_wr_ptr(uint32_t ts, uint32_t object, uint32_t _tx_info, uint32_t o_id) {
    save_record(tbl_new_order.wr_ptr, 1);
-   save_record((uint32_t*) &fifo[*tbl_new_order.wr_ptr], 1);
-   printf("\t\tnew_order %d\n", *tbl_new_order.wr_ptr);
-   fifo[*tbl_new_order.wr_ptr] = n;
+   enq_task_arg3(NEW_ORDER_INSERT_NEW_ORDER, ts, object, _tx_info, o_id, *tbl_new_order.wr_ptr);
    (*tbl_new_order.wr_ptr)++;
 }
 
-void new_order_insert_order(uint32_t ts, uint32_t object, uint32_t pkey, uint32_t offset_cid) {
+void new_order_insert_new_order(uint32_t ts, uint32_t object, uint32_t _tx_info, uint32_t o_id, uint32_t wr_ptr) {
+   struct new_order* fifo = (struct new_order*) tbl_new_order.fifo_base;
+   struct tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
+   struct new_order n = {o_id, tx_info.d_id, tx_info.w_id};
+   save_record((uint32_t*) &fifo[wr_ptr], 1);
+   printf("\t\tnew_order %d\n", wr_ptr);
+   fifo[wr_ptr] = n;
+}
+
+void new_order_insert_order(uint32_t ts, uint32_t object, uint32_t pkey, uint32_t offset_cid, uint32_t ol_cnt) {
    // find start of bucket data
    uint32_t offset = offset_cid >> 16;
    uint32_t bucket = (object >> 4) & 0xffff;
@@ -183,8 +187,8 @@ void new_order_insert_order(uint32_t ts, uint32_t object, uint32_t pkey, uint32_
 
    uint32_t* o_int_ptr = (uint32_t*) order_ptr;
    save_record(o_int_ptr, 2);
-   // TODO ol_cnt
    o_int_ptr[0] = pkey;
+   order_ptr->o_ol_cnt = ol_cnt;
    order_ptr->o_c_id = (offset_cid & 0xffff);
    printf("\tinsert_order %d %d %d %d\n", tbl_order.table_base, bucket, offset, order_ptr->o_c_id);
 
@@ -340,11 +344,14 @@ int main(int argc, char** argv) {
           case NEW_ORDER_UPDATE_DISTRICT:
               new_order_update_district(ts, object, arg0, arg1);
               break;
+          case NEW_ORDER_UPDATE_WR_PTR:
+              new_order_update_wr_ptr(ts, object, arg0, arg1);
+              break;
           case NEW_ORDER_INSERT_NEW_ORDER:
-              new_order_insert_new_order(ts, object, arg0, arg1);
+              new_order_insert_new_order(ts, object, arg0, arg1, arg2);
               break;
           case NEW_ORDER_INSERT_ORDER:
-              new_order_insert_order(ts, object, arg0, arg1);
+              new_order_insert_order(ts, object, arg0, arg1, arg2);
               break;
           case NEW_ORDER_ENQ_OL_CNT:
               new_order_item_enqueuer(ts, object, arg0, arg1);

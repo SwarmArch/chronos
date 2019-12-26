@@ -45,7 +45,11 @@ localparam LATENCY = 30;
 
 mem_request_t req_queue[$];
 mem_request_t head;
+`ifdef CACHE_LINE_SIZED_SIMPLE_MEMORY
+logic [511:0] memory[*];
+`else
 logic [7:0] memory[*];
+`endif
 
 logic [63:0] cycle;
 
@@ -58,6 +62,17 @@ always_ff @(posedge clk) begin
       cycle <= cycle + 1;
    end
 end
+
+function initialize_memory; 
+    input string input_file;
+    
+    $display("opening %s", input_file);
+endfunction
+task add_memory; 
+    integer addr;
+    logic[31:0] data;
+    memory[addr] = data;
+endtask
 
 //always_ff @(posedge clk) begin
 //   if (!rstn) begin
@@ -90,6 +105,9 @@ always_ff @(posedge clk) begin
          aw_taken <= 1'b1;
       end else 
       if (axi.wvalid & axi.wready) begin
+         `ifdef CACHE_LINE_SIZED_SIMPLE_MEMORY 
+            assert( awsize==6 )  else $error("awsize != 6");
+         `endif
          req_queue.push_back({1'b0, awid, awaddr, 
             axi.wdata, axi.wstrb, size_map[awsize], axi.wlast, cycle+LATENCY});
          awaddr <= awaddr + size_map[awsize];
@@ -111,6 +129,7 @@ assign axi.rlast = head.last;
 assign axi.rresp = 0;
 assign axi.bid = head.id; 
 assign axi.bresp = 0;
+logic [511:0] next_write_cache_line;
 always_comb begin
    q_pop = 0;
    axi.rdata = 0;
@@ -122,6 +141,13 @@ always_comb begin
    if (q_size >0 && head.cycle < cycle) begin
       if (head.is_read) begin
          axi.rvalid = 1'b1;
+       `ifdef CACHE_LINE_SIZED_SIMPLE_MEMORY
+         if (memory.exists(head.addr)) begin
+             axi.rdata = memory[head.addr];
+         end else begin
+             axi.rdata = 0;
+         end
+       `else
          for (integer i=0;i <head.size; i=i+1) begin
             if (memory.exists(head.addr + i)) begin
                axi.rdata[i*8 +: 8] = memory[head.addr+i];
@@ -129,15 +155,26 @@ always_comb begin
                axi.rdata[i*8 +: 8] = 0;
             end
          end
+       `endif 
          if (axi.rready) begin
             q_pop = 1;
          end
       end else begin
+       `ifdef CACHE_LINE_SIZED_SIMPLE_MEMORY
+         next_write_cache_line = memory[head.addr];
+         for ( integer i=0; i<64; i=i+1) begin
+            if (head.wstrb[i]) begin
+               next_write_cache_line[i*8 +:8] = head.data[i*8 +:8];
+            end
+         end
+         memory[head.addr] = next_write_cache_line;
+       `else
          for ( integer i=0; i<head.size; i=i+1) begin
             if (head.wstrb[i]) begin
                memory[head.addr+i] = head.data[i*8 +:8];
             end
          end
+       `endif
          if (head.last) begin
             axi.bvalid = 1'b1;
             if (axi.bready) begin

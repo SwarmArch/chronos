@@ -49,6 +49,7 @@ localparam HOST_SPILL_AREA = 32'h1000000;
 localparam CL_SPILL_AREA = (1<<30);
    
 logic [31:0] addr, data;
+logic [511:0] cache_line;
 
 logic [31:0] enq_ts;
 logic [31:0] enq_object;
@@ -77,15 +78,6 @@ initial begin
       load_riscv_program();      
    end
 
-   // Graph inputs
-   case (APP_NAME) 
-      "des"     : fid = $fopen("input_net", "r");
-      "sssp"    : fid = $fopen("input_graph", "r");
-      "sssp_hls": fid = $fopen("input_graph", "r");
-      "astar"   : fid = $fopen("input_astar", "r");
-      "color"   : fid = $fopen("input_color", "r");
-      "maxflow" : fid = $fopen("input_maxflow", "r");
-   endcase
    
    case (APP_NAME) 
       "des"     : input_file = "input_net";
@@ -94,7 +86,7 @@ initial begin
       "astar"   : input_file = "input_astar";
       "color"   : input_file = "input_color";
       "maxflow" : input_file = "input_maxflow";
-      "silo"    : input_file = "input_silo";
+      "silo"    : input_file = "silo_tx";
    endcase
 
    read_and_transfer_input_file();
@@ -172,6 +164,7 @@ initial begin
    flush_caches();
    
    #1us;
+   //check_log(0, ID_UNDO_LOG+1);
    
    // Application-specific verification code
    
@@ -262,9 +255,20 @@ task read_cl_memory;
    input [31:0] cl_addr;
    input [31:0] len;
 begin
+    logic [511:0] cache_line_data;
    `ifdef FAST_VERIFY
+     `ifdef CACHE_LINE_SIZED_SIMPLE_MEMORY 
+      for (int i=0;i<len;i+=64) begin
+         addr = cl_addr + i;
+         cache_line_data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], 6'b0} ];
+         for (int j=0;j<64;j++) begin
+            tb.hm_put_byte(.addr(host_addr + i + j), .d(cache_line_data[8*j+:8] ));
+         end
+      end
+     `else
       for (int i=0;i<len;i++) begin
          addr = cl_addr + i;
+         data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], addr[5:0]} ];
          if (N_DDR_CTRL == 1) begin
             data = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], addr[5:0]} ];
          end else if (N_DDR_CTRL == 2) begin
@@ -282,6 +286,7 @@ begin
          end
          tb.hm_put_byte(.addr(host_addr + i), .d(data));
       end
+     `endif
    `else
       // NOTE (This branch has not been verified thouroughly)
       tb.que_cl_to_buffer(.chan(0), .dst_addr(host_addr), .cl_addr(cl_addr), .len(len) );  
@@ -418,6 +423,10 @@ task load_riscv_program;
    logic [31:0] boot_code [0:3];
    offset = 0;
    fid = $fopen("input_code.hex", "r");
+`ifdef CACHE_LINE_SIZED_SIMPLE_MEMORY
+    $display("Cache line sized memory not supported for RISCV");
+    $finish();
+`endif
    while (!$feof(fid)) begin
       status = $fgets(line, fid);
       if (line.getc(0) == ":") begin
@@ -524,7 +533,34 @@ task read_and_transfer_input_file;
    end else begin
       fid = $fopen(input_file, "r");
    end
-
+`ifdef CACHE_LINE_SIZED_SIMPLE_MEMORY
+   assert(N_DDR_CTRL == 1) else begin
+       $error("Not supported for N_DDR_CTRL > 1");
+       $finish();
+   end
+   if (binary_file) begin
+        addr = 0;
+        while (!$feof(fid)) begin
+            cache_line[addr[5:0] * 8 +:8] = $fgetc(fid);
+            if (addr[5:0] == '1) begin
+                tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], 6'b0} ] = cache_line;
+                //$display ("addr %x data %x", addr[31:6], cache_line);
+            end
+            if (addr[1:0] == '1 && addr[31:8] == 0) begin
+                file[addr[7:2]] = cache_line[ addr[5:2]*32 +: 32];
+            end
+            addr = addr + 1;
+            if (addr[21:0]  == 0) begin
+               $display("%d Bytes transferred from input file", addr);  
+            end
+        end
+        tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr[31:6] ] = cache_line;
+   end else begin
+        $display("non binary files not supported");
+        $finish();
+   end
+   return;
+`endif
 
    line = 0;
    n_lines = 0;
@@ -538,11 +574,15 @@ task read_and_transfer_input_file;
          line[31:24] = $fgetc(fid);
       end
       file[n_lines] = line;
+      if (n_lines %1000000 == 0) begin
+         $display("Read %d lines from input file", n_lines);  
+      end
       n_lines = n_lines + 1;
    end
-   $display("Read %d lines from input file",n_lines);  
+   $display("Read %d lines from input file", n_lines);  
 
    // Put file in host memory       
+   
    for (int i = 0 ; i < n_lines ; i++) begin
       tb.hm_put_byte(.addr(i*4  ), .d(file[i][ 7: 0]));
       tb.hm_put_byte(.addr(i*4+1), .d(file[i][15: 8]));
@@ -550,10 +590,12 @@ task read_and_transfer_input_file;
       tb.hm_put_byte(.addr(i*4+3), .d(file[i][31:24]));
    end
    
+   
    // Transfer to CL Memory
    `ifdef FAST_MEM_INIT   
       for (int i=0;i< n_lines*4; i++) begin
          data = {24'b0, tb.hm_get_byte(i)};
+         //data = file[i/4][i*8 +:8];
          if (N_DDR_CTRL == 1) begin
             addr = {i[31:6], i[5:0]};
             tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ addr ] = data;
@@ -572,11 +614,14 @@ task read_and_transfer_input_file;
                3: tb.card.fpga.CL.\mem_ctrl[3].MEM_CTRL .memory[ addr ] = data;
             endcase
          end
+         if (i %4000000 == 0) begin
+            $display("Transferred %d bytes to CL", i);  
+         end
       end
    `else
       
       // Let the CL know of the number of DDR controllers available.
-      // This is actually redundant unless you want to disable come controllers
+      // This is actually redundant unless you want to disable some controllers
       /*
       ocl_addr[31:24] = 0;
       ocl_addr[23:16] = N_TILES;
@@ -736,13 +781,12 @@ task flush_caches;
    // Faster simulation by capping flushing to read-write data (BIG HACK)
    tb.card.fpga.CL.\tile[0].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    tb.card.fpga.CL.\tile[0].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[1].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[2].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[3].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[4].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[5].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[6].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   //tb.card.fpga.CL.\tile[7].TILE .L2_RW.L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[1].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[1].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[2].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[2].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[3].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+   //tb.card.fpga.CL.\tile[3].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    
    for (int i=0;i<N_TILES;i++) begin
       for (int j=0;j<L2_BANKS;j++) begin
