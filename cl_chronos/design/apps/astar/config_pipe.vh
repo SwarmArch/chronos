@@ -40,6 +40,7 @@ parameter OFFSET_BASE_ADDR = 12;
 parameter NEIGHBOR_BASE_ADDR = 16;
 
 `define RO_WORKER astar_ro
+`define RW_READER default_rw_reader
 `define RW_WORKER astar_rw
 
 parameter N_CORES = 0;

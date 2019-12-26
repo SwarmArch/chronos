@@ -41,6 +41,7 @@ parameter LOG_N_SUB_TYPES = 2;
 
 
 `define RO_WORKER maxflow_ro
+`define RW_READER default_rw_reader
 `define RW_WORKER maxflow_rw
 
 parameter N_CORES = 0;

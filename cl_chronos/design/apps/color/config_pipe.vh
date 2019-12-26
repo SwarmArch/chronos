@@ -41,6 +41,7 @@ parameter LOG_N_SUB_TYPES = 1;
 
 
 `define RO_WORKER color_worker
+`define RW_READER default_rw_reader
 `define RW_WORKER color_rw
 
 parameter N_CORES = 0;

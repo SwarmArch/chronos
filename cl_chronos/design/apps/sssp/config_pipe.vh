@@ -41,6 +41,7 @@ parameter LOG_N_SUB_TYPES = 2;
 
 
 `define RO_WORKER sssp_ro
+`define RW_READER default_rw_reader
 `define RW_WORKER sssp_rw
 
 

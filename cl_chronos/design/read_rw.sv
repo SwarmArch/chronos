@@ -65,10 +65,19 @@ logic started; // cycle counting;
 task_t task_desc [0:N_THREADS-1];
 cq_slice_slot_t task_cq_slot [0:N_THREADS-1];
 
-logic [31:0] base_rw_addr;
 
 fifo_size_t fifo_out_almost_full_thresh;
+logic [31:0] s_araddr;
 logic [31:0] dequeues_remaining;
+
+   `RW_READER  RW_READER (
+      .clk(clk),
+      .rstn(rstn),
+      .task_in(task_in),
+      
+      .araddr(s_araddr),
+      .reg_bus(reg_bus)
+  );
 
 
 logic can_dequeue; 
@@ -77,13 +86,11 @@ assign can_dequeue = (dequeues_remaining > 0) &
     | (gvt_task_slot_valid & (gvt_task_slot == cq_slot_in)));
 
 logic s_arvalid, s_arready;
-logic [31:0] s_araddr;
 id_t s_arid;
 logic ar_fifo_empty;
 logic ar_fifo_full;
 
 assign s_arid = thread_id_in;
-assign s_araddr = base_rw_addr + (task_in.object << (LOG_RW_WIDTH) );
 
 assign arvalid = !ar_fifo_empty;
 assign s_arready = !ar_fifo_full;
@@ -228,14 +235,12 @@ end
 logic [LOG_LOG_DEPTH:0] log_size; 
 always_ff @(posedge clk) begin
    if (!rstn) begin
-      base_rw_addr <= 0;
       fifo_out_almost_full_thresh <= '1;
       dequeues_remaining <= '1;
       started <= 0;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
-            RW_BASE_ADDR : base_rw_addr <= {reg_bus.wdata[29:0], 2'b00};
             CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : fifo_out_almost_full_thresh <= reg_bus.wdata;
             CORE_N_DEQUEUES: dequeues_remaining <= reg_bus.wdata;
             CORE_START : started <= reg_bus.wdata[0];
@@ -376,4 +381,32 @@ if (READ_RW_LOGGING[TILE_ID]) begin
    );
 end
 
+endmodule
+
+
+module default_rw_reader ( 
+   input clk,
+   input rstn,
+
+   input task_t        task_in, 
+   
+   output logic [31:0] araddr,
+
+   reg_bus_t         reg_bus
+);
+
+logic [31:0] base_rw_addr;
+assign araddr = base_rw_addr + (task_in.object << (LOG_RW_WIDTH) );
+
+always_ff @(posedge clk) begin
+   if (!rstn) begin
+      base_rw_addr <= 0;
+   end else begin
+      if (reg_bus.wvalid) begin
+         case (reg_bus.waddr) 
+            RW_BASE_ADDR : base_rw_addr <= {reg_bus.wdata[29:0], 2'b00};
+         endcase
+      end
+   end
+end
 endmodule
