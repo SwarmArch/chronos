@@ -136,28 +136,28 @@ end
 logic s_write_wvalid;
 rw_data_t s_write_data;
 logic s_write_wready;
-object_t s_write_object;
+addr_t s_write_addr;
 thread_id_t s_thread_id, write_thread_id;
 
 logic wdata_fifo_full, wdata_fifo_empty;
 
-object_t write_object;
+addr_t write_addr;
 rw_data_t write_data;
 
 fifo #(
-      .WIDTH($bits(s_write_object) + $bits(s_thread_id) + $bits(s_write_data)),
+      .WIDTH($bits(s_write_addr) + $bits(s_thread_id) + $bits(s_write_data)),
       .LOG_DEPTH(1)
    ) WDATA_FIFO (
       .clk(clk),
       .rstn(rstn),
       .wr_en(s_write_wvalid & s_write_wready),
-      .wr_data({s_thread_id, s_write_object,  s_write_data}),
+      .wr_data({s_thread_id, s_write_addr,  s_write_data}),
 
       .full(wdata_fifo_full),
       .empty(wdata_fifo_empty),
 
       .rd_en(wvalid & wready),
-      .rd_data({write_thread_id, write_object, write_data})
+      .rd_data({write_thread_id, write_addr, write_data})
 
    );
 
@@ -188,26 +188,25 @@ assign s_thread_id = task_in.thread;
 assign wvalid = !wdata_fifo_empty;
 assign wid = write_thread_id;
 assign s_write_wready = !wdata_fifo_full;
-assign s_write_object = task_in.task_desc.object;
 
-assign  waddr = base_rw_addr + ( write_object << (LOG_RW_WIDTH) ) ;
+assign  waddr = write_addr; // base_rw_addr + ( write_object << (LOG_RW_WIDTH) ) ;
 always_comb begin
    wdata = 'x;
    case (LOG_RW_WIDTH) 
-      2: wdata [ write_object[3:0]* 32 +: 32 ] = write_data;
-      3: wdata [ write_object[2:0]* 64 +: 64 ] = write_data;
-      4: wdata [ write_object[1:0]* 128 +: 128 ] = write_data;
-      5: wdata [ write_object[0]* 256 +: 256 ] = write_data;
+      2: wdata [ write_addr[5:2]* 32 +: 32 ] = write_data;
+      3: wdata [ write_addr[5:3]* 64 +: 64 ] = write_data;
+      4: wdata [ write_addr[5:4]* 128 +: 128 ] = write_data;
+      5: wdata [ write_addr[5]* 256 +: 256 ] = write_data;
       6: wdata  = write_data;
    endcase
 end
 always_comb begin
    wstrb = 0;
    case (LOG_RW_WIDTH) 
-      2: wstrb[ write_object[3:0] * 4 +: 4]  = '1;
-      3: wstrb[ write_object[2:0] * 8 +: 8]  = '1;
-      4: wstrb[ write_object[1:0] * 16 +: 16]  = '1;
-      5: wstrb[ write_object[0] * 32 +: 32]  = '1;
+      2: wstrb[ write_addr[5:2] * 4 +: 4]  = '1;
+      3: wstrb[ write_addr[5:3] * 8 +: 8]  = '1;
+      4: wstrb[ write_addr[5:4] * 16 +: 16]  = '1;
+      5: wstrb[ write_addr[5] * 32 +: 32]  = '1;
       6: wstrb  = '1;
    endcase
 end
@@ -225,6 +224,7 @@ always_comb begin
          if (s_finish_task_ready) begin
             s_write_wvalid = 1'b1;
             s_write_data = task_in.object;
+            s_write_addr = task_in.task_desc.object;
             s_finish_task_is_undo_log_restore = 1'b1;
             if (s_write_wvalid & s_write_wready) begin
                task_in_ready = 1'b1;
@@ -235,6 +235,7 @@ always_comb begin
          task_in_ready = s_ready;
          s_write_wvalid = s_wvalid;
          s_write_data = s_wdata;
+         s_write_addr = s_waddr;
          s_task_out_valid = s_sched_ready & s_out_valid;
          s_finish_task_valid = s_sched_ready & !s_out_valid;
              
@@ -257,7 +258,7 @@ end
    .in_cq_slot(task_in.cq_slot),
    
    .wvalid (s_wvalid),
-   .waddr  (),
+   .waddr  (s_waddr),
    .wdata  (s_wdata),
    .wsize  (),
 

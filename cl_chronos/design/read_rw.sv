@@ -134,8 +134,10 @@ always_ff @(posedge clk) begin
    end
 end
 
-rw_data_t undo_log [0:2**LOG_CQ_SLICE_SIZE-1];
+rw_data_t undo_log_data [0:2**LOG_CQ_SLICE_SIZE-1];
+addr_t    undo_log_addr [0:2**LOG_CQ_SLICE_SIZE-1];
 rw_data_t undo_log_read_word;
+addr_t    undo_log_read_addr;
 
 logic             reg_task_valid;
 task_t            reg_task;
@@ -144,9 +146,13 @@ thread_id_t       reg_thread;
 
 always_ff @(posedge clk) begin
    if (task_out_valid & task_out_ready) begin
-      undo_log[task_out.cq_slot] <= task_out.object;
+      undo_log_data[task_out.cq_slot] <= task_out.object;
    end
-   undo_log_read_word <= undo_log[cq_slot_in];
+   if (s_arvalid & s_arready) begin
+      undo_log_addr[cq_slot_in] <= s_araddr;
+   end
+   undo_log_read_word <= undo_log_data[cq_slot_in];
+   undo_log_read_addr <= undo_log_addr[cq_slot_in];
 end
 
 always_ff @(posedge clk) begin
@@ -186,6 +192,7 @@ always_comb begin
       task_out.thread = reg_thread;
       task_out.object = undo_log_read_word;
       task_out_valid = 1'b1;
+      task_out.task_desc.object = undo_log_read_addr;
    end else if (reg_task_valid & reg_task.no_read) begin
       task_out.task_desc = reg_task;
       task_out.cq_slot = reg_slot;
