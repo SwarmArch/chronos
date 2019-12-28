@@ -42,13 +42,18 @@ parameter SILO_NEW_ORDER_INSERT_NEW_ORDER = 3;
    // [63:32] tx_info
    // [95:64] next_o_id
 parameter SILO_NEW_ORDER_INSERT_ORDER = 4;
+
 parameter SILO_NEW_ORDER_ENQ_OL_CNT = 5;
+   // [31:0] tx_id
+   // [63:32] start_index
+   // [95:64] ol_cnt
 parameter SILO_NEW_ORDER_UPDATE_STOCK = 6;
 parameter SILO_NEW_ORDER_INSERT_ORDER_LINE = 7;
 
 parameter OBJECT_DISTRICT = (1<<20);
 parameter OBJECT_NEW_ORDER = (2<<20);
 parameter OBJECT_ORDER = (3<<20);
+parameter OBJECT_OL_CNT = (8<<20);
 
 parameter SILO_BUCKET_SIZE = 32 * 256;
 typedef struct packed {
@@ -317,6 +322,11 @@ end
                cycle, TILE_ID, in_cq_slot, in_task.ts, in_task.object,
                   offset, in_key, ref_key);
          end
+         SILO_NEW_ORDER_ENQ_OL_CNT: begin
+            $display("[%5d] [rob-%2d] [rw] [%3d] ENQ_OL_CNT  ts:%8x object:%4x | tx_id:%3d  start_index:%2d",
+               cycle, TILE_ID, in_cq_slot, in_task.ts, in_task.object,
+                  in_task.args[31:0], in_task.args[63:32]);
+         end
 
          endcase
       end
@@ -402,6 +412,9 @@ always_comb begin
          tx_info = in_data;
       end else if (in_task.ttype == SILO_NEW_ORDER_UPDATE_DISTRICT) begin
          tx_info = in_task.args[63:32];
+      end else if (in_task.ttype == SILO_NEW_ORDER_ENQ_OL_CNT)  begin
+         if (SUBTYPE==2) tx_info = in_data;
+         else tx_info = in_task.args[31:0];
       end
    end
 end
@@ -410,8 +423,13 @@ end
 logic [23:0] next_o_id;
 assign next_o_id = in_task.args[95:64];
 
-
-
+/* ENQ_OL_CNT */
+logic [31:0] ol_cnt_tx_id;
+logic [3:0] ol_cnt_start_index;
+logic [31:0] ol_cnt_o_id; 
+assign ol_cnt_tx_id = in_task.args[31:0];
+assign ol_cnt_start_index = in_task.args[63:32];
+assign ol_cnt_o_id = in_task.args[95:64];
 
 always_comb begin
    araddr = 'x;
@@ -496,6 +514,8 @@ always_comb begin
                   end else begin
                      out_valid = 1'b1;
                      out_task.ttype = SILO_NEW_ORDER_ENQ_OL_CNT;
+                     out_task.object = OBJECT_OL_CNT | ( in_task.args[11:0] << 8)
+                           | (((in_word_id)-2) << 4) ;
                      // arg0 - tx_id, arg1 - index, arg2 - o_id
                      out_task.args[63:32] = (in_word_id -2) * 4;
                   end   
@@ -505,6 +525,52 @@ always_comb begin
          SILO_NEW_ORDER_UPDATE_WR_PTR: begin
             out_valid = 1'b1;
             out_task.ttype = SILO_NEW_ORDER_INSERT_NEW_ORDER;
+         end
+         SILO_NEW_ORDER_ENQ_OL_CNT: begin
+            // TODO: NOT TESTED AND INCOMPLETE
+            case (SUBTYPE)
+               0: begin
+                  // Read tx_offset[tx_id]
+                  arvalid = 1'b1;
+                  araddr = tx_offset + ol_cnt_tx_id;
+                  arlen = 0;
+                  resp_subtype = 1;
+               end
+               1: begin
+                  arvalid = 1'b1;
+                  araddr = tx_data + in_data *4;
+                  arlen = 0;
+                  resp_subtype = 2;
+                  resp_task.args[31:0] = in_data; // offset
+               end
+               2: begin 
+                  // Read tx_item entries
+                  arvalid = 1'b1;
+                  araddr = tx_data + (in_task.args[31:0]+1+ ol_cnt_start_index) *4;
+                  arlen = 3;
+                  if (tx_info.num_items < ol_cnt_start_index + 3) begin
+                     arlen = tx_info.num_items - ol_cnt_start_index - 1;
+                  end
+                  resp_task.args[31:0] = tx_info;
+                  resp_subtype = 3;
+               end
+               3: begin
+                  arvalid = 1'b1;
+                  araddr = 0;
+                  arlen = 1;
+                  resp_subtype = 4;
+                  resp_task.args[63:32] = in_data; // tx_item
+                  resp_task.args[95:92] = ol_cnt_start_index + in_word_id;
+                  // 31:0 - tx_info , 91:64 - o_id
+               end
+               4: begin
+                  if (in_word_id == 0) begin
+                     // enq stock update
+                  end else begin
+                     // read item
+                  end
+               end
+            endcase
          end
       endcase
    end

@@ -198,7 +198,6 @@ void initialize_order() {
             o_entry.o_ol_cnt = RandomNumber(5,15);
             o_entry.o_all_local = 1;
             insert_record(&tbl_order, &o_entry);
-
             if (c>=cid_threshold) {
                new_order no;
                no.no_w_id = w;
