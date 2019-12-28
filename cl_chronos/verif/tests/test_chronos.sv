@@ -95,7 +95,8 @@ initial begin
    
    for (int i=0;i<N_TILES;i++) begin
       for (int j=0;j< ((APP_NAME == "silo") ? 32 : 16 );j++) begin
-         ocl_poke(i, ID_ALL_APP_CORES, j*4, file[j]);
+         if (j%16==0) ocl_poke(i, ID_ALL_APP_CORES, CORE_HEADER_TOP, j / 16);
+         ocl_poke(i, ID_ALL_APP_CORES, (j%16)*4, file[j]);
       end
       ocl_poke(i, ID_TSB, TSB_HASH_KEY, 32'h4b56917f);
       ocl_poke(i, ID_ALL_APP_CORES, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 10);

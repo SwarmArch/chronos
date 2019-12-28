@@ -113,6 +113,7 @@ struct new_order {
    uint32_t no_o_id : 24;
    uint32_t no_d_id : 5;
    uint32_t no_w_id : 3;
+   char __padding__ [28]; // to fit into 32 B
 };
 
 

@@ -237,7 +237,7 @@ always_comb begin
          s_write_data = s_wdata;
          s_write_addr = s_waddr;
          s_task_out_valid = s_sched_ready & s_out_valid;
-         s_finish_task_valid = s_sched_ready & !s_out_valid;
+         s_finish_task_valid = s_sched_ready & !s_out_valid & !s_out_task_rw;
              
       end
    end
@@ -276,7 +276,7 @@ end
 
 always_comb begin
    c_bready = 1'b0;
-   if (task_in_ready & !s_write_wvalid) begin
+   if (task_in_ready & !s_write_wvalid & !s_out_task_rw) begin
    end else if (c_bvalid) begin
       c_bready = 1'b1;
    end
@@ -286,7 +286,7 @@ always_ff @(posedge clk) begin
       unlock_object <= 1'b0;
       unlock_thread <= 'x;
    end else begin
-      if (task_in_ready & !s_write_wvalid) begin
+      if (task_in_ready & !s_write_wvalid & !s_out_task_rw) begin
          unlock_object <= 1'b1;
          unlock_thread <= task_in.thread;
       end else if (c_bvalid) begin

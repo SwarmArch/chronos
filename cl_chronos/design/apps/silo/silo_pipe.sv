@@ -50,6 +50,7 @@ parameter OBJECT_DISTRICT = (1<<20);
 parameter OBJECT_NEW_ORDER = (2<<20);
 parameter OBJECT_ORDER = (3<<20);
 
+parameter SILO_BUCKET_SIZE = 32 * 256;
 typedef struct packed {
    logic [15:0] c_id;
    logic [3:0] num_items;
@@ -81,16 +82,29 @@ module silo_read (
    reg_bus_t         reg_bus
 );
 
+logic [1:0] header_top;
 logic [31:0] base_district_rw;
 logic [31:0] tbl_new_order_ptrs;
+logic [31:0] base_new_order;
+logic [31:0] base_order;
+
+logic [15:0] bucket_id;
+logic [15:0] offset;
+assign bucket_id = task_in.object[19:4];
+
    
 always_comb begin
    araddr = 'x;
+   offset = 'x;
    case (task_in.ttype)
       SILO_TX_ENQUEUER_TASK : araddr = 0;
       SILO_NEW_ORDER_UPDATE_DISTRICT : araddr = base_district_rw + (task_in.object[7:4] * 32);
       SILO_NEW_ORDER_UPDATE_WR_PTR : araddr = tbl_new_order_ptrs;  
-      SILO_NEW_ORDER_INSERT_ORDER : araddr = 0;  
+      SILO_NEW_ORDER_INSERT_NEW_ORDER: araddr = base_new_order + (task_in.args[31:0] * 32);
+      SILO_NEW_ORDER_INSERT_ORDER : begin
+         offset = task_in.args[63:48];
+         araddr = base_order + bucket_id * SILO_BUCKET_SIZE + offset * 32;  
+      end
       SILO_NEW_ORDER_ENQ_OL_CNT : araddr = 0;  
    endcase
 end
@@ -99,13 +113,19 @@ end
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
-      base_district_rw <= 0;
+      header_top <= 0;
    end else begin
       if (reg_bus.wvalid) begin
-         case (reg_bus.waddr) 
-            44 : base_district_rw <= {reg_bus.wdata[29:0], 2'b00};
-           104 : tbl_new_order_ptrs <= {reg_bus.wdata[29:0], 2'b00};
-         endcase
+         if (reg_bus.waddr == CORE_HEADER_TOP) begin
+            header_top <= reg_bus.wdata[1:0];
+         end else if (reg_bus.waddr[15:6] == 0) begin
+            case ( {header_top, reg_bus.waddr[5:0]}) 
+               44 : base_district_rw <= {reg_bus.wdata[29:0], 2'b00};
+               68 : base_order <= {reg_bus.wdata[29:0], 2'b00};
+               96 : base_new_order <= {reg_bus.wdata[29:0], 2'b00};
+              104 : tbl_new_order_ptrs <= {reg_bus.wdata[29:0], 2'b00};
+            endcase
+         end
       end
    end
 end
@@ -143,13 +163,33 @@ module silo_write
 
 );
 
+logic [1:0] header_top;
 logic [31:0] base_district_rw;
 logic [31:0] tbl_new_order_ptrs;
+logic [31:0] base_new_order;
+logic [31:0] base_order;
 
 assign task_in_ready = sched_task_valid & sched_task_ready;
 assign sched_task_valid = task_in_valid;
 
+silo_tx_info_new_order tx_info;
+always_comb begin
+   tx_info = 'x;
+   if (task_in_valid) begin
+      if (in_task.ttype == SILO_NEW_ORDER_INSERT_NEW_ORDER) begin
+         tx_info = in_task.args[63:32];
+      end
+   end
+end
+
+logic [31:0] in_key;
+logic [31:0] ref_key;
+logic [15:0] offset;
+
 silo_district_rw district_rw;
+
+logic [15:0] bucket_id;
+assign bucket_id = in_task.object[19:4];
 
 always_comb begin 
    wvalid = 1'b0;
@@ -162,6 +202,10 @@ always_comb begin
    out_task = in_task;
 
    district_rw = in_data;
+
+   in_key = 'x;
+   ref_key = 'x;
+   offset = 'x;
 
    if (task_in_valid) begin
       case (in_task.ttype)
@@ -185,9 +229,34 @@ always_comb begin
             waddr = tbl_new_order_ptrs;
             wdata[31:0] = in_data[31:0] + 1; // wr_ptr++
          end
-         SILO_NEW_ORDER_INSERT_ORDER : begin
+         SILO_NEW_ORDER_INSERT_NEW_ORDER: begin
             out_valid = 1'b0;
-            wvalid = 1'b0;
+            wvalid = 1'b1;
+            waddr = base_new_order + (in_task.args[31:0]* 32);
+            wdata = 0;
+            wdata[23:0] = in_task.args[95:64];
+            wdata[28:24] = tx_info.d_id;
+            wdata[31:29] = tx_info.w_id; 
+         end
+         SILO_NEW_ORDER_INSERT_ORDER : begin
+            in_key = in_task.args[31:0];
+            ref_key = in_data[31:0];
+            offset = in_task.args[63:48];
+            
+            if (ref_key == '1) begin
+               out_valid = 1'b0;      
+               wvalid = 1'b1;
+               waddr = base_order + bucket_id * SILO_BUCKET_SIZE + offset * 32;  
+               wdata[31:0] = in_key;
+               wdata[63:32] = in_task.args[47:32]; //  cid;
+               wdata[111:104] = in_task.args[95:64]; // ol_cnt;
+            end else begin
+               out_task_rw = 1'b1;
+               out_task.args[63:48] = offset+1;
+               out_valid = 1'b1;
+
+               wvalid = 1'b0;
+            end
          end
          SILO_NEW_ORDER_ENQ_OL_CNT : begin
             out_valid = 1'b0;
@@ -199,12 +268,19 @@ end
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
+      header_top <= 0;
    end else begin
       if (reg_bus.wvalid) begin
-         case (reg_bus.waddr) 
-            44 : base_district_rw <= {reg_bus.wdata[29:0], 2'b00};
-           104 : tbl_new_order_ptrs <= {reg_bus.wdata[29:0], 2'b00};
-         endcase
+         if (reg_bus.waddr == CORE_HEADER_TOP) begin
+            header_top <= reg_bus.wdata[1:0];
+         end else if (reg_bus.waddr[15:6] == 0) begin
+            case ( {header_top, reg_bus.waddr[5:0]}) 
+               44 : base_district_rw <= {reg_bus.wdata[29:0], 2'b00};
+               68 : base_order <= {reg_bus.wdata[29:0], 2'b00};
+               96 : base_new_order <= {reg_bus.wdata[29:0], 2'b00};
+              104 : tbl_new_order_ptrs <= {reg_bus.wdata[29:0], 2'b00};
+            endcase
+         end
       end
    end
 end
@@ -230,6 +306,16 @@ end
             $display("[%5d] [rob-%2d] [rw] [%3d] UPDATE_PTR  ts:%8x object:%4x | wr_ptr:%8x rd_ptr:%8x",
                cycle, TILE_ID, in_cq_slot, in_task.ts, in_task.object,
                   in_data[31:0], in_data[63:32]);
+         end
+         SILO_NEW_ORDER_INSERT_NEW_ORDER: begin
+            $display("[%5d] [rob-%2d] [rw] [%3d] INSERT_NEW_ORDER  ts:%8x object:%4x | wr_ptr:%8x o_id",
+               cycle, TILE_ID, in_cq_slot, in_task.ts, in_task.object,
+                  in_task.args[31:0], in_task.args[95:64]);
+         end
+         SILO_NEW_ORDER_INSERT_ORDER: begin
+            $display("[%5d] [rob-%2d] [rw] [%3d] INSERT_ORDER  ts:%8x object:%4x | offset:%2x in_key:%8x cur_key:%8x",
+               cycle, TILE_ID, in_cq_slot, in_task.ts, in_task.object,
+                  offset, in_key, ref_key);
          end
 
          endcase
@@ -285,6 +371,7 @@ assign task_in_ready = sched_task_ready;
 assign out_cq_slot = in_cq_slot;
 
 // headers
+logic [1:0] header_top;
 logic [31:0] num_tx;
 logic [31:0] tx_offset;
 logic [31:0] tx_data;
@@ -397,6 +484,7 @@ always_comb begin
                      pkey_in[23:0] = next_o_id;
                      pkey_in[28:24] = tx_info.d_id;
                      pkey_in[31:29] = tx_info.w_id;
+                     n_buckets = order_n_buckets;
 
                      out_valid = 1'b1;
                      out_task.ttype = SILO_NEW_ORDER_INSERT_ORDER;
@@ -424,20 +512,19 @@ end
 
 always_ff @(posedge clk) begin
    if (!rstn) begin
+      header_top <= 0;
    end else begin
       if (reg_bus.wvalid) begin
-         case (reg_bus.waddr) 
-             4 : num_tx <= reg_bus.wdata;
-             8 : tx_offset <= {reg_bus.wdata[29:0], 2'b00};
-             12 : tx_data <= {reg_bus.wdata[29:0], 2'b00};
-             64 : order_n_buckets = reg_bus.wdata[19:16];
-             /*
-             8 : numE <= reg_bus.wdata;
-            16 : base_neighbors <= {reg_bus.wdata[29:0], 2'b00};
-            20 : base_data <= {reg_bus.wdata[29:0], 2'b00};
-            36 : enq_limit <= reg_bus.wdata;
-            */
-         endcase
+         if (reg_bus.waddr == CORE_HEADER_TOP) begin
+            header_top <= reg_bus.wdata[1:0];
+         end else if (reg_bus.waddr[15:6] == 0) begin
+            case ( {header_top, reg_bus.waddr[5:0]}) 
+                4 : num_tx <= reg_bus.wdata;
+                8 : tx_offset <= {reg_bus.wdata[29:0], 2'b00};
+                12 : tx_data <= {reg_bus.wdata[29:0], 2'b00};
+                64 : order_n_buckets = reg_bus.wdata[19:16];
+            endcase
+         end
       end
    end
 end
@@ -540,6 +627,7 @@ endgenerate
 assign offset = hashed[7:0];
 always_comb begin
    case (n_buckets) 
+      1: bucket = hashed[   8];
       8: bucket = hashed[15:8];
       9: bucket = hashed[16:8];
      10: bucket = hashed[17:8];

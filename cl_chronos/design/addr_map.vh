@@ -118,6 +118,9 @@
    parameter CORE_THREAD_ID_FIFO_OCC = 8'h44;
    parameter CORE_DEBUG_WORD         = 8'h48;
 
+    // for backwards compatibility, headers can only be send upto addr 0x40
+   parameter CORE_HEADER_TOP = 8'ha4;
+
    parameter COAL_STACK_PTR          = 8'h80;
    parameter SPLITTER_BUFFER_SIZE    = 8'h84;
 
