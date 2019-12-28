@@ -275,14 +275,14 @@ void GenerateGridGraph(uint32_t n) {
          if (i < n-1) {
             Adj e;
             e.n = (vid+n);
-            e.d_cm = rand() % 1000;
+            e.d_cm = rand() % 10;
             graph[vid].adj.push_back(e);
             if(debug) printf("%d->%d %d\n", vid, e.n, e.d_cm);
          }
          if (j < n-1) {
             Adj e;
             e.n = (vid+1);
-            e.d_cm = rand() % 1000;
+            e.d_cm = rand() % 10;
             graph[vid].adj.push_back(e);
             if(debug) printf("%d->%d %d\n", vid, e.n, e.d_cm);
          }

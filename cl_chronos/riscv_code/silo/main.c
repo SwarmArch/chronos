@@ -139,7 +139,7 @@ void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uin
    save_record(&districts_rw[d].d_next_o_id, 1);
    uint32_t d_next_o_id = districts_rw[d].d_next_o_id++;
    printf("\td_next_o_id %d %d\n", d, d_next_o_id);
-   enq_task_arg2(NEW_ORDER_UPDATE_WR_PTR, ts, OBJECT_NEW_ORDER, _tx_info, d_next_o_id);
+   enq_task_arg3(NEW_ORDER_UPDATE_WR_PTR, ts, OBJECT_NEW_ORDER, 0, _tx_info, d_next_o_id);
    // get bucket id for order
    order o;
    tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
@@ -157,20 +157,21 @@ void new_order_update_district(uint32_t ts, uint32_t object, uint32_t tx_id, uin
 
    // enq ol_cnt enqueuers
    for (int i=0;i<tx_info.num_items;i+=4) {
-      enq_task_arg2(NEW_ORDER_ENQ_OL_CNT, ts, object /* RO */, tx_id,
-            (i << 24) | d_next_o_id );
+      enq_task_arg3(NEW_ORDER_ENQ_OL_CNT, ts, object /* RO */, tx_id,
+            i, d_next_o_id );
    }
 
 }
 
 
-void new_order_update_wr_ptr(uint32_t ts, uint32_t object, uint32_t _tx_info, uint32_t o_id) {
+void new_order_update_wr_ptr(uint32_t ts, uint32_t object, uint32_t _unused_, uint32_t _tx_info, uint32_t o_id) {
    save_record(tbl_new_order.wr_ptr, 1);
-   enq_task_arg3(NEW_ORDER_INSERT_NEW_ORDER, ts, object, _tx_info, o_id, *tbl_new_order.wr_ptr);
+   printf("\tnew_order wr_ptr %d\n", *tbl_new_order.wr_ptr);
+   enq_task_arg3(NEW_ORDER_INSERT_NEW_ORDER, ts, object, *tbl_new_order.wr_ptr, _tx_info, o_id);
    (*tbl_new_order.wr_ptr)++;
 }
 
-void new_order_insert_new_order(uint32_t ts, uint32_t object, uint32_t _tx_info, uint32_t o_id, uint32_t wr_ptr) {
+void new_order_insert_new_order(uint32_t ts, uint32_t object, uint32_t wr_ptr, uint32_t _tx_info, uint32_t o_id) {
    struct new_order* fifo = (struct new_order*) tbl_new_order.fifo_base;
    struct tx_info_new_order tx_info = *(tx_info_new_order* ) &_tx_info;
    struct new_order n = {o_id, tx_info.d_id, tx_info.w_id};
@@ -195,9 +196,8 @@ void new_order_insert_order(uint32_t ts, uint32_t object, uint32_t pkey, uint32_
 }
 
 
-void new_order_item_enqueuer(uint32_t ts, uint32_t object, uint32_t tx_id, uint32_t index_o_id) {
+void new_order_item_enqueuer(uint32_t ts, uint32_t object, uint32_t tx_id, uint32_t start_index, uint32_t o_id) {
    uint32_t offset = tx_offset[tx_id];
-   uint32_t start_index = (index_o_id >> 24);
    struct tx_info_new_order* tx_info = (tx_info_new_order*) (&tx_data[offset]);
    int end_index = start_index + 4;
    if (end_index > tx_info->num_items) end_index = tx_info->num_items;
@@ -223,7 +223,7 @@ void new_order_item_enqueuer(uint32_t ts, uint32_t object, uint32_t tx_id, uint3
 
       // insert order line
       order_line ol;
-      ol.ol_o_id = (index_o_id & 0xffffff);
+      ol.ol_o_id = o_id;
       ol.ol_number = i;
       ol.ol_w_id = tx_info->w_id;
       ol.ol_d_id = tx_info->d_id;
@@ -345,7 +345,7 @@ int main(int argc, char** argv) {
               new_order_update_district(ts, object, arg0, arg1);
               break;
           case NEW_ORDER_UPDATE_WR_PTR:
-              new_order_update_wr_ptr(ts, object, arg0, arg1);
+              new_order_update_wr_ptr(ts, object, arg0, arg1, arg2);
               break;
           case NEW_ORDER_INSERT_NEW_ORDER:
               new_order_insert_new_order(ts, object, arg0, arg1, arg2);
@@ -354,7 +354,7 @@ int main(int argc, char** argv) {
               new_order_insert_order(ts, object, arg0, arg1, arg2);
               break;
           case NEW_ORDER_ENQ_OL_CNT:
-              new_order_item_enqueuer(ts, object, arg0, arg1);
+              new_order_item_enqueuer(ts, object, arg0, arg1, arg2);
               break;
           case NEW_ORDER_UPDATE_STOCK:
               new_order_update_stock(ts, object, arg0, arg1);

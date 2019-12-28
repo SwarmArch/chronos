@@ -37,7 +37,7 @@ struct warehouse_ro {
 
 struct district_ro {
    uint32_t d_tax;
-   char addr[16];
+   char addr[28];
 };
 
 struct district_rw {

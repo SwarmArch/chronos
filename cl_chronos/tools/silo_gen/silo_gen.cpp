@@ -23,19 +23,33 @@
 
 #include "silo_gen.h"
 
+#define SMALL_INPUT
+#ifdef SMALL_INPUT
+const int n_warehouses = 1;
+const int n_districts_per_warehouse = 10;
+const int n_districts = n_warehouses * n_districts_per_warehouse;
+const int num_customers_per_district = 10;
+const int num_items = 1000;
+const int num_tx = 1;
+
+// {bucket_size, num_buckets}
+table_info tbl_cust_ro = {8, 8, sizeof(customer_ro), 0};
+table_info tbl_cust_rw = {8, 8, sizeof(customer_rw), 0};
+table_info tbl_order = {8, 8, sizeof(order), 0};
+table_info tbl_order_line = {8, 8, sizeof(order_line), 0};
+table_info tbl_item = {8, 8, sizeof(item), 0};
+table_info tbl_stock = {8, 8, sizeof(stock), 0};
+fifo_table_info tbl_new_order = {0, 65536, sizeof(new_order), 0};
+fifo_table_info tbl_history = {0, 65536, sizeof(history), 0};
+
+#else
+
 const int n_warehouses = 1;
 const int n_districts_per_warehouse = 10;
 const int n_districts = n_warehouses * n_districts_per_warehouse;
 const int num_customers_per_district = 3000;
 const int num_items = 100000;
 const int num_tx = 10000;
-
-// Warehouse and Distric tables are simple arrays.
-bool debug = false;
-
-warehouse_ro warehouses[n_warehouses];
-district_ro districts_ro[n_districts];
-district_rw districts_rw[n_districts];
 
 // {bucket_size, num_buckets}
 table_info tbl_cust_ro = {8, 8, sizeof(customer_ro), 0};
@@ -46,6 +60,15 @@ table_info tbl_item = {8, 9, sizeof(item), 0};
 table_info tbl_stock = {8, 12, sizeof(stock), 0};
 fifo_table_info tbl_new_order = {0, 65536, sizeof(new_order), 0};
 fifo_table_info tbl_history = {0, 65536, sizeof(history), 0};
+
+#endif
+
+// Warehouse and Distric tables are simple arrays.
+bool debug = false;
+
+warehouse_ro warehouses[n_warehouses];
+district_ro districts_ro[n_districts];
+district_rw districts_rw[n_districts];
 
 uint32_t* tx_offset;
 std::vector<uint32_t> tx_data;
@@ -151,28 +174,32 @@ void initialize_order() {
    initialize_table(&tbl_order_line);
    initialize_fifo(&tbl_new_order);
 
-   int* c_ids = (int*) malloc(sizeof(int)*3000);
+   int cid_threshold = (num_customers_per_district * 2/3) + 1;
+   // if not small_input, should return 2101
+
+   int* c_ids = (int*) malloc(sizeof(int)* num_customers_per_district);
    for (int w=0;w<n_warehouses;w++) {
       for (int d=0;d<n_warehouses * n_districts_per_warehouse;d++) {
          // shuffle customer ids
-         for (int i=0;i<3000;i++) c_ids[i] = i+1;
-         for (int i=0;i<2999;i++) {
+         for (int i=0;i<num_customers_per_district;i++) c_ids[i] = i+1;
+         for (int i=0;i<num_customers_per_district;i++) {
             int j= RandomNumber(i, 3000);
             int t = c_ids[j]; c_ids[j] = c_ids[i]; c_ids[i]  = t;
          }
-         for (int c=1;c<=3000;c++) {
+         for (int c=1;c<=num_customers_per_district;c++) {
             order o_entry;
             o_entry.o_id = c;
             o_entry.o_d_id = d;
             o_entry.o_w_id = w;
             o_entry.o_c_id = c_ids[c-1];
-            if (c<2101) o_entry.o_carrier_id = RandomNumber(1,10);
+
+            if (c<cid_threshold) o_entry.o_carrier_id = RandomNumber(1,10);
             else o_entry.o_carrier_id = 0;
             o_entry.o_ol_cnt = RandomNumber(5,15);
             o_entry.o_all_local = 1;
             insert_record(&tbl_order, &o_entry);
 
-            if (c>=2101) {
+            if (c>=cid_threshold) {
                new_order no;
                no.no_w_id = w;
                no.no_d_id = d;
@@ -180,7 +207,7 @@ void initialize_order() {
                insert_fifo_record(&tbl_new_order, &no);
             }
 
-            if (c>= 2101) {
+            if (c>= cid_threshold) {
                // insert to new order
             }
             for (int l = 1; l<= o_entry.o_ol_cnt;l++) {
@@ -246,13 +273,13 @@ void generate_tx() {
          tx_info_new_order tx;
          tx.tx_type = 0;
          tx.w_id = (n_warehouses==1)?0 : RandomNumber(0, n_warehouses-1);
-         tx.d_id = RandomNumber(0, n_districts_per_warehouse);
-         tx.c_id = NonUniformRandom(1023, 259, 1, num_customers_per_district);
+         tx.d_id = RandomNumber(0, n_districts_per_warehouse-1);
+         tx.c_id = NonUniformRandom(1023, 259, 1, num_customers_per_district-1);
          tx.num_items = RandomNumber(5,15);
          tx_data.push_back( *((uint32_t*) &tx));
          for (int i=0;i<tx.num_items;i++) {
             tx_info_new_order_item tx_item;
-            tx_item.i_id = NonUniformRandom(8191, 7911, 1, num_items);
+            tx_item.i_id = NonUniformRandom(8191, 7911, 1, num_items-1);
             tx_item.i_qty = RandomNumber(1, 10);
             if (n_warehouses==1) {
                tx_item.i_s_wid = tx.w_id;

@@ -94,10 +94,10 @@ initial begin
    initialize_spilling_structures();
    
    for (int i=0;i<N_TILES;i++) begin
-      for (int j=0;j<16;j++) begin
+      for (int j=0;j< ((APP_NAME == "silo") ? 32 : 16 );j++) begin
          ocl_poke(i, ID_ALL_APP_CORES, j*4, file[j]);
-         ocl_poke(i, ID_TSB, TSB_HASH_KEY, 32'h4b56917f);
       end
+      ocl_poke(i, ID_TSB, TSB_HASH_KEY, 32'h4b56917f);
       ocl_poke(i, ID_ALL_APP_CORES, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 10);
       ocl_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS, 16);
    end
@@ -131,6 +131,9 @@ initial begin
       end
       task_enq(0, file[7], 0, 1 /*n_args*/, 0, 0);
    end
+   if (APP_NAME == "silo") begin
+      task_enq(0, 0, 0, 0, 0, 0);
+   end      
 
    
    // GO !!
@@ -138,6 +141,7 @@ initial begin
       ocl_poke(i, ID_TASK_UNIT, TASK_UNIT_START, 1);
       ocl_poke(i, ID_ALL_CORES, CORE_START, '1);
    end
+   $display("Cores started"); 
    #4us;
    //check_log(0, ID_COAL);
    

@@ -43,7 +43,7 @@
    `define SIMPLE_MEMORY
    `define FAST_MEM_INIT
    `define FAST_VERIFY
-   //`define CACHE_LINE_SIZED_SIMPLE_MEMORY
+   `define CACHE_LINE_SIZED_SIMPLE_MEMORY
 `endif 
 
 package chronos; 

@@ -38,7 +38,7 @@ void undo_log_write(uint* addr, uint data) {
 
 void enq_task_arg4(uint ttype, uint ts, uint locale, uint arg0, uint arg1, uint arg2, uint arg3){
    task t = {ts, ttype, locale, arg0, arg1, arg2, arg3};
-   printf("\tEnq Task ts:%4x ttype:%2d locale:%6x args:(%4d %4d %4d %4d)\n",
+   printf("\tEnq Task ts:%4x ttype:%2d locale:%6x args:(%4x %4x %4x %4x)\n",
          t.ts, t.ttype, locale, t.args[0], t.args[1], t.args[2], t.args[3]);
    pq.push(t);
 }
