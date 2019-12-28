@@ -555,6 +555,9 @@ always_comb begin
                   resp_subtype = 3;
                end
                3: begin
+                  // At this point, we need to both enq a new task and to launch
+                  // a mem request. Since, a subtask with both these things have
+                  // not been tested, serialize things.
                   arvalid = 1'b1;
                   araddr = 0;
                   arlen = 1;
