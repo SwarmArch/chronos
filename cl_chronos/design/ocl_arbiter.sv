@@ -50,6 +50,8 @@ module ocl_arbiter(
    output logic ocl_rready,
 
    output logic [2:0] num_mem_ctrl,
+   output logic [15:0] rate_ctrl_r,
+   output logic [15:0] rate_ctrl_n,
 
    output [7:0] ocl_global_raddr,
    input [31:0] ocl_global_rdata,
@@ -77,6 +79,8 @@ module ocl_arbiter(
       if (!rstn) begin
          state <= OCL_IDLE;
          num_mem_ctrl <= N_DDR_CTRL;
+         rate_ctrl_r <= 16;
+         rate_ctrl_n <= 16;
       end else begin 
          case (state) 
             OCL_IDLE: begin
@@ -112,6 +116,9 @@ module ocl_arbiter(
                   if (ocl_awaddr[15:8] == ID_GLOBAL) begin
                      if (ocl_awaddr[7:0] == MEM_XBAR_NUM_CTRL) begin
                         num_mem_ctrl <= ocl_wdata; 
+                        state <= OCL_SEND_B; 
+                     end else if (ocl_awaddr[7:0] == MEM_XBAR_RATE_CTRL) begin
+                        {rate_ctrl_r, rate_ctrl_n} <= ocl_wdata; 
                         state <= OCL_SEND_B; 
                      end
                   end

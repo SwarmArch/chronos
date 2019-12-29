@@ -289,6 +289,7 @@
    
    parameter DEBUG_CAPACITY   = 8'hf0; // For any component that does logging
    parameter MEM_XBAR_NUM_CTRL = 8'h10;
+   parameter MEM_XBAR_RATE_CTRL =8'h14;
 
    parameter RISCV_DEQ_TASK      = 32'hc0000000;
    parameter RISCV_DEQ_TASK_OBJECT = 32'hc0000004;

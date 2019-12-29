@@ -214,6 +214,8 @@ logic       [N_TILES-1:0] task_enq_req_out_wready;
 logic [N_TILES-1:0] [TASK_ENQ_DATA_WIDTH-1:0] task_enq_req_out_wdata;
 
 logic [2:0] num_mem_ctrl;
+logic [15:0] rate_ctrl_r;
+logic [15:0] rate_ctrl_n;
 logic [15:0] pci_log_size;
 logic [N_TILES-1:0] [$clog2(N_TILES):0] task_in_port;
 
@@ -661,6 +663,7 @@ generate;
          .in(xbar_ddr_bus_p[i]),
          .out(xbar_ddr_bus[i])
       );
+
       assign xbar_ddr_bus_p[i].awid     = xbar_ddr_awid   [i];
       assign xbar_ddr_bus_p[i].awaddr   = xbar_ddr_awaddr [i];
       assign xbar_ddr_bus_p[i].awsize   = xbar_ddr_awsize [i];
@@ -772,7 +775,9 @@ axi_xbar
    .m_rvalid      (  xbar_ddr_rvalid    ),   
    .m_rready      (  xbar_ddr_rready    ),
 
-   .num_mem_ctrl  (  num_mem_ctrl       )
+   .num_mem_ctrl  (  num_mem_ctrl       ),
+   .rate_ctrl_r   (  rate_ctrl_r        ),
+   .rate_ctrl_n   (  rate_ctrl_n        )
 
 );
 
@@ -861,6 +866,8 @@ ocl_arbiter OCL_ARBITER (
    .ocl_rready    (ocl_rready ),
 
    .num_mem_ctrl   (num_mem_ctrl),
+   .rate_ctrl_r    (rate_ctrl_r ),
+   .rate_ctrl_n    (rate_ctrl_n ),
 
    .ocl_global_raddr (ocl_global_raddr),
    .ocl_global_rdata (ocl_global_rdata)

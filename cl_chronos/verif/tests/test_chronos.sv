@@ -135,7 +135,8 @@ initial begin
    if (APP_NAME == "silo") begin
       task_enq(0, 0, 0, 0, 0, 0);
    end      
-
+    
+   //ocl_poke(N_TILES, ID_GLOBAL, MEM_XBAR_RATE_CTRL, {16'h1, 16'd64});
    
    // GO !!
    for (int i=0;i<N_TILES;i++) begin 

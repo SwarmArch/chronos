@@ -109,7 +109,11 @@ module axi_xbar
    input              [NUM_MI-1:0] m_rvalid,
    output logic       [NUM_MI-1:0] m_rready,
 
-   input [2:0]        num_mem_ctrl
+   input [2:0]        num_mem_ctrl,
+
+   // limit to r requests every n cycles 
+   input [15:0]       rate_ctrl_r,
+   input [15:0]       rate_ctrl_n
 );
 
 logic  [NUM_SI-1:0] [$clog2(NUM_MI):0] s_aw_port;
@@ -131,6 +135,24 @@ slave_index_t        [NUM_MI-1:0] aw_sched_out;
 logic                [NUM_MI-1:0] aw_can_take_new;
 logic                [NUM_MI-1:0] w_can_take_new;
 
+logic [15:0] cycle;
+typedef logic [15:0] req_count_t;
+req_count_t [NUM_MI-1:0] req_count_r;
+req_count_t [NUM_MI-1:0] req_count_w;
+
+
+always_ff @ (posedge clk) begin
+    if (!rstn) begin
+        cycle <= 0;
+    end else begin
+        if (cycle==rate_ctrl_n) begin
+            cycle <= 1;
+        end else begin
+            cycle <= cycle + 1;
+        end
+    end
+end
+
 generate
 for (i=0;i<NUM_SI;i++) begin
    always_comb begin
@@ -148,8 +170,8 @@ for (i=0;i<NUM_MI;i++) begin : aw_sched
    for (j=0;j<NUM_SI;j++) begin
       assign aw_sched_in[i][j] = s_awvalid[j] & (i== s_aw_port[j]);
    end
-   assign aw_can_take_new[i] = (!m_awvalid[i] | m_awready[i]);
-   assign w_can_take_new[i] = (!m_wvalid[i] | m_wready[i]); 
+   assign aw_can_take_new[i] = (!m_awvalid[i] | m_awready[i]) & (req_count_w[i] < rate_ctrl_r);
+   assign w_can_take_new[i] = (!m_wvalid[i] | m_wready[i]) & (req_count_w[i] < rate_ctrl_r); 
 
    rr_sched #(
       .OUT_WIDTH(LOG_NUM_SI),
@@ -163,6 +185,20 @@ for (i=0;i<NUM_MI;i++) begin : aw_sched
 
       .advance(m_awvalid[i] & m_awready[i])
    );
+
+   always_ff @(posedge clk) begin
+        if (!rstn) begin
+            req_count_w[i] <= 0;
+        end else begin
+            if (cycle == rate_ctrl_n) begin
+                req_count_w[i] <= 0;
+            end else if (s_awvalid[aw_sched_out[i]] & s_awready[aw_sched_out[i]] &
+             s_wvalid[aw_sched_out[i]] & s_wready[aw_sched_out[i]] &
+               (s_aw_port[ aw_sched_out[i] ] == i) ) begin 
+                req_count_w[i] <= req_count_w[i] + 1;
+           end
+        end
+   end
 
    always @(posedge clk) begin
       if (!rstn) begin
@@ -186,7 +222,7 @@ for (i=0;i<NUM_MI;i++) begin : aw_sched
             m_wdata  [i] <= s_wdata [aw_sched_out[i]];
             m_wstrb  [i] <= s_wstrb [aw_sched_out[i]];
             m_wlast  [i] <= s_wlast [aw_sched_out[i]];
-
+            
 
             m_awvalid[i] <= 1'b1;
             m_wvalid [i] <= 1'b1;
@@ -312,7 +348,7 @@ for (i=0;i<NUM_MI;i++) begin : ar_sched
    for (j=0;j<NUM_SI;j++) begin
       assign ar_sched_in[i][j] = s_arvalid[j] & (i== s_ar_port[j]);
    end
-   assign ar_can_take_new[i] = (!m_arvalid[i] | m_arready[i]); 
+   assign ar_can_take_new[i] = (!m_arvalid[i] | m_arready[i]) & (req_count_r[i] < rate_ctrl_r);
 
    rr_sched #(
       .OUT_WIDTH(LOG_NUM_SI),
@@ -326,6 +362,19 @@ for (i=0;i<NUM_MI;i++) begin : ar_sched
 
       .advance(m_arvalid[i] & m_arready[i])
    );
+   
+   always_ff @(posedge clk) begin
+        if (!rstn) begin
+            req_count_r[i] <= 0;
+        end else begin
+            if (cycle == rate_ctrl_n) begin
+                req_count_r[i] <= 0;
+            end else if (s_arvalid[ar_sched_out[i]] & s_arready[ar_sched_out[i]] & 
+               (s_ar_port[ ar_sched_out[i] ] == i) ) begin 
+                req_count_r[i] <= req_count_r[i] + 1;
+            end
+        end
+   end
 
    always @(posedge clk) begin
       if (!rstn) begin
