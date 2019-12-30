@@ -39,3 +39,15 @@ des 25 93
 des 30 101
 des 35 116
 des 40 124
+color 1 222.249
+color 2 116.775
+color 4 63.316
+color 6 48.301
+color 8 38.33
+color 10 32.783
+color 15 26.394
+color 20 24.132
+color 25 25.161
+color 30 26.503
+color 35 26.267
+color 40 28.06

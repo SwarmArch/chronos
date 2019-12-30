@@ -43,8 +43,14 @@ for f in file_list:
     print(f)
     s = f.split("_")
     app = s[0];
-    n_tiles = int(s[4])
-    n_threads = int(s[6])
+    riscv = f.startswith("riscv")
+    if riscv:
+        n_tiles = int(s[5])
+        n_threads = int(s[7])
+        app += "_"+s[3]
+    else:
+        n_tiles = int(s[4])
+        n_threads = int(s[6])
     index = (app, n_tiles, n_threads)
     res_file = open(f,"r")
     
