@@ -34,8 +34,8 @@ test sssp sssp_nr_6t 1 1
 test sssp sssp_nr_6t 1 16 
 test sssp sssp_nr_6t 2 16 
 test sssp sssp_nr_6t 4 16  
-test sssp sssp_nr_16t 8 16  
-test sssp sssp_nr_16t 12 16  
+test sssp sssp_nr_14t 8 16  
+test sssp sssp_nr_14t 12 16  
 test sssp sssp_nr_16t 14 16  
 test sssp sssp_nr_16t 16 16  
 
