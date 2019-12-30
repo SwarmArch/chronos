@@ -70,6 +70,7 @@ fifo_size_t fifo_out_almost_full_thresh;
 logic [31:0] s_araddr;
 logic [31:0] dequeues_remaining;
 
+`ifdef USE_PIPELINED_TEMPLATE
    `RW_READER  RW_READER (
       .clk(clk),
       .rstn(rstn),
@@ -78,6 +79,7 @@ logic [31:0] dequeues_remaining;
       .araddr(s_araddr),
       .reg_bus(reg_bus)
   );
+`endif
 
 
 logic can_dequeue; 
