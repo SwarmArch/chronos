@@ -101,10 +101,14 @@ while(True):
 
 ## Runs the specified experiments and save the output to ...
 
-n_repeats = 10;
+n_repeats = 3;
 
 for t in tests:
     app = t[0]
+    riscv=False
+    if app.startswith("riscv"):
+	riscv=True
+	app = app.split("_")[1]
     if (t[1] not in agfi_list):
         print("%s not found in agfi-list" % t[1])
         continue
@@ -118,6 +122,8 @@ for t in tests:
         cmd = "sudo ../../../software/runtime/test_chronos --n_tiles=" +n_tiles
         cmd += " --n_threads=" + n_threads +" " + app  
         cmd += " ../../inputs/chronos-inputs/" + inputs_list[app]
+	if (riscv):
+	    cmd +=" ../../../riscv_code/binaries/" + app + ".hex"
         cmd += " | tee " + t[1] +"_tiles_"+n_tiles+"_threads_"+n_threads
         cmd += "_"+str(r) +".result" 
         run_cmd(cmd)

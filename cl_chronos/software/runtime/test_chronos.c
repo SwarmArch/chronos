@@ -540,7 +540,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         headers[15] = 0; // bfs non-spec
     }
     if (app == APP_COLOR) {
-        headers[9] = 24;
+        headers[9] = 48;
         write_buffer[9*4] = headers[9];
     }
     if (app == APP_DES) {
@@ -555,10 +555,6 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         headers[12] =  ((uint32_t *) write_buffer)[dest_lat_addr + 1]  ;
         headers[13] = 3;
         printf("dest lat %d %x\n", dest_lat_addr, headers[11]);
-    }
-    if (app == APP_SILO) {
-        headers[1] = 1000; // num_tx
-
     }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
@@ -863,8 +859,8 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     int iters = 0;
    
-   clock_t t1, t2;
-   t1 = clock();
+   time_t t1,t2;
+   t1 = time(NULL);
    while(true) {
        uint32_t gvt;
        if (NO_ROLLBACK) {
@@ -897,22 +893,22 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        }
        if (logging_on) {
 
-           //log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
-           //            (N_TILES << 8) | ID_GLOBAL);
+           log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
+                       (N_TILES << 8) | ID_GLOBAL);
            log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
            if (APP_ID == RISCV_ID) {
-              //log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
+              log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
            } else if (USING_PIPELINED_TEMPLATE) {
               log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
               log_rw_stage(pci_bar_handle, read_fd, fwrw, log_buffer, ID_RW_READ) ;
            }
 
-           //log_cache(pci_bar_handle, read_fd, fwl2, log_buffer, ID_L2_RW);
-           //log_cache(pci_bar_handle, read_fd, fwl2ro, log_buffer, ID_L2_RO);
-           //log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
-           //log_coalescer(pci_bar_handle, read_fd, fwcoal, log_buffer, ID_COALESCER);
-           //log_splitter(pci_bar_handle, read_fd, fwsp, log_buffer, ID_SPLITTER);
-           //log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
+           log_cache(pci_bar_handle, read_fd, fwl2, log_buffer, ID_L2_RW);
+           log_cache(pci_bar_handle, read_fd, fwl2ro, log_buffer, ID_L2_RO);
+           log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
+           log_coalescer(pci_bar_handle, read_fd, fwcoal, log_buffer, ID_COALESCER);
+           log_splitter(pci_bar_handle, read_fd, fwsp, log_buffer, ID_SPLITTER);
+           log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
            fflush(fwtu); fflush(fwro); fflush(fwcq); fflush(fwl2); fflush(fwrv_0);
            fflush(fwl2ro); fflush(fwcoal); fflush(fwsp);
            usleep(200);
@@ -921,11 +917,13 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        }
        usleep(1);
        iters++;
-	t2 = clock() - t1;
-       int time_s = t2/ CLOCKS_PER_SEC;
+       t2 = time(NULL); 
+       double time_s = (double)(t2-t1);
        if (time_s > 30) exit(0);
 
    }
+       double time_s = (double) (t2-t1) ;
+   printf("time_s %f\n", time_s);
    // disable new dequeues from cores; for accurate counting of no tasks stalls
    pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES ,0x0);
    for (int i=0;i<N_TILES;i++) {
