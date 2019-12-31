@@ -124,7 +124,10 @@ for t in tests:
         cmd += " ../../inputs/chronos-inputs/" + inputs_list[app]
 	if (riscv):
 	    cmd +=" ../../../riscv_code/binaries/" + app + ".hex"
-        cmd += " | tee " + t[1] +"_tiles_"+n_tiles+"_threads_"+n_threads
+        cmd += " | tee " + t[1]
+	if (riscv):
+	    cmd += "_"+app
+	cmd +=  "_tiles_"+n_tiles+"_threads_"+n_threads
         cmd += "_"+str(r) +".result" 
         run_cmd(cmd)
 	#exit(0)

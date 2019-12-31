@@ -5,21 +5,13 @@ input maxflow inputs/maxflow/genrmf_wide_37_6_1_10000_0.in.flow
 input des inputs/des/csaArray32.net.csr
 input color inputs/color/com-youtube.edges.color
 
-test riscv_sssp riscv_nr_4t 1 16
-test riscv_sssp riscv_nr_4t 2 16
-test riscv_sssp riscv_nr_4t 3 16
+test riscv_sssp riscv_nr_4t 4 8
 test riscv_sssp riscv_nr_4t 4 16
-test riscv_color riscv_nr_4t 1 16
-test riscv_color riscv_nr_4t 2 16
-test riscv_color riscv_nr_4t 3 16
+test riscv_color riscv_nr_4t 4 8
 test riscv_color riscv_nr_4t 4 16
-test riscv_maxflow riscv_r_4t 1 16
-test riscv_maxflow riscv_r_4t 2 16
-test riscv_maxflow riscv_r_4t 3 16
+test riscv_maxflow riscv_r_4t 4 8
 test riscv_maxflow riscv_r_4t 4 16
-test riscv_des riscv_r_4t 1 16
-test riscv_des riscv_r_4t 2 16
-test riscv_des riscv_r_4t 3 16
+test riscv_des riscv_r_4t 4 8
 test riscv_des riscv_r_4t 4 16
 
 test color color_nr_6t 1 1
