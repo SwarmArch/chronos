@@ -120,7 +120,7 @@ __attribute__((always_inline))
 
     }
 
-__attribute__((always_inline))
+//__attribute__((always_inline))
     void des_task(uint ts, uint comp, uint port, uint logicVal) {
         uint state = (uint) gate_state[comp];
         uint delay = state & 0xffff;
