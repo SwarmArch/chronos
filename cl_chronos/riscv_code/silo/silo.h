@@ -84,9 +84,9 @@ struct order_line {
    uint32_t ol_w_id : 3;
    uint32_t ol_number : 4;
    uint32_t ol_i_id;
-   uint32_t ol_supply_w_id : 4;
-   uint32_t ol_quantity : 4;
    uint32_t ol_amount : 24;
+   uint32_t ol_quantity : 4;
+   uint32_t ol_supply_w_id : 4;
    uint32_t ol_delivery_d;
    char ol_dist_info[16];
 };

@@ -310,7 +310,7 @@ always_comb begin
                if (wdata[63:32] < 10) begin
                   wdata[63:32] += 91;
                end
-               wdata[128 :+ 32] +=1 ; // s_ytd;
+               wdata[128 +: 32] +=1 ; // s_ytd;
             end else begin
                out_task_rw = 1'b1;
                out_task.args[63:48] = offset+1;
@@ -402,10 +402,10 @@ end
                   in_task.args[31:0], in_task.args[63:32]);
          end
          SILO_NEW_ORDER_UPDATE_STOCK: begin
-            $display("[%5d] [rob-%2d] [rw] [%3d] UPDATE_STOCK  ts:%8x object:%4x | id:%6x offset:%2d keys:(%8x %8x) ",
+            $display("[%5d] [rob-%2d] [rw] [%3d] UPDATE_STOCK  ts:%8x object:%4x | id:%6x offset:%2d keys:(%8x %8x) %2d %1d",
                cycle, TILE_ID, in_cq_slot, in_task.ts, in_task.object,
                   in_task.args[27:0], 
-                  offset, in_key, ref_key);
+                  offset, in_key, ref_key, in_data[63:32], s_update_qty );
          end
          SILO_NEW_ORDER_INSERT_ORDER_LINE: begin
             $display("[%5d] [rob-%2d] [rw] [%3d] INSERT_OL  ts:%8x object:%4x | offset:%2x in_key:%8x cur_key:%8x",
@@ -724,7 +724,7 @@ always_comb begin
                   
                   out_valid = 1'b1;
                   out_task.ttype = SILO_NEW_ORDER_INSERT_ORDER_LINE;
-                  out_task.object = OBJECT_STOCK | (bucket << 4);
+                  out_task.object = OBJECT_OL | (bucket << 4);
                   out_task.ts = in_task.ts + in_task.args[95:92];
                   out_task.args[31:0] = pkey_in;
                   out_task.args[55:32] = tx_item.i_id;

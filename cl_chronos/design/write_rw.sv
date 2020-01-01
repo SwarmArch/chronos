@@ -136,12 +136,12 @@ end
 logic s_write_wvalid;
 rw_data_t s_write_data;
 logic s_write_wready;
-addr_t s_write_addr;
+logic [31:0] s_write_addr;
 thread_id_t s_thread_id, write_thread_id;
 
 logic wdata_fifo_full, wdata_fifo_empty;
 
-addr_t write_addr;
+logic [31:0] write_addr;
 rw_data_t write_data;
 
 fifo #(

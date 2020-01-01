@@ -246,7 +246,7 @@ void new_order_update_stock(uint32_t ts, uint32_t object, uint32_t pkey, uint32_
    uint32_t qty = offset_quantity & 0xffff;
 
    stock* stock_ptr = (stock*) find_record(&tbl_stock, pkey, bucket, offset);
-   printf("\t stock %d %d\n", stock_ptr->s_i_id, stock_ptr->s_quantity);
+   printf("\t stock %d cur_qty:%d tx_qty:%d\n", stock_ptr->s_i_id, stock_ptr->s_quantity, qty);
    save_record(&stock_ptr->s_quantity, 4);
 
    stock_ptr->s_ytd++;

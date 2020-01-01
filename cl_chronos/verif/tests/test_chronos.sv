@@ -240,6 +240,10 @@ initial begin
                dist_actual == dist_ref ? "MATCH" : "FAIL", num_errors); 
       end
    end
+   if (APP_NAME == "silo") begin
+       silo_verify();
+   end
+
 
    // Uncomment to Test DEBUG interfaces
    //check_log(ID_L2);
@@ -785,15 +789,17 @@ endtask
    
 task flush_caches; 
    // Faster simulation by capping flushing to read-write data (BIG HACK)
+   if (APP_NAME != "silo") begin 
    tb.card.fpga.CL.\tile[0].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    tb.card.fpga.CL.\tile[0].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
+
    //tb.card.fpga.CL.\tile[1].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[1].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[2].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[2].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[3].TILE .\l2[0].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
    //tb.card.fpga.CL.\tile[3].TILE .\l2[1].L2 .L2_STAGE_1.flush_addr_last = (file[3] >> 4);
-   
+   end
    for (int i=0;i<N_TILES;i++) begin
       for (int j=0;j<L2_BANKS;j++) begin
          ocl_addr[23:16] = i;
@@ -817,5 +823,27 @@ task flush_caches;
    end while (ocl_data==1);
 endtask
 
+task silo_verify;
+`ifdef CACHE_LINE_SIZED_SIMPLE_MEMORY
+    logic [511:0] ref_line;
+    integer fref;
+    fref = $fopen("silo_ref", "r");
+    addr = 0;
+    while (!$feof(fref)) begin
+        ref_line[addr[5:0] * 8 +:8] = $fgetc(fref);
+        if (addr[5:0] == '1) begin
+            cache_line = tb.card.fpga.CL.\mem_ctrl[2].MEM_CTRL .memory[ {addr[31:6], 6'b0} ];
+            if (cache_line != ref_line) begin
+                $display ("addr %x \ndata %x\nref  %x", addr[31:6], cache_line, ref_line);
+                $finish();
+            end
+        end
+        addr = addr + 1;
+        if (addr[21:0]  == 0) begin
+           $display("%d Bytes verified", addr);  
+        end
+    end
+`endif
+endtask
 endmodule
 
