@@ -54,6 +54,7 @@ parameter OBJECT_DISTRICT = (1<<20);
 parameter OBJECT_NEW_ORDER = (2<<20);
 parameter OBJECT_ORDER = (3<<20);
 parameter OBJECT_STOCK = (4<<20);
+parameter OBJECT_OL = (5<<20);
 parameter OBJECT_OL_CNT = (8<<20);
 
 parameter SILO_BUCKET_SIZE = 32 * 256;
@@ -104,9 +105,10 @@ logic [31:0] tbl_new_order_ptrs;
 logic [31:0] base_new_order;
 logic [31:0] base_order;
 logic [31:0] base_stock;
+logic [31:0] base_ol;
 
 logic [15:0] bucket_id;
-logic [15:0] offset;
+logic [7:0] offset;
 assign bucket_id = task_in.object[19:4];
 
    
@@ -127,6 +129,10 @@ always_comb begin
          offset = task_in.args[63:48];
          araddr = base_stock + bucket_id * SILO_BUCKET_SIZE + offset * 32;  
       end
+      SILO_NEW_ORDER_INSERT_ORDER_LINE : begin
+         offset = task_in.args[63:56];
+         araddr = base_ol + bucket_id * SILO_BUCKET_SIZE + offset * 32;  
+      end
    endcase
 end
 
@@ -143,6 +149,7 @@ always_ff @(posedge clk) begin
             case ( {header_top, reg_bus.waddr[5:0]}) 
                44 : base_district_rw <= {reg_bus.wdata[29:0], 2'b00};
                68 : base_order <= {reg_bus.wdata[29:0], 2'b00};
+               76 : base_ol <= {reg_bus.wdata[29:0], 2'b00};
                92 : base_stock <= {reg_bus.wdata[29:0], 2'b00};
                96 : base_new_order <= {reg_bus.wdata[29:0], 2'b00};
               104 : tbl_new_order_ptrs <= {reg_bus.wdata[29:0], 2'b00};
@@ -191,6 +198,7 @@ logic [31:0] tbl_new_order_ptrs;
 logic [31:0] base_new_order;
 logic [31:0] base_order;
 logic [31:0] base_stock;
+logic [31:0] base_ol;
 
 assign task_in_ready = sched_task_valid & sched_task_ready;
 assign sched_task_valid = task_in_valid;
@@ -207,7 +215,7 @@ end
 
 logic [31:0] in_key;
 logic [31:0] ref_key;
-logic [15:0] offset;
+logic [7:0] offset;
 
 silo_district_rw district_rw;
 
@@ -311,6 +319,26 @@ always_comb begin
                wvalid = 1'b0;
             end
          end
+         SILO_NEW_ORDER_INSERT_ORDER_LINE : begin
+            in_key = in_task.args[31:0];
+            ref_key = in_data[31:0];
+            offset = in_task.args[63:56];
+            
+            if (ref_key == '1) begin
+               out_valid = 1'b0;      
+               wvalid = 1'b1;
+               waddr = base_ol + bucket_id * SILO_BUCKET_SIZE + offset * 32;  
+               wdata[31:0] = in_key;
+               wdata[63:32] = in_task.args[55:32]; //  ol_i_id;
+               wdata[95:64] = in_task.args[95:64]; // qty, amt, s_wid;
+            end else begin
+               out_task_rw = 1'b1;
+               out_task.args[63:56] = offset+1;
+               out_valid = 1'b1;
+
+               wvalid = 1'b0;
+            end
+         end
       endcase
    end
 end
@@ -326,6 +354,7 @@ always_ff @(posedge clk) begin
             case ( {header_top, reg_bus.waddr[5:0]}) 
                44 : base_district_rw <= {reg_bus.wdata[29:0], 2'b00};
                68 : base_order <= {reg_bus.wdata[29:0], 2'b00};
+               76 : base_ol <= {reg_bus.wdata[29:0], 2'b00};
                92 : base_stock <= {reg_bus.wdata[29:0], 2'b00};
                96 : base_new_order <= {reg_bus.wdata[29:0], 2'b00};
               104 : tbl_new_order_ptrs <= {reg_bus.wdata[29:0], 2'b00};
@@ -376,6 +405,11 @@ end
             $display("[%5d] [rob-%2d] [rw] [%3d] UPDATE_STOCK  ts:%8x object:%4x | id:%6x offset:%2d keys:(%8x %8x) ",
                cycle, TILE_ID, in_cq_slot, in_task.ts, in_task.object,
                   in_task.args[27:0], 
+                  offset, in_key, ref_key);
+         end
+         SILO_NEW_ORDER_INSERT_ORDER_LINE: begin
+            $display("[%5d] [rob-%2d] [rw] [%3d] INSERT_OL  ts:%8x object:%4x | offset:%2x in_key:%8x cur_key:%8x",
+               cycle, TILE_ID, in_cq_slot, in_task.ts, in_task.object,
                   offset, in_key, ref_key);
          end
 
@@ -438,12 +472,17 @@ logic [31:0] tx_offset;
 logic [31:0] tx_data;
 logic [3:0] order_n_buckets;
 logic [3:0] stock_n_buckets;
+logic [3:0] item_n_buckets;
+logic [3:0] ol_n_buckets;
+logic [31:0] base_item;
 
 logic [31:0] pkey_in;
 logic [3:0] n_buckets;
 logic [7:0] offset;
 logic [15:0] bucket;
 
+logic [7:0] new_offset;
+assign new_offset = offset + in_task.args[23:16];
 
 pkey_hash hash (
    .key(pkey_in),
@@ -631,6 +670,14 @@ always_comb begin
                4: begin
                   if (in_word_id == 0) begin
                      // read item
+                     pkey_in = tx_item.i_id;
+                     n_buckets = item_n_buckets;
+
+                     arvalid = 1'b1;
+                     araddr = base_item + bucket * SILO_BUCKET_SIZE + 
+                           offset * 32;  
+                     arlen = 0;
+                     resp_subtype = 5;
                   end else begin
                      // enq stock update
                      pkey_in[27:0] = stock.s_i_id;
@@ -646,6 +693,45 @@ always_comb begin
                      out_task.args[63:48] = offset;
                      out_task.args[95:64] = 0;
                   end
+               end
+               5: begin
+                  // req item / req item price
+                  pkey_in = tx_item.i_id;
+                  n_buckets = item_n_buckets;
+                  if (tx_item.i_id == in_data) begin
+                     // req item price
+                     arvalid = 1'b1;
+                     araddr = base_item + bucket * SILO_BUCKET_SIZE + 
+                           new_offset * 32 + 8;  
+                     arlen = 0;
+                     resp_subtype = 6;
+                  end else begin
+                     arvalid = 1'b1;
+                     araddr = base_item + bucket * SILO_BUCKET_SIZE + 
+                           new_offset * 32;  
+                     arlen = 0;
+                     resp_subtype = 5;
+                     resp_task.args[23:16] = in_task.args[23:16]+1;
+                  end
+               end
+               6: begin
+                  // enq order line
+                  pkey_in[19:0] = in_task.args[91:64]; // o_id
+                  pkey_in[24:20] = tx_info.d_id; 
+                  pkey_in[27:25] = tx_info.w_id; 
+                  pkey_in[31:28] = in_task.args[95:92]; // ol_number
+                  n_buckets = ol_n_buckets;
+                  
+                  out_valid = 1'b1;
+                  out_task.ttype = SILO_NEW_ORDER_INSERT_ORDER_LINE;
+                  out_task.object = OBJECT_STOCK | (bucket << 4);
+                  out_task.ts = in_task.ts + in_task.args[95:92];
+                  out_task.args[31:0] = pkey_in;
+                  out_task.args[55:32] = tx_item.i_id;
+                  out_task.args[63:56] = offset;
+                  out_task.args[87:64] = in_data * tx_item.i_qty;
+                  out_task.args[91:88] = tx_item.i_qty;
+                  out_task.args[95:92] = tx_item.i_s_wid;
                end
             endcase
          end
@@ -665,8 +751,11 @@ always_ff @(posedge clk) begin
                 4 : num_tx <= reg_bus.wdata;
                 8 : tx_offset <= {reg_bus.wdata[29:0], 2'b00};
                 12 : tx_data <= {reg_bus.wdata[29:0], 2'b00};
-                64 : order_n_buckets = reg_bus.wdata[19:16];
-                88 : stock_n_buckets = reg_bus.wdata[19:16];
+                64 : order_n_buckets <= reg_bus.wdata[19:16];
+                72 : ol_n_buckets <= reg_bus.wdata[19:16];
+                80 : item_n_buckets <= reg_bus.wdata[19:16];
+                84 : base_item <= {reg_bus.wdata[29:0], 2'b00};
+                88 : stock_n_buckets <= reg_bus.wdata[19:16];
             endcase
          end
       end
@@ -712,11 +801,22 @@ end
             end
          end
          SILO_NEW_ORDER_ENQ_OL_CNT: begin
-//            if (SUBTYPE == 0) begin
-               $display("[%5d] [rob-%2d] [ro] [%3d] \t ENQ_OL_CNT %d ts:%8x object:%4x | word_id:%d in_data:%4x ",
+            if (SUBTYPE == 4) begin
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t ENQ_OL_CNT %1d ts:%8x object:%4x | ol:%2d word_id:%d in_data:%4x ",
                cycle, TILE_ID, in_cq_slot, SUBTYPE,
-               in_task.ts, in_task.object, in_word_id, in_data) ;
-//            end
+               in_task.ts, in_task.object, 
+               in_task.args[95:92], in_word_id, in_data) ;
+            end
+            if (SUBTYPE == 5) begin
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t ENQ_OL_CNT 5 ts:%8x object:%4x | i_id:%4x in_data:%4x ",
+               cycle, TILE_ID, in_cq_slot, 
+               in_task.ts, in_task.object, tx_item.i_id, in_data) ;
+            end
+            if (SUBTYPE == 6) begin
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t ENQ_OL_CNT 6 ts:%8x object:%4x | ol:%2d i_price:%4d ",
+               cycle, TILE_ID, in_cq_slot, 
+               in_task.ts, in_task.object, in_task.args[95:92], in_data) ;
+            end
          end
          endcase
       end

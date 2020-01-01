@@ -229,10 +229,11 @@ void new_order_item_enqueuer(uint32_t ts, uint32_t object, uint32_t tx_id, uint3
       ol.ol_d_id = tx_info->d_id;
       uint32_t ol_pkey = *(uint32_t*) &ol;
       uint32_t amt = tx_item->i_qty * item_ptr->i_price;
+      //printf("price %d \n", item_ptr->i_price);
       get_bucket(&tbl_order_line, ol_pkey, &bucket, &offset);
       enq_task_arg3(NEW_ORDER_INSERT_ORDER_LINE, ts + i, OBJECT_ORDER_LINE | (bucket << 4), ol_pkey,
             (offset << 24 ) | tx_item->i_id,
-            (tx_item->i_s_wid << 24 ) | (tx_item->i_qty << 16) | amt);
+            (tx_item->i_s_wid << 28 ) | (tx_item->i_qty << 24) | amt);
 
    }
 
@@ -266,10 +267,10 @@ void new_order_insert_order_line(uint32_t ts, uint32_t object, uint32_t pkey, ui
    uint32_t* o_int_ptr = (uint32_t*) order_line_ptr;
    save_record(o_int_ptr, 3);
    o_int_ptr[0] = pkey;
-   order_line_ptr->ol_supply_w_id = (wid_qty_amt >> 24);
+   order_line_ptr->ol_supply_w_id = (wid_qty_amt >> 28);
    order_line_ptr->ol_i_id = offset_i_id & 0xffffff;
-   order_line_ptr->ol_quantity = (wid_qty_amt >> 16) & 0xff;
-   order_line_ptr->ol_amount = wid_qty_amt & 0xffff;
+   order_line_ptr->ol_quantity = (wid_qty_amt >> 24) & 0xf;
+   order_line_ptr->ol_amount = wid_qty_amt & 0xffffff;
    printf("\tinsert_order_line %d %d %d %d\n",
       tbl_order_line.table_base, bucket, offset, order_line_ptr->ol_i_id);
    order_line* p1 = (order_line*) get_record(&tbl_order_line, pkey);
