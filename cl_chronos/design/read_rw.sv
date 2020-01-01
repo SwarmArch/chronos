@@ -63,6 +63,7 @@ module read_rw
 logic started; // cycle counting;
 
 task_t task_desc [0:N_THREADS-1];
+addr_t task_araddr [0:N_THREADS-1];
 cq_slice_slot_t task_cq_slot [0:N_THREADS-1];
 
 
@@ -132,6 +133,7 @@ end
 always_ff @(posedge clk) begin
    if (task_in_valid & task_in_ready) begin
       task_desc[thread_id_in] <= task_in;
+      task_araddr[thread_id_in] <= s_araddr;
       task_cq_slot[thread_id_in] <= cq_slot_in;
    end
 end
@@ -178,10 +180,10 @@ always_comb begin
    task_out.cq_slot = task_cq_slot[rid];
    task_out.thread = rid;
    case (LOG_RW_WIDTH)
-      2: task_out.object = rdata[ task_out.task_desc.object[ 3:0] * 32  +: 32 ]; 
-      3: task_out.object = rdata[ task_out.task_desc.object[ 2:0] * 64  +: 64 ]; 
-      4: task_out.object = rdata[ task_out.task_desc.object[ 1:0] * 128  +: 128 ]; 
-      5: task_out.object = rdata[ task_out.task_desc.object[ 0] * 256  +: 256 ]; 
+      2: task_out.object = rdata[ task_araddr[rid][ 5:2] * 32  +: 32 ]; 
+      3: task_out.object = rdata[ task_araddr[rid][ 5:3] * 64  +: 64 ]; 
+      4: task_out.object = rdata[ task_araddr[rid][ 5:4] * 128  +: 128 ]; 
+      5: task_out.object = rdata[ task_araddr[rid][ 5] * 256  +: 256 ]; 
       default: task_out.object = rdata; 
    endcase
    task_out_valid = 1'b0;
