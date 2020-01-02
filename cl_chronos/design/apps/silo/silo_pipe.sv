@@ -698,7 +698,9 @@ always_comb begin
                   // req item / req item price
                   pkey_in = tx_item.i_id;
                   n_buckets = item_n_buckets;
-                  if (tx_item.i_id == in_data) begin
+                  if ( (tx_item.i_id == in_data) ||
+                        // prevent infinite loops (can happen on aborted tasks)
+                        (in_data == '1) ) begin
                      // req item price
                      arvalid = 1'b1;
                      araddr = base_item + bucket * SILO_BUCKET_SIZE + 

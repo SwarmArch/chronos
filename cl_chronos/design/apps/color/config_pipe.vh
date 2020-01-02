@@ -22,6 +22,7 @@
  */
 
 `define USE_PIPELINED_TEMPLATE
+`define SINGLE_UNDO_LOG_RESTORE
 
 parameter APP_NAME = "color";
 parameter APP_ID = 4;
