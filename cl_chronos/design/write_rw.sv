@@ -45,6 +45,8 @@ module write_rw
    input               bvalid,
    output logic        bready,
    input id_t          bid,
+   
+   input logic [2**LOG_CQ_SLICE_SIZE-1:0]    task_aborted,
 
    output logic            task_out_valid,
    input                   task_out_ready,
@@ -123,6 +125,7 @@ always_comb begin
    if (task_in_valid & (task_in.task_desc.ttype != TASK_TYPE_UNDO_LOG_RESTORE)) begin
       if ( (s_out_valid & !s_out_ready) | 
            (!s_out_valid & !s_finish_task_ready) |
+           (task_aborted[task_in.cq_slot] & !s_finish_task_ready) |
            (s_wvalid & !s_write_wready) ) begin
          s_sched_ready = 1'b0;
       end else begin
@@ -236,8 +239,8 @@ always_comb begin
          s_write_wvalid = s_wvalid;
          s_write_data = s_wdata;
          s_write_addr = s_waddr;
-         s_task_out_valid = s_sched_ready & s_out_valid;
-         s_finish_task_valid = s_sched_ready & !s_out_valid & !s_out_task_rw;
+         s_task_out_valid = s_out_valid & !task_aborted[task_in.cq_slot];
+         s_finish_task_valid = !s_task_out_valid;
              
       end
    end
@@ -276,7 +279,8 @@ end
 
 always_comb begin
    c_bready = 1'b0;
-   if (task_in_ready & !s_write_wvalid & !s_out_task_rw) begin
+   if (task_in_ready & !s_write_wvalid 
+       & (!s_out_task_rw | task_aborted[task_in.cq_slot]) ) begin
    end else if (c_bvalid) begin
       c_bready = 1'b1;
    end
@@ -286,7 +290,8 @@ always_ff @(posedge clk) begin
       unlock_object <= 1'b0;
       unlock_thread <= 'x;
    end else begin
-      if (task_in_ready & !s_write_wvalid & !s_out_task_rw) begin
+      if (task_in_ready & !s_write_wvalid 
+          & (!s_out_task_rw | task_aborted[task_in.cq_slot])  ) begin
          unlock_object <= 1'b1;
          unlock_thread <= task_in.thread;
       end else if (c_bvalid) begin
@@ -387,7 +392,7 @@ logic finish_task_fifo_empty, finish_task_fifo_full;
 
 fifo #(
       .WIDTH( $bits(finish_task_slot) + 1),
-      .LOG_DEPTH(1)
+      .LOG_DEPTH(2)
    ) FINISHED_TASK_FIFO (
       .clk(clk),
       .rstn(rstn),

@@ -1308,6 +1308,7 @@ write_rw
    .bvalid (l1_arb[0].bvalid),
    .bready (l1_arb[0].bready),
    .bid    (l1_arb[0].bid),
+   .task_aborted(task_aborted),
 
    .task_out_valid(rw_write_out_valid),
    .task_out_ready(rw_write_out_ready),
