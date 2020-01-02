@@ -109,7 +109,7 @@ logic [31:0] base_ol;
 
 logic [15:0] bucket_id;
 logic [7:0] offset;
-assign bucket_id = task_in.object[19:4];
+assign bucket_id = task_in.object[15:0];
 
    
 always_comb begin
@@ -117,7 +117,7 @@ always_comb begin
    offset = 'x;
    case (task_in.ttype)
       SILO_TX_ENQUEUER_TASK : araddr = 0;
-      SILO_NEW_ORDER_UPDATE_DISTRICT : araddr = base_district_rw + (task_in.object[7:4] * 32);
+      SILO_NEW_ORDER_UPDATE_DISTRICT : araddr = base_district_rw + (task_in.object[6:3] * 32);
       SILO_NEW_ORDER_UPDATE_WR_PTR : araddr = tbl_new_order_ptrs;  
       SILO_NEW_ORDER_INSERT_NEW_ORDER: araddr = base_new_order + (task_in.args[31:0] * 32);
       SILO_NEW_ORDER_INSERT_ORDER : begin
@@ -220,7 +220,7 @@ logic [7:0] offset;
 silo_district_rw district_rw;
 
 logic [15:0] bucket_id;
-assign bucket_id = in_task.object[19:4];
+assign bucket_id = in_task.object[15:0];
 
 logic [15:0] s_update_qty;
 assign s_update_qty = in_task.args[47:32];
@@ -252,7 +252,7 @@ always_comb begin
             out_valid = 1'b1;
             out_task.args[95:64] = district_rw.d_next_o_id;
             district_rw.d_next_o_id += 1;
-            waddr = base_district_rw + (in_task.object[7:4] * 32);
+            waddr = base_district_rw + (in_task.object[6:3] * 32);
             wdata = district_rw;
             wvalid = 1'b1;
          end
@@ -576,7 +576,7 @@ always_comb begin
                   out_valid = 1'b1;
                   out_task.ttype = SILO_NEW_ORDER_UPDATE_DISTRICT;
                   out_task.ts = resp_task.args << 8;
-                  out_task.object = OBJECT_DISTRICT | (tx_info.d_id << 4);
+                  out_task.object = OBJECT_DISTRICT | (tx_info.d_id << 3);
                   out_task.args[63:32] = in_data;
                end
             endcase
@@ -605,7 +605,7 @@ always_comb begin
 
                      out_valid = 1'b1;
                      out_task.ttype = SILO_NEW_ORDER_INSERT_ORDER;
-                     out_task.object = OBJECT_ORDER | (bucket << 4);
+                     out_task.object = OBJECT_ORDER | (bucket );
                      out_task.args[31:0] = pkey_in;
                      out_task.args[47:32] = tx_info.c_id;
                      out_task.args[63:48] = offset;
@@ -685,7 +685,7 @@ always_comb begin
                      
                      out_valid = 1'b1;
                      out_task.ttype = SILO_NEW_ORDER_UPDATE_STOCK;
-                     out_task.object = OBJECT_STOCK | (bucket << 4);
+                     out_task.object = OBJECT_STOCK | (bucket );
                      out_task.ts = in_task.ts + in_task.args[95:92];
                      out_task.args[31:0] = pkey_in;
                      out_task.args[47:32] = tx_item.i_qty;
@@ -725,7 +725,7 @@ always_comb begin
                   
                   out_valid = 1'b1;
                   out_task.ttype = SILO_NEW_ORDER_INSERT_ORDER_LINE;
-                  out_task.object = OBJECT_OL | (bucket << 4);
+                  out_task.object = OBJECT_OL | (bucket );
                   out_task.ts = in_task.ts + in_task.args[95:92];
                   out_task.args[31:0] = pkey_in;
                   out_task.args[55:32] = tx_item.i_id;
