@@ -552,7 +552,7 @@ always_comb begin
                0: begin
                   arvalid = 1'b1;
                   araddr = tx_offset + enq_start * 4;
-                  arlen = 8;
+                  arlen = 7;
                   if (num_tx <= enq_start + 7) begin
                      arlen = (num_tx - enq_start) - 1;
                   end
@@ -561,7 +561,7 @@ always_comb begin
                1: begin
                   if (in_word_id == 7) begin
                      // enq continuation task
-                     //out_valid = 1'b1;
+                     out_valid = 1'b1;
                      out_task.args[31:0] += 7;
                      out_task.ts = ((enq_start + 7) << 8);
                   end else begin
@@ -631,7 +631,7 @@ always_comb begin
                0: begin
                   // Read tx_offset[tx_id]
                   arvalid = 1'b1;
-                  araddr = tx_offset + ol_cnt_tx_id;
+                  araddr = tx_offset + ol_cnt_tx_id * 4;
                   arlen = 0;
                   resp_subtype = 1;
                end
@@ -647,7 +647,7 @@ always_comb begin
                   arvalid = 1'b1;
                   araddr = tx_data + (in_task.args[31:0]+1+ ol_cnt_start_index) *4;
                   arlen = 3;
-                  if (tx_info.num_items < ol_cnt_start_index + 3) begin
+                  if (tx_info.num_items < ol_cnt_start_index + 4) begin
                      arlen = tx_info.num_items - ol_cnt_start_index - 1;
                   end
                   resp_task.args[31:0] = tx_info;
@@ -801,7 +801,7 @@ end
             end
          end
          SILO_NEW_ORDER_ENQ_OL_CNT: begin
-            if (SUBTYPE == 4) begin
+            if (SUBTYPE <= 4) begin
                $display("[%5d] [rob-%2d] [ro] [%3d] \t ENQ_OL_CNT %1d ts:%8x object:%4x | ol:%2d word_id:%d in_data:%4x ",
                cycle, TILE_ID, in_cq_slot, SUBTYPE,
                in_task.ts, in_task.object, 

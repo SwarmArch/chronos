@@ -63,7 +63,7 @@ module read_rw
 logic started; // cycle counting;
 
 task_t task_desc [0:N_THREADS-1];
-addr_t task_araddr [0:N_THREADS-1];
+undo_log_addr_t task_araddr [0:N_THREADS-1];
 cq_slice_slot_t task_cq_slot [0:N_THREADS-1];
 
 
@@ -139,9 +139,9 @@ always_ff @(posedge clk) begin
 end
 
 rw_data_t undo_log_data [0:2**LOG_CQ_SLICE_SIZE-1];
-addr_t    undo_log_addr [0:2**LOG_CQ_SLICE_SIZE-1];
+undo_log_addr_t    undo_log_addr [0:2**LOG_CQ_SLICE_SIZE-1];
 rw_data_t undo_log_read_word;
-addr_t    undo_log_read_addr;
+undo_log_addr_t    undo_log_read_addr;
 
 logic             reg_task_valid;
 task_t            reg_task;
