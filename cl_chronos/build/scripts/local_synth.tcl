@@ -184,6 +184,7 @@ file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/astar/*.{v,sv,vh,da
 file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/riscv/*.{v,sv,vh,dat}]  $TARGET_DIR 
 file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/maxflow/*.{v,sv,vh,dat}]  $TARGET_DIR 
 file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/color/*.{v,sv,vh,dat}]  $TARGET_DIR 
+file copy -force {*}[glob -nocomplain -- $CL_DIR/design/apps/silo/*.{v,sv,vh,dat}]  $TARGET_DIR 
 file copy -force {*}[glob -nocomplain -- $UNUSED_TEMPLATES_DIR/*.inc]  $TARGET_DIR 
 
 #Set the Device Type: Closest to vu9p but supported in vivado webpack

@@ -626,7 +626,6 @@ always_comb begin
             out_task.ttype = SILO_NEW_ORDER_INSERT_NEW_ORDER;
          end
          SILO_NEW_ORDER_ENQ_OL_CNT: begin
-            // TODO: NOT TESTED AND INCOMPLETE
             case (SUBTYPE)
                0: begin
                   // Read tx_offset[tx_id]
@@ -710,7 +709,7 @@ always_comb begin
                   end else begin
                      arvalid = 1'b1;
                      araddr = base_item + bucket * SILO_BUCKET_SIZE + 
-                           new_offset * 32;  
+                           ((new_offset + 1) % 256) * 32;  
                      arlen = 0;
                      resp_subtype = 5;
                      resp_task.args[23:16] = in_task.args[23:16]+1;
@@ -810,9 +809,10 @@ end
                in_task.args[95:92], in_word_id, in_data) ;
             end
             if (SUBTYPE == 5) begin
-               $display("[%5d] [rob-%2d] [ro] [%3d] \t ENQ_OL_CNT 5 ts:%8x object:%4x | i_id:%4x in_data:%4x ",
+               $display("[%5d] [rob-%2d] [ro] [%3d] \t ENQ_OL_CNT 5 ts:%8x object:%4x | ol:%2d off:%2d i_id:%4x in_data:%4x ",
                cycle, TILE_ID, in_cq_slot, 
-               in_task.ts, in_task.object, tx_item.i_id, in_data) ;
+               in_task.ts, in_task.object,
+               in_task.args[95:92], new_offset, tx_item.i_id, in_data) ;
             end
             if (SUBTYPE == 6) begin
                $display("[%5d] [rob-%2d] [ro] [%3d] \t ENQ_OL_CNT 6 ts:%8x object:%4x | ol:%2d i_price:%4d ",
@@ -881,6 +881,7 @@ assign offset = hashed[7:0];
 always_comb begin
    case (n_buckets) 
       1: bucket = hashed[   8];
+      2: bucket = hashed[ 9:8];
       8: bucket = hashed[15:8];
       9: bucket = hashed[16:8];
      10: bucket = hashed[17:8];
