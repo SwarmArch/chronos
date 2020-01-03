@@ -1235,11 +1235,15 @@ always_ff @(posedge clk) begin
       gvt_task_slot_valid <= 1'b0;
       gvt_task_slot <= 'x;
    end else begin 
+       /*
       if (finish_task_valid & finish_task_ready & (finish_task_slot == gvt_task_slot)) begin
          gvt_task_slot_valid <= 1'b0;
       end else if (commit_task_valid & commit_task_ready & 
                      (commit_task_slot == gvt_task_slot)) begin
          gvt_task_slot_valid <= 1'b0;
+         */
+      if (gvt_task_slot_valid & cq_state[gvt_task_slot] == UNUSED) begin
+          gvt_task_slot_valid <= 1'b0;
       end else if (cur_ts_is_gvt != 0) begin
          gvt_task_slot_valid <= 1'b1;
          gvt_task_slot <= cur_ts_read_indices[cur_ts_gvt_index]; 
