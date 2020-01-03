@@ -221,6 +221,7 @@ always_comb begin
    s_finish_task_valid = 1'b0; 
    s_finish_task_is_undo_log_restore = 1'b0;
    s_task_out_valid = 1'b0;
+   s_write_addr = 'x;
 
    if (task_in_valid) begin
       if (task_in.task_desc.ttype == TASK_TYPE_UNDO_LOG_RESTORE) begin
