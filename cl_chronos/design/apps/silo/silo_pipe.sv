@@ -476,6 +476,10 @@ logic [3:0] item_n_buckets;
 logic [3:0] ol_n_buckets;
 logic [31:0] base_item;
 
+// a check to see if performance issues occur as a result of this
+logic skip_new_order; 
+
+
 logic [31:0] pkey_in;
 logic [3:0] n_buckets;
 logic [7:0] offset;
@@ -592,7 +596,7 @@ always_comb begin
                end
                1: begin
                   if (in_word_id == 0) begin
-                     out_valid = 1'b1;
+                     out_valid = !skip_new_order;
                      out_task.ttype = SILO_NEW_ORDER_UPDATE_WR_PTR;
                      out_task.args[31:0] = 'x;
                      out_task.object = OBJECT_NEW_ORDER;
@@ -743,6 +747,7 @@ end
 always_ff @(posedge clk) begin
    if (!rstn) begin
       header_top <= 0;
+      skip_new_order <= 0;
    end else begin
       if (reg_bus.wvalid) begin
          if (reg_bus.waddr == CORE_HEADER_TOP) begin
@@ -757,6 +762,7 @@ always_ff @(posedge clk) begin
                 80 : item_n_buckets <= reg_bus.wdata[19:16];
                 84 : base_item <= {reg_bus.wdata[29:0], 2'b00};
                 88 : stock_n_buckets <= reg_bus.wdata[19:16];
+               124 : skip_new_order <= reg_bus.wdata[0];
             endcase
          end
       end
