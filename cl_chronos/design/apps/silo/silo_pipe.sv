@@ -628,6 +628,8 @@ always_comb begin
          SILO_NEW_ORDER_UPDATE_WR_PTR: begin
             out_valid = 1'b1;
             out_task.ttype = SILO_NEW_ORDER_INSERT_NEW_ORDER;
+            out_task.object = OBJECT_NEW_ORDER | (OBJECT_NEW_ORDER >> 1) |
+                  (in_task.args[31:0] << 3);
          end
          SILO_NEW_ORDER_ENQ_OL_CNT: begin
             case (SUBTYPE)
