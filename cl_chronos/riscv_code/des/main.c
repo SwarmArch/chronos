@@ -30,6 +30,7 @@ const int ADDR_BASE_NEIGHBORS = 4 << 2;
 
 const int ADDR_INIT_BASE_OFFSET = 8 << 2;
 const int ADDR_INIT_BASE_NEIGHBORS = 9 << 2;
+const int use_seq_number = 1;
 
 #define BUF  0
 #define INV 1
@@ -56,6 +57,14 @@ int* init_edge_offset;
 #define ENQUEUER_TASK  1
 
 void enqueuer_task(uint ts, uint comp, uint enq_start, uint arg1) {
+    /*
+    init_edge_neighbors  =(int*) ((*(int *)(ADDR_INIT_BASE_NEIGHBORS))<<2) ;
+    init_edge_offset  =(int*) ((*(int *)(ADDR_INIT_BASE_OFFSET))<<2) ;
+
+    gate_state = (int*) ((*(int *) (ADDR_BASE_DATA))<<2) ;
+    edge_offset  =(int*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
+    edge_neighbors  =(int*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
+    */
 
     int edge_offset = init_edge_offset[comp] + enq_start;
     int edge_offset_end = init_edge_offset[comp + 1];
@@ -69,7 +78,11 @@ void enqueuer_task(uint ts, uint comp, uint enq_start, uint arg1) {
         }
 
         uint next_event = init_edge_neighbors[edge_offset];
-        next_ts = next_event & 0xffffff;
+        if (use_seq_number) {
+            next_ts = (next_event & 0xffffff) << 8;
+        } else {
+            next_ts = (next_event & 0xffffff);
+        }
         uint logicVal = (next_event >> 24) & 0x3;
         enq_task_arg2(DES_TASK, next_ts, comp, /*port */ 0, logicVal);
         n_child++;
@@ -120,8 +133,16 @@ __attribute__((always_inline))
 
     }
 
-__attribute__((always_inline))
+//__attribute__((always_inline))
     void des_task(uint ts, uint comp, uint port, uint logicVal) {
+        /*
+    init_edge_neighbors  =(int*) ((*(int *)(ADDR_INIT_BASE_NEIGHBORS))<<2) ;
+    init_edge_offset  =(int*) ((*(int *)(ADDR_INIT_BASE_OFFSET))<<2) ;
+
+    gate_state = (int*) ((*(int *) (ADDR_BASE_DATA))<<2) ;
+    edge_offset  =(int*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
+    edge_neighbors  =(int*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
+    */
         uint state = (uint) gate_state[comp];
         uint delay = state & 0xffff;
         uint gate_type = (state >> 16) & 0x7;
@@ -137,12 +158,23 @@ __attribute__((always_inline))
             | (input_1 << 20)
             | (gate_type << 16)
             | (delay );
+        uint32_t new_ts = ts + delay;
+        if (use_seq_number) {
+            int seq = (state >> 26);
+            seq = seq + 1;
+            if ((seq < (ts & 0x3f)) & (delay == 0)) {
+                seq = ts & 0x3f;
+            }
+            gate_state[comp] |= (seq << 26);
+            new_ts = ((ts >> 8) + delay) << 8;
+            new_ts |= seq;
+        }
 
         if (cur_out != new_out) {
             for (int i = edge_offset[comp]; i < edge_offset[comp+1]; i++) {
                 uint neighbor = edge_neighbors[i] >> 1;
                 uint port = edge_neighbors[i] & 1;
-                enq_task_arg2(0, ts + delay, neighbor, port, new_out);
+                enq_task_arg2(0, new_ts, neighbor, port, new_out);
 
             }
 
@@ -151,13 +183,14 @@ __attribute__((always_inline))
 
 void main() {
     chronos_init();
+    init_edge_neighbors  =(int*) ((*(int *)(ADDR_INIT_BASE_NEIGHBORS))<<2) ;
+    init_edge_offset  =(int*) ((*(int *)(ADDR_INIT_BASE_OFFSET))<<2) ;
 
     gate_state = (int*) ((*(int *) (ADDR_BASE_DATA))<<2) ;
     edge_offset  =(int*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
     edge_neighbors  =(int*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
 
-    init_edge_neighbors  =(int*) ((*(int *)(ADDR_INIT_BASE_NEIGHBORS))<<2) ;
-    init_edge_offset  =(int*) ((*(int *)(ADDR_INIT_BASE_OFFSET))<<2) ;
+   __asm__( "nop;");
 
     while (1) {
         uint ttype, ts, object, arg0, arg1;

@@ -103,6 +103,7 @@
 #define CORE_QUERY_STATE          0x10
 #define CORE_STATE_STATS          0x14
 #define CORE_AP_STATE_STATS       0x18
+#define CORE_HEADER_TOP           0xa4
 
 #define SSSP_BASE_EDGE_OFFSET     0x20
 #define SSSP_BASE_DIST            0x24
@@ -255,6 +256,7 @@
 #define DEBUG_CAPACITY    0xf0 // For any component that does logging
 
 #define MEM_XBAR_NUM_CTRL 0x10
+#define MEM_XBAR_RATE_CTRL 0x14
 
 #define RISCV_ID 256
 

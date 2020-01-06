@@ -77,7 +77,7 @@ uint32_t USING_PIPELINED_TEMPLATE;
 
 uint32_t active_tiles = 1;
 uint32_t active_threads = 0;
-bool logging_on = false;
+bool logging_on =false;
 uint32_t logging_phase_tasks = 0x100;
 uint32_t reading_binary_file = false;
 
@@ -486,6 +486,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     // Change here if you want to reduce the system size
     uint32_t max_threads = 1e9;
+    if (active_threads == 1) max_threads = 1;
 
     if (N_TILES < active_tiles) {
         printf("N_TILES %d < active_tiles %d\n", N_TILES, active_tiles);
@@ -528,6 +529,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         bool adjust_relabel_interval = true;
         if (adjust_relabel_interval) {
             log_gr_interval += -(int) log2(active_tiles) + 5;
+            if (APP_ID == RISCV_ID) log_gr_interval -=2; // manually tuned
             if (log_gr_interval < 5) log_gr_interval = 5;
 
         }
@@ -540,7 +542,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         headers[15] = 0; // bfs non-spec
     }
     if (app == APP_COLOR) {
-        headers[9] = 48;
+        headers[9] = 96;
         write_buffer[9*4] = headers[9];
     }
     if (app == APP_DES) {
@@ -557,8 +559,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         printf("dest lat %d %x\n", dest_lat_addr, headers[11]);
     }
     if (app == APP_SILO) {
-        //headers[1] = 5000; // num_tx
-
+        //headers[31] = 1;
     }
     uint32_t numV = headers[1];
     uint32_t numE = headers[2];;
@@ -662,12 +663,22 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     printf("Spill Alloc %08x %08x\n",ADDR_BASE_SPILL, TOTAL_SPILL_ALLOCATION);
 
     //pci_poke(N_TILES, ID_GLOBAL, MEM_XBAR_NUM_CTRL, 4);
+    //pci_poke(N_TILES, ID_GLOBAL, MEM_XBAR_RATE_CTRL, (1<<16) | 20);
 
     for (int i=0;i<N_TILES;i++) {
 
         // configure base addresses
-        for (int j=0;j<16;j++) {
-            pci_poke(i, ID_ALL_APP_CORES, j*4, headers[j]);
+        if (app == APP_SILO) {
+            for (int j=0;j<32;j++) {
+                if (j%16==0) {
+                    pci_poke(i, ID_ALL_APP_CORES, CORE_HEADER_TOP, j/16);
+                }
+                pci_poke(i, ID_ALL_APP_CORES, (j%16)*4, headers[j]);
+            }
+        } else {
+            for (int j=0;j<16;j++) {
+                pci_poke(i, ID_ALL_APP_CORES, j*4, headers[j]);
+            }
         }
         pci_poke(i, ID_RW_READ, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 14);
         pci_poke(i, ID_RW_WRITE, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 14);
@@ -719,7 +730,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
         }
 
         if (app == APP_COLOR) {
-            pci_poke(i, ID_TASK_UNIT, TASK_UNIT_PRODUCER_THRESHOLD, 50);
+            pci_poke(i, ID_TASK_UNIT, TASK_UNIT_PRODUCER_THRESHOLD, 100);
         }
         pci_poke(i, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB, 0 );
     }
@@ -897,8 +908,9 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        }
        if (logging_on) {
 
-           //log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
-           //            (N_TILES << 8) | ID_GLOBAL);
+           log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer, (N_TILES << 8) | ID_GLOBAL);
+           //log_axi(pci_bar_handle, read_fd, fwrw, log_buffer, ID_UNDO_LOG+1);
+           //log_axi(pci_bar_handle, read_fd, fwro, log_buffer, 1<<8 | ID_UNDO_LOG+1);
            log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
            if (APP_ID == RISCV_ID) {
               //log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
@@ -909,10 +921,10 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
            //log_cache(pci_bar_handle, read_fd, fwl2, log_buffer, ID_L2_RW);
            //log_cache(pci_bar_handle, read_fd, fwl2ro, log_buffer, ID_L2_RO);
-           //log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
+           log_cq(pci_bar_handle, read_fd, fwcq, log_buffer, ID_CQ);
            //log_coalescer(pci_bar_handle, read_fd, fwcoal, log_buffer, ID_COALESCER);
            //log_splitter(pci_bar_handle, read_fd, fwsp, log_buffer, ID_SPLITTER);
-           //log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
+           log_serializer(pci_bar_handle, read_fd, fwser, log_buffer, ID_SERIALIZER);
            //log_undo_log(pci_bar_handle, read_fd, fwundo, log_buffer, ID_UNDO_LOG);
            fflush(fwtu); fflush(fwro); fflush(fwcq); fflush(fwl2); fflush(fwrv_0);
            fflush(fwl2ro); fflush(fwcoal); fflush(fwsp);
@@ -920,10 +932,10 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            for (int i=0;i<active_tiles;i++) {
                pci_poke(i, ID_ALL_APP_CORES, CORE_N_DEQUEUES, logging_phase_tasks);
            }
-           //loop_debuggin_spec(iters);
+           loop_debuggin_spec(iters);
        }
        //loop_debuggin_no_rollback(iters);
-       usleep(100);
+       usleep(1000);
        iters++;
        if (iters > 300000) exit(0);
 
@@ -1078,6 +1090,8 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            usleep(1000);
        }
    }
+       log_ddr(pci_bar_handle, read_fd, fwddr, log_buffer,
+                   (N_TILES << 8) | ID_GLOBAL);
 
 
    pci_poke(0, ID_OCL_SLAVE, OCL_ACCESS_MEM_SET_MSB        , 0 );
@@ -1309,7 +1323,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
                 if (results[i] != ref[i]){
                     num_errors++;
                     if (num_errors < 100) {
-                        printf("mismatch on %8d (addr %8x); ref: %8x act: %8x\n", i, i*4,
+                        printf("mismatch on word %8x (addr %8x); ref: %8x act: %8x\n", i, i*4,
                                 results[i], ref[i]);
                     }
                 }
@@ -1558,6 +1572,7 @@ void loop_debuggin_spec(uint32_t iters){
                 rw_read_fifo_occ, rw_write_fifo_occ
               );
         printf(" coal state:%8x deq: %7d enq: %7d tq_state_2: %8x\n", coal_state, coal_deq, coal_enq, tq_debug_1);
+        /*
         for (int i=0;i<3;i++) {
             uint32_t pc, state;
             pci_peek(0, 16+i, CORE_PC, &pc);
@@ -1565,7 +1580,6 @@ void loop_debuggin_spec(uint32_t iters){
             printf("riscv core %2d; state:%d pc:%8x\n", i, state, pc);
         }
         //cq_stats(0, ID_CQ);
-        /*
            uint32_t l2_debug;
            uint32_t rw_read_debug, rw_write_debug;
            uint32_t w_count;

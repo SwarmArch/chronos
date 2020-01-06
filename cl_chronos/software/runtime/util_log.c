@@ -444,9 +444,9 @@ int log_cache(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* 
             unsigned int rdata_fifo_size = (buf[i*16+14] >> 8) & 0xff;
 
             fprintf(fw, "[%6d][%10u][%2x:%2x] %s %s %1d %2d %8llx"
-                    "(tag:%4x index:%3x) %2d wstrb:%8x_%8x"
+                    "(tag:%4x index:%3x) %3d wstrb:%8x_%8x"
                    // "| (%d %2d %d %d) (%d %2d %d %d) (%d %2d %d %d) (%d %2d %d %d)"
-                    "| %1d%1d %8llx %4x | %1d%1d%1d%1d %2d %2d | %2d %d %3d \n",
+                    "| %1d%1d %8x %4x | %1d%1d%1d%1d %2d %2d | %2d %d %3d \n",
                     seq, cycle, id >> 8, id & 0xff,  ops[op],
                     hit ? "H": "M",
                     retry, repl_way,
@@ -856,6 +856,7 @@ int log_ddr(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* lo
                       );
                f = true;
            }
+           if (awvalid & awready) last_awid = awid;
            if (wvalid) {
                fprintf(fw,"[%6d][%10u][%d%d]  wvalid data:%8x id:%4x (%x:%1x:%2x)   last awid:%4x mismatch:%d\n",
                        seq, cycle,
@@ -874,7 +875,6 @@ int log_ddr(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* lo
                        last_awid, (last_awid != wid)
                       );
            }
-           if (awvalid & awready) last_awid = awid;
            if (rvalid) {
                fprintf(fw,"[%6d][%10u][%d%d]  rvalid data:%8x id:%4x resp:%d delay:%d\n",
                        seq, cycle,
@@ -953,6 +953,193 @@ int log_ddr(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* lo
    return 0;
 }
 
+int log_axi(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
+
+   uint32_t log_size;
+   uint32_t gvt;
+   fpga_pci_peek(pci_bar_handle,  (ID << 8) | (DEBUG_CAPACITY), &log_size );
+   printf("AXI log size %d gvt %d\n", log_size, 0);
+   fprintf(fw, "AXI log size %d gvt %d\n", log_size, 0);
+   if (log_size > 17000) return 1;
+   // if (log_size > 100) log_size -= 100;
+   //unsigned char* log_buffer;
+   //log_buffer = (unsigned char *)malloc(log_size*64);
+
+   unsigned int read_offset = 0;
+   unsigned int read_len = log_size * 64;
+   unsigned int rc;
+   uint64_t cl_addr = (1L<<36) + (ID << 20);
+   while (read_offset < read_len) {
+       rc = pread(fd,
+               log_buffer,// + read_offset,
+               // keep Tx size under 64*64 to prevent shell timeouts
+               (read_len - read_offset) > 512 ? 512 : (read_len-read_offset),
+               cl_addr);
+       read_offset += rc;
+
+       unsigned int* buf = (unsigned int*) log_buffer;
+       for (int i=0;i<rc/64;i++) {
+           unsigned int seq = buf[i*16 + 0];
+           unsigned int cycle = buf[i*16 + 1];
+
+           // 0-out, 1-b, 2-a
+           unsigned int awvalid[3];
+           unsigned int awready[3];
+           unsigned int wvalid[3];
+           unsigned int wready[3];
+           unsigned int awid[3];
+           unsigned int wid[3];
+           unsigned int awaddr[3];
+           for (int j=0;j<3;j++) {
+               wready[j] = (buf[i*16+2] >> (j*4 +0) ) & 1;
+               wvalid[j] = (buf[i*16+2] >> (j*4 +1) ) & 1;
+               awready[j] = (buf[i*16+2] >> (j*4 +2) ) & 1;
+               awvalid[j] = (buf[i*16+2] >> (j*4 +3) ) & 1;
+               wid[j] = (buf[i*16 +3+j] >> 0) & 0xffff;
+               awid[j] = (buf[i*16 +3+j] >> 16) & 0xffff;
+               awaddr[j] = buf[i*16+6+j];
+           }
+
+           bool f = false;
+           for (int j=0;j<3;j++){
+                if (awvalid[j]) {
+                   fprintf(fw,"[%6d][%10u][%d%d] [%d] awvalid addr:%8x id:%4x (%1x:%1x:%2x) \n",
+                           seq, cycle,
+                           awvalid[j], awready[j], j,
+                           awaddr[j], awid[j],
+                           (awid[j] >> 10) & 0xf, (awid[j] >> 8) & 1, awid[j] & 0xff
+                          );
+                   f = true;
+
+                }
+                if (wvalid[j]) {
+                   fprintf(fw,"[%6d][%10u][%d%d] [%d]  wvalid id:%4x (%1x:%1x:%2x) \n",
+                           seq, cycle,
+                           wvalid[j], wready[j], j,
+                           wid[j],
+                           (wid[j] >> 10) & 0xf, (wid[j] >> 8) & 1, wid[j] & 0xff
+                          );
+                   f = true;
+
+                }
+           }
+           /*
+           if (arvalid) {
+               fprintf(fw,"[%6d][%10u][%d%d] arvalid addr:%8x id:%4x (%1x:%1x:%2x) \n",
+                       seq, cycle,
+                       arvalid, arready,
+                       araddr, arid,
+                       (arid >> 10) & 0xf, (arid >> 8) & 1, arid & 0xff
+                      );
+               if(arready) arid_cycle[arid] = cycle;
+               f = true;
+           }
+           if (awvalid) {
+               fprintf(fw,"[%6d][%10u][%d%d] awvalid addr:%8x id:%4x (%x:%1x:%2x)\n",
+                       seq, cycle,
+                       awvalid, awready,
+                       awaddr, awid,
+                       (awid >> 10) & 0xf, (awid >> 8) & 1, awid & 0xff
+                      );
+               f = true;
+           }
+           if (wvalid) {
+               fprintf(fw,"[%6d][%10u][%d%d]  wvalid data:%8x id:%4x (%x:%1x:%2x)   last awid:%4x mismatch:%d\n",
+                       seq, cycle,
+                       wvalid, wready,
+                       wdata, wid,
+                       (wid >> 10) & 0xf, (wid >> 8) & 1, wid & 0xff,
+                       last_awid, (last_awid != wid)
+                      );
+               f = true;
+               if (last_awid != wid)
+               printf("[%6d][%10u][%d%d]  wvalid data:%8x id:%4x (%x:%1x:%2x)   last awid:%4x mismatch:%d\n",
+                       seq, cycle,
+                       wvalid, wready,
+                       wdata, wid,
+                       (wid >> 10) & 0xf, (wid >> 8) & 1, wid & 0xff,
+                       last_awid, (last_awid != wid)
+                      );
+           }
+           if (awvalid & awready) last_awid = awid;
+           if (rvalid) {
+               fprintf(fw,"[%6d][%10u][%d%d]  rvalid data:%8x id:%4x resp:%d delay:%d\n",
+                       seq, cycle,
+                       rvalid, rready,
+                       rdata, rid, rresp,
+                       cycle - arid_cycle[rid]
+                      );
+               f = true;
+           }
+           if (bvalid) {
+               fprintf(fw,"[%6d][%10u][%d%d]  bvalid          id:%4x resp:%d\n",
+                       seq, cycle,
+                       bvalid, bready,
+                       bid, bresp
+                      );
+               f = true;
+           }
+           if (pci_awvalid) {
+               fprintf(fw,"[%6d][%10u]\t[%d%d] pci_awvalid addr:%8x id:%4x len:%d size:%d\n",
+                       seq, cycle,
+                       pci_awvalid, pci_awready,
+                       pci_awaddr, pci_awid, pci_awlen, pci_awsize
+                      );
+               f = true;
+           }
+           if (pci_arvalid) {
+               fprintf(fw,"[%6d][%10u]\t[%d%d] pci_arvalid addr:%8x id:%4x len:%d \n",
+                       seq, cycle,
+                       pci_arvalid, pci_arready,
+                       pci_araddr, pci_arid, pci_arlen
+                      );
+               f = true;
+           }
+           if (pci_wvalid) {
+               fprintf(fw,"[%6d][%10u]\t[%d%d] pci_wvalid id:%4x last:%d\n",
+                       seq, cycle,
+                       pci_wvalid, pci_wready,
+                       pci_wid, pci_wlast
+                      );
+               f = true;
+           }
+           if (pci_bvalid) {
+               fprintf(fw,"[%6d][%10u]\t[%d%d] pci_bvalid id:%4x\n",
+                       seq, cycle,
+                       pci_bvalid, pci_bready,
+                       pci_bid
+                      );
+               f = true;
+           }
+           if (pci_rvalid) {
+               fprintf(fw,"[%6d][%10u]\t[%d%d] pci_rvalid id:%4x\n",
+                       seq, cycle,
+                       pci_rvalid, pci_rready,
+                       pci_rid
+                      );
+               f = true;
+           }*/
+           if (!f) {
+               fprintf(fw,"[%6d][%10u] %8x %8x %8x %8x %8x %8x %8x %8x %8x %8x\n",
+                       seq, cycle,
+                       buf[i*16+2], buf[i*16+3],
+                       buf[i*16+4], buf[i*16+5],
+                       buf[i*16+6], buf[i*16+7],
+                       buf[i*16+8], buf[i*16+9],
+                       buf[i*16+10], buf[i*16+11]
+                      );
+
+           }
+
+
+       }
+
+   }
+
+   fflush(fw);
+   return 0;
+}
+
 int log_rw_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned char* log_buffer, uint32_t ID) {
 
    uint32_t log_size;
@@ -1008,7 +1195,7 @@ int log_rw_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
 
            bool f = false;
            if (task_in_valid & task_in_ready) {
-               fprintf(fw,"[%6d][%10u] [%2x] task_in ts:%5d object:%5d slot %d ttype:%d | fifo:%2d\n",
+               fprintf(fw,"[%6d][%10u] [%2x] task_in ts:%5d object:%5x slot %d ttype:%d | fifo:%2d\n",
                    seq, cycle,
                    in_thread,
                    in_ts, in_object, in_cq_slot, in_ttype, out_fifo_occ
@@ -1017,7 +1204,7 @@ int log_rw_stage(pci_bar_handle_t pci_bar_handle, int fd, FILE* fw, unsigned cha
            }
 
            if (task_out_valid & task_out_valid) {
-               fprintf(fw,"[%6d][%10u] [%2x] task_out ts:%5d object:%5d data:%10d | fifo:%2d\n",
+               fprintf(fw,"[%6d][%10u] [%2x] task_out ts:%5d object:%5x data:%10x | fifo:%2d\n",
                    seq, cycle,
                    out_thread,
                    out_ts, out_object, out_data, out_fifo_occ
