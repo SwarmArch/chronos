@@ -123,7 +123,7 @@ axarr[1,0].set_xlabel('% system used', fontsize=fontsize-1)
 axarr[1,1].set_xlabel('% system used', fontsize=fontsize-1)
 axarr[0,0].set_ylabel('Speedup', fontsize=fontsize-1)
 axarr[1,0].set_ylabel('Speedup', fontsize=fontsize-1)
-axarr[1,0].set_ylim(0, 80)
+axarr[1,0].set_ylim(0, 60)
 #axarr[1,1].set_ylim(0, 60)
 #axarr[2,0].set(xlabel='% system used', ylabel='Speedup')
 

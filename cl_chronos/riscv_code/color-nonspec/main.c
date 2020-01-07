@@ -21,13 +21,43 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../include/chronos.h"
 
-const int ADDR_BASE_DATA         = 5 << 2;
-const int ADDR_BASE_EDGE_OFFSET  = 3 << 2;
-const int ADDR_BASE_NEIGHBORS    = 4 << 2;
-const int ADDR_BASE_SCRATCH      = 7 << 2;
-const int ADDR_NUMV              = 1 << 2;
+// This version initializes the in-degree of a node in a single task.
+// This is hard to implement with the current pipeline, because it requires
+// keeping track of a register across memory iterations.
+
+#ifndef RISCV
+#include "../include/simulator.h"
+#else
+#include "../include/chronos.h"
+#endif
+
+#ifdef RISCV
+void printf(...) {
+}
+#endif
+
+typedef struct {
+   short color;
+   short degree;
+   short scratch;
+   short ncp;
+   short ndp;
+   uint eo_begin;
+} color_node_prop_t;
+
+uint32_t* chronos_mem = 0;
+void* chronos_ptr(int offset) {
+   uint32_t addr = chronos_mem[offset];
+   printf("chronos_ptr %x\n", addr);
+   return (void*) &chronos_mem[addr];
+}
+
+const int ADDR_BASE_DATA         = 5;
+const int ADDR_BASE_EDGE_OFFSET  = 3;
+const int ADDR_BASE_NEIGHBORS    = 4;
+const int ADDR_BASE_SCRATCH      = 7;
+const int ADDR_NUMV              = 1;
 
 #define ENQUEUER_TASK  0
 #define CALC_IN_DEGREE_TASK 1
@@ -36,7 +66,7 @@ const int ADDR_NUMV              = 1 << 2;
 
 typedef unsigned int uint;
 
-uint* colors;
+color_node_prop_t* data;
 uint* edge_offset;
 uint* edge_neighbors;
 
@@ -89,9 +119,9 @@ void calc_color_task(uint ts, uint vid, uint enq_start, uint arg1) {
           vec >>= 1;
           bit++;
        }
-       colors[vid*4] = bit;
+       data[vid].color = bit;
    } else {
-       bit = colors[vid*4];
+       bit = data[vid].color;
    }
    uint eo_begin = edge_offset[vid];
    uint eo_end = edge_offset[vid+1];
@@ -131,18 +161,44 @@ void receive_color_task(uint ts, uint vid, uint color, uint neighbor) {
 }
 
 
-void main() {
+int main(int argc, char** argv) {
    chronos_init();
 
-   colors = (uint*) ((*(int *) (ADDR_BASE_DATA))<<2) ;
-   edge_offset  =(uint*) ((*(int *)(ADDR_BASE_EDGE_OFFSET))<<2) ;
-   edge_neighbors  =(uint*) ((*(int *)(ADDR_BASE_NEIGHBORS))<<2) ;
-   scratch  =(uint*) ((*(int *)(ADDR_BASE_SCRATCH))<<2);
-   numV  =*(uint *)(ADDR_NUMV) ;
+#ifndef RISCV
+   // Simulator code
+
+   if (argc <2) {
+       printf("usage: color_sim in_file\n");
+       exit(0);
+   }
+
+   //const char* fname = "../../tools/silo_gen/silo_tx";
+   char* fname = argv[1];
+   FILE* fp = fopen(fname, "rb");
+   // obtain file size:
+   fseek (fp , 0 , SEEK_END);
+   long lSize = ftell (fp);
+   printf("File %p size %ld\n", fp, lSize);
+   rewind (fp);
+   chronos_mem = (uint32_t*) malloc(lSize);
+   fread( (void*) chronos_mem, 1, lSize, fp);
+   enq_task_arg1(ENQUEUER_TASK, 0, 0x20000, 0);
+#else
+#endif
+   data = (color_node_prop_t*) chronos_ptr(ADDR_BASE_DATA);
+   edge_offset = (uint32_t*) chronos_ptr(ADDR_BASE_EDGE_OFFSET);
+   edge_neighbors = (uint32_t*) chronos_ptr(ADDR_BASE_NEIGHBORS);
+   scratch  =(uint32_t*) chronos_ptr(ADDR_BASE_SCRATCH);
+   numV  = chronos_mem[ADDR_NUMV];
+
+   printf("numV %d\n", numV);
 
    while (1) {
       uint ttype, ts, object, arg0, arg1;
-      deq_task(&ttype, &ts, &object, &arg0, &arg1);
+      deq_task_arg2(&ttype, &ts, &object, &arg0, &arg1);
+#ifndef RISCV
+      if (ttype == -1) break;
+#endif
       switch(ttype) {
         case ENQUEUER_TASK:
            enqueuer_task(ts, object, arg0, arg1);
@@ -161,5 +217,50 @@ void main() {
       }
       finish_task();
    }
+#ifndef RISCV
+    printf("Verifying..\n");
+    color_node_prop_t* c_nodes =
+               (color_node_prop_t *) chronos_ptr(ADDR_BASE_DATA);
+    uint32_t* csr_ref_color = (uint32_t*) chronos_ptr(6);
+    uint32_t num_errors = 0;
+           FILE* fc = fopen("color_verif", "w");
+           for (int i=0;i<numV;i++) {
+               uint32_t eo_begin =c_nodes[i].eo_begin;
+               uint32_t eo_end =eo_begin + c_nodes[i].degree;
+               uint32_t i_deg = eo_end - eo_begin;
+               uint32_t i_color = c_nodes[i].color;
+
+                // read_join_counter and scratch;
+               uint32_t bitmap = c_nodes[i].scratch;
+               uint32_t join_counter = c_nodes[i].ndp;
+
+               fprintf(fc,"i=%d d=%d c=%d bitmap=%8x counter=(%d %d) ref:%d\n",
+                       i, i_deg, i_color,
+                       bitmap,
+                        join_counter, c_nodes[i].ncp,
+                        csr_ref_color[i]);
+               bool error = (i_color != csr_ref_color[i]);
+               uint32_t join_cnt = 0;
+               for (int j=eo_begin;j<eo_end;j++) {
+                    uint32_t n = edge_neighbors[j];
+                    uint32_t n_deg = c_nodes[n].degree;
+                    uint32_t n_color = c_nodes[n].color;
+                    fprintf(fc,"\tn=%d d=%d c=%d r=%d\n",n, n_deg, n_color, csr_ref_color[n]);
+                    if (i_color == n_color) {
+                        fprintf(fc,"\t ERROR:Neighbor has same color\n");
+                    }
+                    if (n_deg > i_deg || ((n_deg == i_deg) & (n<i))) join_cnt++;
+               }
+               fprintf(fc,"\tjoin_cnt=%d\n", join_cnt);
+               if (error) num_errors++;
+               if ( error & (num_errors < 10) )
+                   printf("Error at vid:%3d color:%5d\n",
+                           i, c_nodes[i].color);
+
+           }
+           printf("Total Errors %d / %d\n", num_errors, numV);
+
+#endif
+
 }
 
