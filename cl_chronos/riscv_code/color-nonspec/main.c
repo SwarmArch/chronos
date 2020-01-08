@@ -21,10 +21,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-// This version initializes the in-degree of a node in a single task.
-// This is hard to implement with the current pipeline, because it requires
-// keeping track of a register across memory iterations.
+// Matches the task structure of the pipelined color
 
 #ifndef RISCV
 #include "../include/simulator.h"
@@ -40,10 +37,10 @@ void printf(...) {
 typedef struct {
    short color;
    short degree;
-   short scratch;
+   uint32_t scratch;
    short ncp;
    short ndp;
-   uint eo_begin;
+   uint32_t eo_begin;
 } color_node_prop_t;
 
 uint32_t* chronos_mem = 0;
@@ -64,6 +61,11 @@ const int ADDR_NUMV              = 1;
 #define CALC_COLOR_TASK  2
 #define RECEIVE_COLOR_TASK 3
 
+#define ENQ_TASK  0
+#define SEND_DEGREE_TASK 1
+#define RECEIVE_DEGREE_TASK  2
+#define RECEIVE_COLOR_TASK 3
+
 typedef unsigned int uint;
 
 color_node_prop_t* data;
@@ -72,92 +74,115 @@ uint* edge_neighbors;
 
 uint* scratch;
 uint numV;
+uint enq_limit;
 
 void enqueuer_task(uint ts, uint object, uint enq_start, uint arg1) {
    int n_child = 0;
    uint next_ts;
-   uint enq_end = enq_start + 17;
+   uint enq_end = enq_start + enq_limit;
    if (enq_end > numV) enq_end = numV;
    if (enq_end < numV) {
-     enq_task_arg1(ENQUEUER_TASK, /*unordered*/ 0, enq_start << 16, enq_end);
+     enq_task_arg1(ENQUEUER_TASK, /*unordered*/ 0, enq_end, enq_end);
    }
    for (int i=enq_start; i<enq_end; i++) {
-     enq_task_arg0(CALC_IN_DEGREE_TASK, /*unordered*/ 0, i);
+     enq_task_arg0(SEND_DEGREE_TASK, /*unordered*/ 0, i);
    }
 }
 
-void calc_in_degree_task(uint ts, uint vid, uint arg0, uint arg1) {
-
-   // Identify safe nodes. A node can be colored if it does not have any
-   // neighbors with a priority greater than itself
-   uint eo_begin = edge_offset[vid];
-   uint eo_end = edge_offset[vid+1];
-   uint deg = eo_end - eo_begin;
-   uint in_degree =0;
-   for (int i = eo_begin; i < eo_end; i++) {
-      uint neighbor = edge_neighbors[i];
-      uint neighbor_deg = edge_offset[neighbor+1] - edge_offset[neighbor];
-      if ( (neighbor_deg > deg) || ((neighbor_deg == deg) & neighbor < vid)) {
-         in_degree++;
-      }
-   }
-   // A receive_color task tagetted to this could have been executed
-   // before join_counter was set.
-   uint cur_counter = scratch[vid*2+1];
-   cur_counter += in_degree;
-   scratch[vid*2+1] = cur_counter;
-   if (cur_counter ==0) {
-      enq_task_arg1(CALC_COLOR_TASK, 0, vid, 0);
-   }
+void send_degree_task(uint ts, uint vid, uint arg0, uint arg1) {
+    printf("\t ndp:%2d ncp:%2d\n", data[vid].ndp, data[vid].ncp);
+    uint32_t enq_start = arg0;
+    if (data[vid].degree == 0) {
+        data[vid].color = 0;
+    } else {
+        uint32_t eo_begin = data[vid].eo_begin + enq_start;
+        uint32_t eo_end = data[vid].eo_begin + data[vid].degree;
+        printf("\t%d %d %d\n", eo_begin, enq_limit, eo_end);
+        if ((eo_begin + enq_limit) < eo_end) {
+            eo_end = eo_begin + enq_limit;
+            enq_task_arg1(SEND_DEGREE_TASK, 0, vid, enq_start + enq_limit);
+        }
+        for (int i=eo_begin; i<eo_end; i++) {
+            uint32_t neighbor = edge_neighbors[i];
+            enq_task_arg2(RECEIVE_DEGREE_TASK, 0, neighbor, (data[vid].degree << 16), vid);
+        }
+    }
 }
-void calc_color_task(uint ts, uint vid, uint enq_start, uint arg1) {
-   // find first unset bit;
-   uint bit = 0;
-   if (enq_start == 0) {
-       uint vec = scratch[vid*2];
-       while (vec & 1) {
+
+void receive_degree_task(uint ts, uint vid, uint arg0, uint neighbor) {
+    printf("\t ndp:%2d ncp:%2d\n", data[vid].ndp, data[vid].ncp);
+    data[vid].ndp -= 1;
+    uint32_t neighbor_deg = arg0 >> 16;
+    uint32_t deg = data[vid].degree;
+    if ( (neighbor_deg > deg) || ( (neighbor_deg == deg) & (neighbor < vid))) {
+        data[vid].ncp += 1;
+    }
+    uint32_t enq_start = arg0 & 0xffff;
+
+    if ( (data[vid].ndp == 0) && (data[vid].ncp == 0)) {
+
+
+        uint color = 0;
+        uint vec = data[vid].scratch;
+        while (vec & 1) {
           vec >>= 1;
-          bit++;
-       }
-       data[vid].color = bit;
-   } else {
-       bit = data[vid].color;
-   }
-   uint eo_begin = edge_offset[vid];
-   uint eo_end = edge_offset[vid+1];
-   uint deg = eo_end - eo_begin;
+          color++;
+        }
+        data[vid].color = color;
 
-   uint enq_end = enq_start + 17;
-   if (enq_end > deg) enq_end = deg;
-   if (enq_end < deg) {
-     enq_task_arg1(CALC_COLOR_TASK, 0, vid, enq_end);
-   }
-
-   for (int i = eo_begin + enq_start; i < eo_begin + enq_end; i++) {
-      uint neighbor = edge_neighbors[i];
-      uint neighbor_deg = edge_offset[neighbor+1] - edge_offset[neighbor];
-      if ( (neighbor_deg < deg) || ((neighbor_deg == deg) & neighbor > vid)) {
-         enq_task_arg2(RECEIVE_COLOR_TASK, 0, neighbor, bit, vid);
-      }
-   }
-
+        uint32_t eo_begin = data[vid].eo_begin + enq_start;
+        uint32_t eo_end = data[vid].eo_begin + data[vid].degree;
+        if ((eo_begin + enq_limit) < eo_end) {
+            eo_end = eo_begin + enq_limit;
+            enq_task_arg1(RECEIVE_COLOR_TASK, 0, vid,
+                    (data[vid].degree << 16) | (enq_start + enq_limit));
+        }
+        for (int i=eo_begin; i<eo_end; i++) {
+            uint32_t neighbor = edge_neighbors[i];
+            enq_task_arg3(RECEIVE_COLOR_TASK, 0, neighbor, data[vid].degree << 16, vid, color);
+        }
+    }
 }
 
+void receive_color_task(uint ts, uint vid, uint degree_start, uint neighbor, uint color) {
 
-void receive_color_task(uint ts, uint vid, uint color, uint neighbor) {
+    printf("\t ndp:%2d ncp:%2d\n", data[vid].ndp, data[vid].ncp);
+    uint32_t enq_start = degree_start & 0xffff;
+    if (enq_start == 0) {
+        uint32_t neighbor_deg = degree_start >> 16;
+        uint32_t deg = data[vid].degree;
+        if ( (neighbor_deg > deg) || ( (neighbor_deg == deg) & (neighbor < vid))) {
+            data[vid].ncp -= 1;
+            data[vid].scratch |= (1 << color);
+            data[vid].color = color;
+            if ( (data[vid].ndp == 0) && (data[vid].ncp == 0)) {
 
-   uint vec;
-   if (color < 32) {
-      vec = scratch[vid*2];
-      vec = vec | ( 1<<color);
-      scratch[vid*2] = vec;
-   } // else todo
-   uint counter = scratch[vid*2+1];
-   counter--;
-   scratch[vid*2+1] = counter;
-   if (counter ==0) {
-      enq_task_arg1(CALC_COLOR_TASK, 1, vid, 0);
-   }
+            } else {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+
+    color = 0;
+    uint vec = data[vid].scratch;
+    while (vec & 1) {
+      vec >>= 1;
+      color++;
+    }
+    data[vid].color = color;
+
+    uint32_t eo_begin = data[vid].eo_begin + enq_start;
+    uint32_t eo_end = data[vid].eo_begin + data[vid].degree;
+    if ((eo_begin + enq_limit) < eo_end) {
+        eo_end = eo_begin + enq_limit;
+        enq_task_arg1(RECEIVE_COLOR_TASK, 0, vid, enq_start + enq_limit);
+    }
+    for (int i=eo_begin; i<eo_end; i++) {
+        uint32_t neighbor = edge_neighbors[i];
+        enq_task_arg3(RECEIVE_COLOR_TASK, 0, neighbor, data[vid].degree << 16, vid, color);
+    }
 }
 
 
@@ -190,12 +215,13 @@ int main(int argc, char** argv) {
    edge_neighbors = (uint32_t*) chronos_ptr(ADDR_BASE_NEIGHBORS);
    scratch  =(uint32_t*) chronos_ptr(ADDR_BASE_SCRATCH);
    numV  = chronos_mem[ADDR_NUMV];
+   enq_limit  = chronos_mem[9];
 
    printf("numV %d\n", numV);
 
    while (1) {
-      uint ttype, ts, object, arg0, arg1;
-      deq_task_arg2(&ttype, &ts, &object, &arg0, &arg1);
+      uint ttype, ts, object, arg0, arg1, arg2;
+      deq_task_arg3(&ttype, &ts, &object, &arg0, &arg1, &arg2);
 #ifndef RISCV
       if (ttype == -1) break;
 #endif
@@ -203,14 +229,14 @@ int main(int argc, char** argv) {
         case ENQUEUER_TASK:
            enqueuer_task(ts, object, arg0, arg1);
            break;
-        case CALC_IN_DEGREE_TASK:
-           calc_in_degree_task(ts, object, arg0, arg1);
+        case SEND_DEGREE_TASK:
+           send_degree_task(ts, object, arg0, arg1);
            break;
-        case CALC_COLOR_TASK:
-           calc_color_task(ts, object, arg0, arg1);
+        case RECEIVE_DEGREE_TASK:
+           receive_degree_task(ts, object, arg0, arg1);
            break;
         case RECEIVE_COLOR_TASK:
-           receive_color_task(ts, object, arg0, arg1);
+           receive_color_task(ts, object, arg0, arg1, arg2);
            break;
         default:
            break;
