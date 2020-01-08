@@ -76,7 +76,7 @@ for app in data:
         if (l=='c'):
             continue
         fpga_1task = (data[app]['c'][1] / data[app][l][1])
-        continue
+        #continue
         fpga_1tile = (data[app]['c'][1] / data[app][l][16])
         max_cores = max(data[app][l].keys())
         fpga_all_tiles = (data[app]['c'][1] / data[app][l][max_cores])
@@ -161,11 +161,12 @@ l2 =ax.plot( speedups['color']['n'][0], speedups['color']['n'][1],
 ax.set_ylabel('Speedup', fontsize=fontsize-1)
 ax.set_xlabel('% System used', fontsize=fontsize-1)
 plt.gcf().subplots_adjust(bottom=0.155)
+plt.gcf().subplots_adjust(left=0.155)
 #plt.gcf().subplots_adjust(top=0.795)
-plt.text(35 ,6.5 , 'Baseline CPU',
+plt.text(39 ,6.7 , 'Baseline CPU',
             ha='left', va='bottom', rotation=5, rotation_mode='anchor',
             fontsize=16)
-plt.text(10 ,0.6 , 'Chronos non-speculative',
+plt.text(10 ,0.85 , 'Chronos non-speculative',
             ha='left', va='bottom', rotation=15, rotation_mode='anchor',
             fontsize=16)
 #lgd= f.legend( [l1, l2] ,

@@ -40,6 +40,12 @@ file_list = listdir(".")
 for f in file_list:
     if not f.endswith(".result"):
         continue
+    if (f.find("rate_ctrl") >0):
+        continue
+    if (f.find("astar_r") >=0):
+        continue
+    if (f.find("sssp_r") >=0):
+        continue
     print(f)
     s = f.split("_")
     app = s[0];
