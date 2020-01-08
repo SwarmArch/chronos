@@ -78,6 +78,7 @@ uint32_t USING_PIPELINED_TEMPLATE;
 uint32_t active_tiles = 1;
 uint32_t active_threads = 0;
 bool logging_on =false;
+uint32_t ddr_throttle_factor = 1;
 uint32_t logging_phase_tasks = 0x100;
 uint32_t reading_binary_file = false;
 
@@ -206,6 +207,9 @@ int main(int argc, char **argv) {
         if (prefix("--n_tiles", argv[cur_arg])) active_tiles = atoi(val);
         if (prefix("--n_threads", argv[cur_arg])) active_threads = atoi(val);
         if (prefix("--logging", argv[cur_arg])) logging_on = (atoi(val)==1);
+        if (prefix("--rate_ctrl", argv[cur_arg])) {
+            ddr_throttle_factor = atoi(val);
+        }
 
         cur_arg++;
     }
@@ -663,7 +667,9 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
     printf("Spill Alloc %08x %08x\n",ADDR_BASE_SPILL, TOTAL_SPILL_ALLOCATION);
 
     //pci_poke(N_TILES, ID_GLOBAL, MEM_XBAR_NUM_CTRL, 4);
-    //pci_poke(N_TILES, ID_GLOBAL, MEM_XBAR_RATE_CTRL, (1<<16) | 20);
+    if (ddr_throttle_factor > 1) {
+        pci_poke(N_TILES, ID_GLOBAL, MEM_XBAR_RATE_CTRL, (1<<16) | ddr_throttle_factor);
+    }
 
     for (int i=0;i<N_TILES;i++) {
 
