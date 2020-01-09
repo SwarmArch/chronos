@@ -882,6 +882,8 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     int iters = 0;
 
+   time_t t1,t2;
+   t1 = time(NULL);
    while(true) {
        uint32_t gvt;
        if (NO_ROLLBACK) {
@@ -919,7 +921,7 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
            //log_axi(pci_bar_handle, read_fd, fwro, log_buffer, 1<<8 | ID_UNDO_LOG+1);
            log_task_unit(pci_bar_handle, read_fd, fwtu, log_buffer, ID_TASK_UNIT);
            if (APP_ID == RISCV_ID) {
-              //log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
+              log_riscv(pci_bar_handle, read_fd, fwrv_0, log_buffer, 16);
            } else if (USING_PIPELINED_TEMPLATE) {
               log_ro_stage(pci_bar_handle, read_fd, fwro, log_buffer, ID_RO_STAGE);
               log_rw_stage(pci_bar_handle, read_fd, fwrw, log_buffer, ID_RW_READ) ;
@@ -943,9 +945,13 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
        //loop_debuggin_no_rollback(iters);
        usleep(1000);
        iters++;
-       if (iters > 300000) exit(0);
+       t2 = time(NULL);
+       double time_s = (double)(t2-t1);
+       if (time_s > 30) exit(0);
 
    }
+       double time_s = (double) (t2-t1) ;
+   printf("time_s %f\n", time_s);
    // disable new dequeues from cores; for accurate counting of no tasks stalls
    pci_poke(0, ID_ALL_APP_CORES, CORE_N_DEQUEUES ,0x0);
    for (int i=0;i<N_TILES;i++) {

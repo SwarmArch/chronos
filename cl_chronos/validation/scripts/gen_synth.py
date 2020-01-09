@@ -15,7 +15,7 @@ d = datetime.datetime.today()
 index = 0
 scripts_dir = os.getcwd()
 while(True):
-    dirname = str(d.year) + "-" + str(d.month) + "-" + str(d.day) + "_" +  str(index)
+    dirname = str(d.year) + "-" + format(d.month, '02') + "-" + format(d.day, '02') + "_" +  str(index)
     if dirname not in runs:
         print("creating directory "+dirname)
         os.mkdir("../synth/" + dirname)

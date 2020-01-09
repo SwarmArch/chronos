@@ -60,8 +60,9 @@ for app in data:
         speedups[app][l] = [[],[]] 
         max_cores = max(data[app][l].keys())
         for c in sorted(data[app][l]):
-            speedups[app][l][0].append(c/max_cores * 100)
+            speedups[app][l][0].append(float(c)/max_cores * 100)
             speedups[app][l][1].append( norm /  data[app][l][c])
+print("Printng Speedups")
 print(speedups)
 for app in data:
     if (app.startswith("riscv")):
