@@ -31,6 +31,8 @@ test sssp sssp_nr_14t 12 16
 test sssp sssp_nr_16t 14 16  
 test sssp sssp_nr_16t 16 16  
 
+test sssp sssp_r_6t 6 16  
+
 test astar astar_nr_1t 1 1  
 test astar astar_nr_4t 1 16  
 test astar astar_nr_4t 2 16  
@@ -38,6 +40,8 @@ test astar astar_nr_4t 4 16
 test astar astar_nr_6t 6 16  
 test astar astar_nr_10t 8 16  
 test astar astar_nr_10t 10 16  
+
+test astar astar_r_6t 6 16  
 
 test des des_r_8t 1 1
 test des des_r_8t 1 16

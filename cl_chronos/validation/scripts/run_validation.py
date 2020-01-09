@@ -6,10 +6,7 @@
 # individually in the specified order
 
 # To facilitate quick evaluation, we also provide precompiled images. 
-# To use them, run this script with the --precompile option. 
-# Note that precompiled images are not available for some high-tile count systems,
-# (sssp 16 tiles, maxflow - 8t, astar - 10t) since they didn't finish synthesis
-# before the submission deadline. 
+# To use them, run this script with the --precompiled option. 
 
 import os
 import sys
@@ -61,5 +58,5 @@ run_dir = get_latest_dir("../runs/")
 run_cmd("python summarize.py " + run_dir)
 
 
-# Step 5: Generates the speedup plot in Figure 10. (speedup.pdf)
+# Step 5: Generates the speedup plot in Figure 10, 11 and 14
 run_cmd("python plot.py chronos_runtimes.txt ../baselines/runtime_ref.txt") 
