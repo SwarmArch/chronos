@@ -126,7 +126,7 @@ for t in tests:
         run_cmd(cmd)
         cmd = "sudo ../../../software/runtime/test_chronos --n_tiles=" +n_tiles
         if (Throttle):
-            cmd += " --rate_ctrl=20 "
+            cmd += " --rate_ctrl=16 "
         cmd += " --n_threads=" + n_threads +" " + app  
         cmd += " ../../inputs/chronos-inputs/" + inputs_list[app]
 	if (riscv):

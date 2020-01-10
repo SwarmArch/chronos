@@ -11,8 +11,6 @@ test riscv_maxflow riscv_r_4t 4 12
 test riscv_des riscv_r_4t 4 12
 test throttle_sssp riscv_rate_ctrl_nr_4t 4 12
 test throttle_color riscv_rate_ctrl_nr_4t 4 12
-test throttle_maxflow riscv_r_4t 4 12
-test throttle_des riscv_r_4t 4 12
 
 test color color_nr_6t 1 1
 test color color_nr_6t 1 32
