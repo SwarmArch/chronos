@@ -490,7 +490,9 @@ int test_chronos(int slot_id, int pf_id, int bar_id, FILE* fg, int app) {
 
     // Change here if you want to reduce the system size
     uint32_t max_threads = 1e9;
-    if (active_threads == 1) max_threads = 1;
+    // color precompiled image does not support max_concurrent tasks
+    // FIXME
+    if (active_threads == 1 & (app != APP_COLOR)) max_threads = 1;
 
     if (N_TILES < active_tiles) {
         printf("N_TILES %d < active_tiles %d\n", N_TILES, active_tiles);
