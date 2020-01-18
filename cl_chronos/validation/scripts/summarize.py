@@ -40,23 +40,31 @@ file_list = listdir(".")
 for f in file_list:
     if not f.endswith(".result"):
         continue
-    if (f.find("rate_ctrl") >0):
-        continue
-    if (f.find("astar_r") >=0):
-        continue
-    if (f.find("sssp_r") >=0):
-        continue
+    #if (f.find("rate_ctrl") >=0):
+    #    continue
+    #if (f.find("riscv") >=0):
+    #    continue
     print(f)
     s = f.split("_")
     app = s[0];
     riscv = f.startswith("riscv")
+    throttle = (f.find("rate_ctrl") > 0)
     if riscv:
-        n_tiles = int(s[5])
-        n_threads = int(s[7])
-        app += "_"+s[3]
+        if throttle:
+            n_tiles = int(s[7])
+            n_threads = int(s[9])
+            app = "throttle-"+s[5]
+        else: 
+            n_tiles = int(s[5])
+            n_threads = int(s[7])
+            app += "-"+s[3]
     else:
         n_tiles = int(s[4])
         n_threads = int(s[6])
+        if (f.find("astar_r") >=0):
+            app += "-r"
+        if (f.find("sssp_r") >=0):
+            app += "-r"
     index = (app, n_tiles, n_threads)
     res_file = open(f,"r")
     
@@ -210,6 +218,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+## http://phyletica.org/matplotlib-fonts/
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
 apps = {}
 apps['des'] = getData( best_result_file['des'] )
 apps['maxflow'] = getData( best_result_file['maxflow'] )
@@ -217,6 +229,8 @@ apps['maxflow'] = getData( best_result_file['maxflow'] )
 ## manually inspecting the 1-tile 1-thread variants. TODO: automate
 apps['sssp'] = getDataNonspec( best_result_file['sssp'] , 58333344)
 apps['astar'] = getDataNonspec( best_result_file['astar'], 2686985)
+apps['astar-r'] = getData( best_result_file['astar-r'])
+apps['sssp-r'] = getData( best_result_file['sssp-r'])
 #apps['astar'] = getDataNonspec( best_result_file['astar'], 3347700)
 
 os.chdir(scripts_dir)
@@ -279,6 +293,7 @@ mpl_fig.legend( [p5, p4, p2, p1 ] ,
           loc = 'lower right',
           bbox_to_anchor=(0.83,0.40),
           ncol = 1,
+          frameon=False,
           fontsize = 22
           )
 ax.set_position([box.x0, box.y0, box.width, box.height*0.8])
@@ -287,15 +302,19 @@ ax.tick_params(axis='both', labelsize=23)
 plt.gcf().subplots_adjust(left=0.15)
 plt.gcf().subplots_adjust(bottom=0.15)
 plt.gcf().subplots_adjust(right=0.55)
+#plt.gcf().subplots_adjust(top=0.70)
 
 mpl_fig.savefig("cycle_break.pdf")#, bbox_inches='tight')
 
 #### Taks Q Util
 
+app_list_cq = ['des' ,'maxflow', 'sssp-r', 'astar-r', ]
 tq_util = [ apps[app]['avgTasks'] for app in app_list]
-cq_util = [ apps[app]['cqsize'] for app in app_list]
+cq_util = [ apps[app]['cqsize'] for app in app_list_cq]
 
 print(cq_util)
+print("TQ util")
+print(tq_util)
 
 ax1color = 'cornflowerblue'
 ax2color = 'navy'
@@ -307,7 +326,7 @@ p1 = ax.bar(ind, tq_util, width=0.4, color=ax1color)
 p2 = ax.bar([i + 0.4 for i in ind], cq_util, width=0.4, color=ax2color) 
 #ax.bar(x1, z, width=0.2, color='b') 
 ax.set_xticks(ind + width/2.)
-ax.set_ylim([0, 2000])
+ax.set_ylim([0, 2080])
 #ax2.set_ylim([0, 1280])
 ax.set_xticklabels(('des', 'maxflow', 'sssp', 'astar'))
 mpl_fig.legend( [p1, p2] ,
@@ -329,9 +348,9 @@ ax.tick_params(axis='both', labelsize=28)
 ax.tick_params(axis='y')#, labelcolor=ax1color)
 #ax2.tick_params(axis='both', labelsize=22)
 #ax2.tick_params(axis='y', labelcolor=ax2color)
-plt.text(3.17 , 2000, '%d' % tq_util[3],
+plt.text(3.17 , 2080, '%d' % tq_util[3],
     ha='center', va='bottom', fontsize=28)
-plt.text(2.17 , 2000, '%d' % tq_util[2],
+plt.text(2.17 , 2080, '%d' % tq_util[2],
     ha='center', va='bottom', fontsize=28)
 #for rect in p1 + p2:
 #    height = rect.get_height()
@@ -340,7 +359,7 @@ plt.text(2.17 , 2000, '%d' % tq_util[2],
 #        ha='center', va='bottom')
 
 mpl_fig.tight_layout()
-plt.gcf().subplots_adjust(top=0.80)
+plt.gcf().subplots_adjust(top=0.75)
 
 mpl_fig.savefig("queue.pdf")#, bbox_inches='tight')
 

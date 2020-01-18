@@ -3,6 +3,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+## http://phyletica.org/matplotlib-fonts/
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
 import sys
 
 if (len(sys.argv)<3):
@@ -47,10 +51,9 @@ for line in fchronos:
 
 print(data)
 
+main_apps = ['sssp', 'astar', 'color', 'maxflow', 'des']
 speedups = {}
-for app in data:
-    if (app.startswith("riscv")):
-        continue
+for app in main_apps:
     speedups[app] = {}
     print(app)
     print(data[app])
@@ -64,9 +67,7 @@ for app in data:
             speedups[app][l][1].append( norm /  data[app][l][c])
 print("Printng Speedups")
 print(speedups)
-for app in data:
-    if (app.startswith("riscv")):
-        continue
+for app in main_apps:
     opt_cpu_cores = 1
     for c in data[app]['c']:
         if (data[app]['c'][c] < data[app]['c'][opt_cpu_cores]):
@@ -76,9 +77,12 @@ for app in data:
     for l in data[app]:
         if (l=='c'):
             continue
+        print([app, l])
         fpga_1task = (data[app]['c'][1] / data[app][l][1])
-        #continue
-        fpga_1tile = (data[app]['c'][1] / data[app][l][16])
+        if (app == 'color'):
+            fpga_1tile = (data[app]['c'][1] / data[app][l][32])
+        else :
+            fpga_1tile = (data[app]['c'][1] / data[app][l][16])
         max_cores = max(data[app][l].keys())
         fpga_all_tiles = (data[app]['c'][1] / data[app][l][max_cores])
         fpga_self_relative = (data[app][l][1] / data[app][l][max_cores])
@@ -158,17 +162,17 @@ f, ax = plt.subplots(figsize=[4,4])
 l1 =ax.plot( speedups['color']['c'][0], speedups['color']['c'][1],
                 color=color_baseline, linewidth=lw)[0]
 l2 =ax.plot( speedups['color']['n'][0], speedups['color']['n'][1],
-                color=color_nonspec, linewidth=lw)[0]
+                color=color_spec, linewidth=lw)[0]
 ax.set_ylabel('Speedup', fontsize=fontsize-1)
 ax.set_xlabel('% System used', fontsize=fontsize-1)
 plt.gcf().subplots_adjust(bottom=0.155)
 plt.gcf().subplots_adjust(left=0.155)
 #plt.gcf().subplots_adjust(top=0.795)
-plt.text(39 ,6.7 , 'Baseline CPU',
+plt.text(39 ,7.0 , 'Baseline CPU',
             ha='left', va='bottom', rotation=5, rotation_mode='anchor',
             fontsize=16)
-plt.text(10 ,0.85 , 'Chronos non-speculative',
-            ha='left', va='bottom', rotation=15, rotation_mode='anchor',
+plt.text(8.0 ,1.00 , 'Chronos non-speculative',
+            ha='left', va='bottom', rotation=16, rotation_mode='anchor',
             fontsize=16)
 #lgd= f.legend( [l1, l2] ,
 #          labels = ['Baseline', 'Chronos Non-Speculative'],
@@ -179,6 +183,7 @@ plt.text(10 ,0.85 , 'Chronos non-speculative',
 #          )
 f.savefig("color.pdf",bbox_extra_artists=(lgd,))#, bbox_inches='tight')
 
+font_size=20
 ## RISCV core plot
 def getmaxval(d):
     inv = [(value, key) for key, value in d.items()]
@@ -194,10 +199,10 @@ custom = [ 1, 1, 1, 1]
 width = 0.65
 
 riscv_runtime = [
-            getmaxval(data['riscv_des']['s']),
-            getmaxval(data['riscv_maxflow']['s']),
-            getmaxval(data['riscv_sssp']['s']),
-            getmaxval(data['riscv_color']['s']),
+            getmaxval(data['riscv-des']['s']),
+            getmaxval(data['riscv-maxflow']['s']),
+            getmaxval(data['riscv-sssp']['s']),
+            getmaxval(data['riscv-color']['s']),
             ]
             #90.3 * 344/662, 259, 1341, 307]
 app_runtime = [
@@ -217,19 +222,55 @@ p1 = ax.bar(ind, speedup, width=0.7, color='mediumseagreen')
 #ax.bar(x1, z, width=0.2, color='b') 
 ax.set_xticks(ind + width/2.)
 ax.set_yticks([0, 2, 4 ,6, 8 ,10, 12, 14, 16])
-#ax.set_ylim([0, 1, 4.5])
 ax.set_xticklabels(('des', 'maxflow', ' sssp', 'color'))
-#mpl_fig.legend( [p1, p2] ,
-#          labels = [
-#            'Application specific PEs',
-#            'RISC-V Soft cores'
-#            ],
-#          loc = 'lower right',
-#          bbox_to_anchor=(0.68,0.75),
-#          ncol = 1
-#          )
-ax.set_ylabel('Speedup' , fontsize=21)
-ax.set_xlabel('Applications', fontsize=21)
-ax.tick_params(axis='both', labelsize=21)
+ax.set_ylabel('Speedup' , fontsize=font_size+4)
+ax.set_xlabel('Applications', fontsize=font_size+4)
+ax.set_ylim([0,12])
+ax.tick_params(axis='both', labelsize=font_size)
 mpl_fig.tight_layout()
 mpl_fig.savefig("riscv.pdf")#, bbox_inches='tight')
+
+
+## RISC-V Speedup at full frequency
+
+mpl_fig = plt.figure()
+mpl_fig, ax = plt.subplots(figsize=(7.6,8))
+#ax = mpl_fig.add_subplot(111)
+
+custom = [ 1, 1, 1, 1] 
+
+width = 0.65
+
+riscv_runtime = [
+            getmaxval(data['riscv-des']['s']) / 16,
+            getmaxval(data['riscv-maxflow']['s']) / 16,
+            getmaxval(data['throttle-sssp']['s']) / 16,
+            getmaxval(data['throttle-color']['s']) /16,
+            ]
+            #90.3 * 344/662, 259, 1341, 307]
+app_runtime = [
+            getmaxval(data['des']['s']),
+            getmaxval(data['maxflow']['s']),
+            getmaxval(data['sssp']['n']),
+            getmaxval(data['color']['n']),
+            ]
+#app_runtime = [ 22.0, 66.4, 495, 129] # 4-tiles 
+#app_runtime = [ 4.87, 18.1, 96.8, 75] # best tiles 
+
+speedup = [app_runtime[i] / riscv_runtime[i] for i in range(4)]
+print("full freq speedup")
+print (speedup)
+
+ind = np.arange(4)    # the x locations for the groups
+p1 = ax.bar(ind, speedup, width=0.6, color='mediumseagreen') 
+#p2 = ax.bar([i + 0.2 for i in ind], riscv, width=0.2, color='r') 
+#ax.bar(x1, z, width=0.2, color='b') 
+ax.set_xticks(ind + width/2.)
+ax.set_yticks([0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+ax.set_xticklabels(('des', 'maxflow', ' sssp', 'color'))
+ax.set_ylabel('Speedup' , fontsize=font_size+4)
+ax.set_xlabel('Applications', fontsize=font_size+4)
+ax.set_ylim([0,3.9])
+ax.tick_params(axis='both', labelsize=font_size)
+mpl_fig.tight_layout()
+mpl_fig.savefig("full_freq.pdf")#, bbox_inches='tight')
