@@ -77,6 +77,7 @@ ${CL_ROOT}/design/core.sv
 ${CL_ROOT}/design/coalescer.sv
 ${CL_ROOT}/design/splitter.sv
 ${CL_ROOT}/design/l2_arbiter.sv
+${CL_ROOT}/design/prefetcher.sv
 ${CL_ROOT}/design/VexRiscv.v
 ${CL_ROOT}/design/apps/sssp_hls/sssp_hls.v
 ${CL_ROOT}/design/apps/sssp_hls/sssp_hls_l1_V_m_axi.v

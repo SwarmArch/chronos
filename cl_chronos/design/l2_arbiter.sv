@@ -62,6 +62,9 @@ module l2_arbiter
    output logic      [NUM_SI-1:0] s_rlast,
    output logic      [NUM_SI-1:0] s_rvalid,
    input logic       [NUM_SI-1:0] s_rready,
+
+   input             s_prefetch_valid, 
+   input axi_addr_t  s_prefetch_addr, 
 	
    output axi_id_t    [NUM_MI-1:0] m_awid,
    output axi_addr_t  [NUM_MI-1:0] m_awaddr,
@@ -89,12 +92,16 @@ module l2_arbiter
    output logic       [NUM_MI-1:0] m_arvalid,
    input logic        [NUM_MI-1:0] m_arready,
 
-   input axi_id_t   [NUM_MI-1:0] m_rid,
-   input axi_data_t [NUM_MI-1:0] m_rdata,
-   input axi_resp_t [NUM_MI-1:0] m_rresp,
-   input logic      [NUM_MI-1:0] m_rlast,
-   input logic      [NUM_MI-1:0] m_rvalid,
-   output logic       [NUM_MI-1:0] m_rready
+   input axi_id_t     [NUM_MI-1:0] m_rid,
+   input axi_data_t   [NUM_MI-1:0] m_rdata,
+   input axi_resp_t   [NUM_MI-1:0] m_rresp,
+   input logic        [NUM_MI-1:0] m_rlast,
+   input logic        [NUM_MI-1:0] m_rvalid,
+   output logic       [NUM_MI-1:0] m_rready,
+   
+   output logic       [NUM_MI-1:0] m_prefetch_valid, 
+   input              [NUM_MI-1:0] m_prefetch_ready, 
+   output axi_addr_t  [NUM_MI-1:0] m_prefetch_addr 
 );
 
 localparam LOG_NUM_SI = $clog2(NUM_SI);
@@ -420,101 +427,25 @@ for (i=0;i <NUM_MI; i=i+1) begin
 end
 endgenerate
 
+// Prefetch
 
-
-/*
-
-// B Channel
-logic b_can_take_new;
-axi_id_t reg_bid;
-axi_resp_t reg_bresp;
-logic reg_bvalid;
-
-always @(posedge clk) begin
-   if (!rstn) begin
-      reg_bvalid <= 1'b0;
-      reg_bid <= 0;
-      reg_bresp <= 0;
-   end else begin
-      if (m_bvalid) begin
-         if (m_bready) begin
-            reg_bvalid <= 1'b1;
-            reg_bid <= m_bid;
-            reg_bresp <= m_bresp;
+logic [LOG_NUM_MI:0] prefetch_port; 
+assign prefetch_port = (NUM_MI == 1) ? 0 : ^(s_prefetch_addr[31:6]);
+generate
+for (i=0;i<NUM_MI;i++) begin : prefetch
+   always @(posedge clk) begin
+      if (!rstn) begin
+         m_prefetch_valid[i] <= 1'b0;
+      end else begin
+         if (s_prefetch_valid  &  
+               (prefetch_port == i) ) begin 
+            m_prefetch_valid[i] <= 1'b1;
+            m_prefetch_addr[i] <= s_prefetch_addr;
+         end else if (m_prefetch_valid[i] & m_prefetch_ready[i]) begin
+            m_prefetch_valid[i] <= 1'b0;
          end
-      end else if (reg_bvalid & b_can_take_new) begin
-            reg_bvalid <= 1'b0;
       end
    end
 end
-
-assign m_bready = !reg_bvalid |  b_can_take_new;
-always_comb begin
-   b_can_take_new = 1'b0;
-   for (integer i=0;i<NUM_SI;i=i+1) begin
-      s_bid[i] = reg_bid;
-      s_bresp[i] = reg_bresp;
-      if (reg_bvalid & (reg_bid[9:4] == i)) begin
-         s_bvalid[i] = 1'b1;
-      end else begin
-         s_bvalid[i] = 1'b0;
-      end 
-      if (s_bvalid[i] & s_bready[i]) begin
-         b_can_take_new = 1'b1;
-      end
-   end
-
-end
-
-// R Channel
-logic r_can_take_new;
-axi_id_t reg_rid;
-axi_resp_t reg_rresp;
-axi_data_t reg_rdata;
-logic reg_rlast;
-logic reg_rvalid;
-
-always @(posedge clk) begin
-   if (!rstn) begin
-      reg_rvalid <= 1'b0;
-      reg_rid <= 0;
-      reg_rresp <= 0;
-      reg_rdata <= 0;
-      reg_rlast <= 0;
-   end else begin
-      if (m_rvalid) begin
-         if (m_rready) begin
-            reg_rvalid <= 1'b1;
-            reg_rid <= m_rid;
-            reg_rresp <= m_rresp;
-            reg_rdata <= m_rdata;
-            reg_rlast <= m_rlast;
-         end 
-      end else if (reg_rvalid & r_can_take_new) begin
-            reg_rvalid <= 1'b0;
-      end
-   end
-end
-
-assign m_rready = !reg_rvalid |  r_can_take_new;
-always_comb begin
-   r_can_take_new = 1'b0;
-   for (integer i=0;i<NUM_SI;i=i+1) begin
-      s_rid[i] = reg_rid;
-      s_rresp[i] = reg_rresp;
-      s_rdata[i] = reg_rdata;
-      s_rlast[i] = reg_rlast;
-      if (reg_rvalid & (reg_rid[9:4] == i)) begin
-         s_rvalid[i] = 1'b1;
-      end else begin
-         s_rvalid[i] = 1'b0;
-      end 
-      if (s_rvalid[i] & s_rready[i]) begin
-         r_can_take_new = 1'b1;
-      end
-   end
-
-end
-
-*/
+endgenerate
 endmodule

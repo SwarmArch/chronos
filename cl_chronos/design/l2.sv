@@ -35,7 +35,8 @@ typedef struct packed {
 } tag_way_t;
 typedef tag_way_t [CACHE_NUM_WAYS-1:0] tag_entry_t;
 
-typedef enum logic[2:0] {NONE, READ, WRITE, EVICT, RESP_READ, RESP_WRITE, FLUSH} pipe_op_t;
+typedef enum logic[3:0] {NONE, READ, WRITE, EVICT, RESP_READ, RESP_WRITE, FLUSH, 
+   PREFETCH, PREFETCH_RESP} pipe_op_t;
 typedef logic [CACHE_INDEX_WIDTH-1:0] tag_addr_t;
 typedef logic [CACHE_INDEX_WIDTH+CACHE_LOG_WAYS-1:0] data_addr_t;
 typedef logic [15:0] id_t;
@@ -47,6 +48,8 @@ typedef struct packed {
    mem_addr_t addr;
    cache_line_t wdata;
    logic [63:0] wstrb;
+   logic is_prefetch;
+   logic [11:0] cycle;
 } mshr_t;
 
 
@@ -62,6 +65,10 @@ module l2
 	axi_bus_t.master l1,
    output cache_addr_t rindex,
    axi_bus_t.slave mem_bus,
+
+   input        prefetch_valid,
+   output logic prefetch_ready,
+   input axi_addr_t   prefetch_addr, 
 
    reg_bus_t.master reg_bus,
 
@@ -216,6 +223,7 @@ module l2
    logic log_valid;
    logic log_bvalid;
    logic log_retry;
+   
    always_ff@(posedge clk) begin
       if (!rstn) begin
          log_bvalid <= 1'b0;
@@ -262,12 +270,47 @@ module l2
    end
 `endif
 
+   logic prefetch_fifo_full, prefetch_fifo_empty;
+   logic prefetch_fifo_rd_en;
+   axi_addr_t prefetch_fifo_rdata;
+   mem_addr_t stage_1_prefetch_addr;
+   assign stage_1_prefetch_addr = prefetch_fifo_rdata;
+   assign prefetch_ready = !prefetch_fifo_full;
+
+   logic prefetch_on;
+   always_ff@(posedge clk) begin
+      if (!rstn) begin
+         prefetch_on <= 1'b0;
+      end else if (reg_bus.wvalid & (reg_bus.waddr == L2_PREFETCH_ON)) begin
+         prefetch_on <= reg_bus.wdata[0];
+      end
+   end
+   fifo #(
+      .WIDTH(34),
+      .LOG_DEPTH(4)
+   ) PREFETCH_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      
+      .wr_en(!prefetch_fifo_full & prefetch_valid & prefetch_on),
+      .rd_en(prefetch_fifo_rd_en),
+      .wr_data(prefetch_addr),
+      .rd_data(prefetch_fifo_rdata),
+
+      .full(prefetch_fifo_full),
+      .empty(prefetch_fifo_empty),
+
+      .size()
+
+   );
 
    logic [31:0] stat_read_hits;
    logic [31:0] stat_read_misses;
    logic [31:0] stat_write_hits;
    logic [31:0] stat_write_misses;
    logic [31:0] stat_evictions;
+   logic [31:0] stat_prefetch_hits;
+   logic [31:0] stat_prefetch_misses;
 
    logic [31:0] stat_stall_retry_full;
    logic [31:0] stat_retry_not_empty;
@@ -280,6 +323,8 @@ module l2
       if (!rstn) begin
          stat_read_hits    <= 0;
          stat_read_misses  <= 0;
+         stat_prefetch_hits    <= 0;
+         stat_prefetch_misses  <= 0;
          stat_write_hits   <= 0;
          stat_write_misses <= 0;
          stat_evictions    <= 0; 
@@ -295,6 +340,9 @@ module l2
          if (p12_op == WRITE & log_word.hit & !retry_fifo_wr_en & !stall_in[2]) begin
            stat_write_hits <= stat_write_hits + 1; 
          end
+         if (p12_op == PREFETCH & log_word.hit & !retry_fifo_wr_en & !stall_in[2]) begin
+           stat_prefetch_hits <= stat_prefetch_hits + 1; 
+         end
          if (p12_op == READ & !log_word.hit & !retry_fifo_wr_en &
             !stall_in[2] & !stall_out[2]) begin
            stat_read_misses <= stat_read_misses + 1; 
@@ -302,6 +350,10 @@ module l2
          if (p12_op == WRITE & !log_word.hit & !retry_fifo_wr_en & 
             !stall_in[2] & !stall_out[2]) begin
            stat_write_misses <= stat_write_misses + 1; 
+         end
+         if (p12_op == PREFETCH & !log_word.hit & !retry_fifo_wr_en &
+            !stall_in[2] & !stall_out[2]) begin
+           stat_prefetch_misses <= stat_prefetch_misses + 1; 
          end
          if (p23_op == EVICT & !stall_out[3]) begin
             stat_evictions <= stat_evictions + 1;
@@ -339,6 +391,8 @@ module l2
             DEBUG_CAPACITY  : reg_bus.rdata <= log_size;
             L2_READ_HITS    : reg_bus.rdata <= stat_read_hits;
             L2_READ_MISSES  : reg_bus.rdata <= stat_read_misses;
+            L2_PREFETCH_HITS    : reg_bus.rdata <= stat_prefetch_hits;
+            L2_PREFETCH_MISSES  : reg_bus.rdata <= stat_prefetch_misses;
             L2_WRITE_HITS   : reg_bus.rdata <= stat_write_hits;
             L2_WRITE_MISSES : reg_bus.rdata <= stat_write_misses;
             L2_EVICTIONS    : reg_bus.rdata <= stat_evictions;
@@ -383,6 +437,7 @@ module l2
    end
 
    logic [LOG_LOG_DEPTH:0] log_size; 
+
 generate 
 if (L2_LOGGING[TILE_ID] ) begin
    log #(
@@ -402,6 +457,7 @@ if (L2_LOGGING[TILE_ID] ) begin
    );
 end
 endgenerate
+   
 
    memory_response_handler MEM_RESP_HANDLER (
       .clk(clk),
@@ -462,6 +518,10 @@ endgenerate
       .c_araddr(l1.araddr[ADDR_BITS-1:0]),
       .c_arid(l1.arid),
       .c_arready(l1.arready),
+
+      .prefetch_valid(!prefetch_fifo_empty),
+      .prefetch_ready(prefetch_fifo_rd_en),
+      .prefetch_addr(stage_1_prefetch_addr),
 
       .retry_rdata(retry_fifo_rdata),
       .retry_valid(!retry_fifo_empty),
@@ -768,6 +828,10 @@ module l2_stage_1
    input id_t           c_arid,
    output logic         c_arready,
 
+   input                prefetch_valid,
+   output logic         prefetch_ready,
+   input mem_addr_t     prefetch_addr,
+
    input mshr_t         retry_rdata,
    input                retry_valid,
    output logic         retry_rd_en,
@@ -812,6 +876,15 @@ module l2_stage_1
          p_cid <= next_p_cid;
          p_addr <= next_p_addr;
          p_op <= next_p_op;
+      end
+   end
+   
+   logic [11:0] cycle;
+   always_ff @ (posedge clk) begin
+      if (!rstn) begin
+         cycle <= 0;
+      end else begin
+         cycle <= cycle + 1;
       end
    end
 
@@ -864,6 +937,7 @@ module l2_stage_1
       
       tag_raddr = 'x;
       tag_rvalid = 1'b0;
+      prefetch_ready = 1'b0;
 
       if (stall_in) begin
          next_p_op = p_op; // keep the last op
@@ -881,7 +955,11 @@ module l2_stage_1
 
          // priority for read_resp
          if (read_resp_valid) begin
-            next_p_op = read_resp_mshr.is_read ? RESP_READ : RESP_WRITE;
+            if (read_resp_mshr.is_prefetch) begin
+               next_p_op = PREFETCH_RESP;
+            end else begin
+               next_p_op = read_resp_mshr.is_read ? RESP_READ : RESP_WRITE;
+            end
             next_p_cid = read_resp_mshr.incoming_id;
             next_p_addr = read_resp_mshr.addr;
             for (integer i=0;i<64;i=i+1) begin
@@ -919,7 +997,8 @@ module l2_stage_1
                tag_rvalid = 1'b1;
             end
          end else begin
-            if (retry_valid) begin
+            if (retry_valid & (
+                ( cycle > (retry_rdata.cycle + 24) )  | (cycle < retry_rdata.cycle)  )) begin
                next_p_op = retry_rdata.is_read ? READ: WRITE;
                next_p_cid = retry_rdata.incoming_id;
                next_p_addr = retry_rdata.addr;
@@ -928,6 +1007,14 @@ module l2_stage_1
 
                retry_rd_en = 1'b1;
                tag_raddr = retry_rdata.addr.index;
+               tag_rvalid = 1'b1;
+            end else if (prefetch_valid) begin
+               prefetch_ready = 1'b1;
+               next_p_op = PREFETCH;
+               next_p_addr = prefetch_addr;
+               next_p_wdata = 'x;
+               next_p_wstrb = 0;
+               tag_raddr = prefetch_addr.index;
                tag_rvalid = 1'b1;
             end
          end
@@ -1089,6 +1176,15 @@ module l2_stage_2
       end
    end
 
+   logic [11:0] cycle;
+   always_ff @ (posedge clk) begin
+      if (!rstn) begin
+         cycle <= 0;
+      end else begin
+         cycle <= cycle + 1;
+      end
+   end
+
    id_t mshr_next_id;
    assign mshr_next_id = {12'b0, mshr_next};
 
@@ -1189,48 +1285,58 @@ module l2_stage_2
                   end
                end
             end
-            READ, WRITE: begin
+            READ, WRITE, PREFETCH: begin
                if ( tag_entry[way].state == PENDING) begin
                   // A request for this addr is pending (or no non-pending ways) . Push to the
                   // retry_fifo
-                  retry_wr_en = 1'b1;
+                  if (i_op != PREFETCH) begin
+                     retry_wr_en = 1'b1;
+                  end
                   retry_wdata.incoming_id = i_cid;
                   retry_wdata.is_read = (i_op == READ);
                   retry_wdata.addr = i_addr;
                   retry_wdata.wdata = i_wdata;
                   retry_wdata.wstrb = i_wstrb;
+                  retry_wdata.is_prefetch = 1'b0;
+                  retry_wdata.cycle = cycle; 
                end else if (hit) begin
                   d_addr = i_addr.index * CACHE_NUM_WAYS + way ;
-                  d_en = 1'b1;
+                  if (i_op != PREFETCH) begin
+                     d_en = 1'b1;
+                  end
                   next_p_cid = i_cid;
                   if (i_op == READ) begin
                      next_p_op = READ;
-                  end else begin
+                  end else if (i_op == WRITE) begin
                      d_wdata = i_wdata;
                      d_wr = i_wstrb;
                      next_p_op = WRITE;
                      tag_wen = 1'b1;
                      tag_waddr = i_addr.index;
                      tag_wdata[way].dirty = 1'b1;
-                     // Make this the least likely replacement target. 
-                     for (int i=0;i<CACHE_NUM_WAYS;i++) begin
-                        if (i== way) begin
-                           tag_wdata[i].prio = CACHE_NUM_WAYS - 1;
-                        end else if (tag_entry[i].prio > tag_entry[way].prio) begin
-                           tag_wdata[i].prio = tag_entry[i].prio - 1 ;
-                        end 
-                     end
+                  end
+                  // Make this the least likely replacement target. 
+                  for (int i=0;i<CACHE_NUM_WAYS;i++) begin
+                     if (i== way) begin
+                        tag_wdata[i].prio = CACHE_NUM_WAYS - 1;
+                     end else if (tag_entry[i].prio > tag_entry[way].prio) begin
+                        tag_wdata[i].prio = tag_entry[i].prio - 1 ;
+                     end 
                   end
                end else begin // miss
                   if (write_buf_match) begin
                      // The request address was recently evicted which has not
                      // completed yet
-                     retry_wr_en = 1'b1;
+                     if (i_op != PREFETCH) begin
+                        retry_wr_en = 1'b1;
+                     end
                      retry_wdata.incoming_id = i_cid;
                      retry_wdata.is_read = (i_op == READ);
                      retry_wdata.addr = i_addr;
                      retry_wdata.wdata = i_wdata;
                      retry_wdata.wstrb = i_wstrb;
+                     retry_wdata.is_prefetch = 1'b0;
+                     retry_wdata.cycle = cycle; 
                   end else begin
                      m_awaddr = {tag_entry[way].tag, i_addr.index, 6'b0};
                      m_awid = (TILE_ID <<10)+ (1<<15)+ (BANK_ID<<8) + (m_awaddr[7:6] << 6) | write_buf_id;
@@ -1243,6 +1349,7 @@ module l2_stage_2
                      mshr_data.addr = i_addr;
                      mshr_data.wdata = i_wdata;
                      mshr_data.wstrb = i_wstrb;
+                     mshr_data.is_prefetch = (i_op == PREFETCH);
                      
                      // valid depends on ready, this is not ideal but makes life
                      // easy.
@@ -1270,7 +1377,7 @@ module l2_stage_2
                               tag_wdata[i].prio = tag_entry[i].prio - 1 ;
                            end 
                         end
-                     end else begin
+                     end else if (i_op != PREFETCH) begin
                         if (circulate_on_mem_stall) begin
                            retry_wr_en = 1'b1;
                            retry_wdata.incoming_id = i_cid;
@@ -1278,6 +1385,8 @@ module l2_stage_2
                            retry_wdata.addr = i_addr;
                            retry_wdata.wdata = i_wdata;
                            retry_wdata.wstrb = i_wstrb;
+                           retry_wdata.is_prefetch = 1'b0;
+                           retry_wdata.cycle = cycle; 
                         end else begin
                            stall_out = 1'b1;
                         end
@@ -1285,7 +1394,7 @@ module l2_stage_2
                   end
                end
             end
-            RESP_READ, RESP_WRITE: begin
+            RESP_READ, RESP_WRITE, PREFETCH_RESP: begin
                // The response from memory received for what was originally
                // a READ/WRITE
                tag_wen = 1'b1;
@@ -1302,8 +1411,10 @@ module l2_stage_2
                next_p_cid = i_cid;
                if (i_op==RESP_READ) begin
                   next_p_op = READ;
-               end else begin
+               end else if (i_op == RESP_WRITE) begin
                   next_p_op = WRITE;
+               end else begin
+                  next_p_op = NONE;
                end
             end
             default: begin // NONE
