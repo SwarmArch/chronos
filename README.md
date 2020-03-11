@@ -4,6 +4,7 @@ parallelism.
 
 Chronos was published at ASPLOS 2020. [Paper](asplos20_chronos.pdf), [Talk](talk.pptx)
 
+
 Contents:
 1. Directory Structure
 2. Getting started - A tutorial on configuring and running sssp
@@ -68,6 +69,11 @@ Inside cl_chronos/,
 
 Getting started - A tutorial on configuring and running sssp.
 =============================================================
+
+Chronos depends on the [Amazon AWS EC2 Hardware and Software Development kit](https://github.com/aws/aws-fpga). 
+The install.sh script would automatically
+clone this repo and perform other necessary configurations.
+
 
 * Step 1: Configure number of tiles and other queue sizes in design/config.sv
 
