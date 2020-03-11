@@ -1,9 +1,8 @@
 
-The directory contains all code for Chronos, an FPGA Acceleration framework for
-ordered applictions.
+Chronos is an FPGA Acceleration framework for applications with speculative
+parallelism.
 
-Chronos was published at ASPLOS 2020. The paper is accesible
-[here](asplos20_chronos.pdf). 
+Chronos was published at ASPLOS 2020. [Paper](asplos20_chronos.pdf), [Talk](talk.pptx)
 
 Contents:
 1. Directory Structure
@@ -15,10 +14,12 @@ Contents:
 Directory Structure
 ===================
 
-i) build/   
+Inside cl_chronos/,
+
+* build/   
    This directory all synthesis scripts
 
-ii) design/  
+* design/  
 
    All RTL design files go here. The top module is contained in cl_chronos.sv
 
@@ -41,25 +42,25 @@ ii) design/
    files (gen_core_spec.vh and gen_core_spec_tile.vh) required for
    synthesis and simulation.
 
-iii) hls/ 
+* hls/ 
 
    HLS versions of astar and sssp
 
-iv) riscv_code/ 
+* riscv_code/ 
 
    code for all applications with risc-v variants
 
-v) software/
+* software/
 
    Runtime code that will program the FPGA, transfer the data, and collect and
    analyze and performance results.
 
-vi) tools/
+* tools/
 
    Contains miscelleaneous tools. One such tool, 'graph_gen' is used to generate
    test inputs (and do format conversion of existing inputs) for graph algorithms.
 
-vii) verif/
+* verif/
 
    RTL verification code and scripts.
 
@@ -68,13 +69,13 @@ vii) verif/
 Getting started - A tutorial on configuring and running sssp.
 =============================================================
 
-Step 1: Configure number of tiles and other queue sizes in design/config.sv
+* Step 1: Configure number of tiles and other queue sizes in design/config.sv
 
    For this example, we will build a single tile system with the default
    parameters.
 
 
-Step 2: Configure Chronos to use sssp
+* Step 2: Configure Chronos to use sssp
 
    We will build an 8 cores/tile sssp system. This is specified in
    design/apps/sssp/config.vh
@@ -85,7 +86,7 @@ Step 2: Configure Chronos to use sssp
    cd $CL_DIR/design
    ./scripts/gen_cores.py sssp
 
-Step 3: Test graph generation
+* Step 3: Test graph generation
 
    We will use the vivado RTL simulator to verify our design works correctly by
    running sssp on a small graph. First to generate such a graph we need to run the
