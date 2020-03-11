@@ -99,7 +99,7 @@ Getting started - A tutorial on configuring and running sssp.
 
    This would generate a 4x4 grid graph with random weights. (grid_4x4.sssp).
 
-Step 4: RTL Simulation
+* Step 4: RTL Simulation
 
    4.1) First, compile the design with Vivado simulator. Our testbench is in
    (verif/tests/test_chronos)
@@ -122,7 +122,7 @@ Step 4: RTL Simulation
 
    If all goes well, you will see the testbench completing with 0 errors
 
-Step 5: Synthesis
+* Step 5: Synthesis
 
    cd $CL_DIR/build/scripts/
    ./aws_build_dcp_from_cl.sh
@@ -151,7 +151,7 @@ Step 5: Synthesis
    Running this command would generate an Amazon Image ID which we can load
    into the FPGA.
 
-Step 6: Running sssp on the FPGA
+* Step 6: Running sssp on the FPGA
 
    (Note this step has to be done on an f1.2x AWS instance)
 
@@ -176,7 +176,7 @@ Notes on Chronos software interface
 Software communicates with a Chronos FPGA instance through two main interfaces
 provided by the AWS Shell. 
 
-1. OCL (Not sure what this stands for) is a 32-bit register access interface. 
+1. OCL is a 32-bit register access interface. 
 
    This interface is used to set runtime configuration values (eg. number of tiles,
    queue sizes) as well as read hardware counters.
@@ -209,13 +209,6 @@ provided by the AWS Shell.
    In the software runtime code ($CL_DIR/software/runtime/test_chronos.c),
    the helper function dma_write is used to write to the FPGA memory.
 
-   (
-   NOTE: I've sometimes had trouble transferring data back from the FPGA to the host
-   CPU using the DMA mechanism. Hence the software runtime uses the OCL mem read
-   mechanism to read completed data (eg: final distance for each node in sssp).
-
-   Although this is slower than DMA reads, I've found it to be more reliable.
-   )
 
 
 Debugging Chronos
@@ -241,9 +234,10 @@ Pipelined Cores
 ===============
 
 
-This is template for specifying Chronos tasks in hardware.
+This is a template for specifying Chronos tasks in hardware.
 Tasks coded with this template are higher throughput, takes less area, and
-requires less lines of coding than writing specialized cores for each task.
+requires less lines of coding than writing specialized FSM-based cores for each task.
+All results in the paper use cores generated from this template.
 
 All five existing applications have already been mapped to this template,
 each proving around ~2X speedup. To try it out, add the 'pipe' option to the
