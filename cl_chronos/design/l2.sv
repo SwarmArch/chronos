@@ -178,16 +178,17 @@ module l2
      logic [31:0] tag_rdata_1;
      logic [31:0] tag_rdata_0;
      logic [63:0] wstrb; 
-     logic [4:0] unused;
-     id_t id;
-     mem_addr_t addr;
-     pipe_op_t op;
+     logic [31:0] addr;
+     
 
+     logic [5:0] prefetch_list_size;
+     logic [15:0] id;
      logic retry;
      logic hit;
-     logic [CACHE_LOG_WAYS-1:0] way;
+     logic [3:0] op;
+     logic [3:0] way;
 
-     mem_addr_t repl_addr;
+     logic [31:0] repl_addr;
    } l2_log_t;
 
    l2_log_t log_word;
@@ -276,23 +277,25 @@ module l2
    mem_addr_t stage_1_prefetch_addr;
    assign stage_1_prefetch_addr = prefetch_fifo_rdata;
    assign prefetch_ready = !prefetch_fifo_full;
-
-   logic prefetch_on;
+   
+   localparam PREFETCH_LIST_CAPACITY = 5;
+   logic [PREFETCH_LIST_CAPACITY:0] prefetch_size;
+   logic [PREFETCH_LIST_CAPACITY:0] prefetch_capacity;
    always_ff@(posedge clk) begin
       if (!rstn) begin
-         prefetch_on <= 1'b0;
-      end else if (reg_bus.wvalid & (reg_bus.waddr == L2_PREFETCH_ON)) begin
-         prefetch_on <= reg_bus.wdata[0];
+         prefetch_capacity <= 0;
+      end else if (reg_bus.wvalid & (reg_bus.waddr == L2_PREFETCH_CAPACITY)) begin
+         prefetch_capacity <= reg_bus.wdata;
       end
    end
    fifo #(
       .WIDTH(34),
-      .LOG_DEPTH(4)
+      .LOG_DEPTH(PREFETCH_LIST_CAPACITY)
    ) PREFETCH_FIFO (
       .clk(clk),
       .rstn(rstn),
       
-      .wr_en(!prefetch_fifo_full & prefetch_valid & prefetch_on),
+      .wr_en(!prefetch_fifo_full & prefetch_valid & (prefetch_size < prefetch_capacity) ),
       .rd_en(prefetch_fifo_rd_en),
       .wr_data(prefetch_addr),
       .rd_data(prefetch_fifo_rdata),
@@ -300,7 +303,7 @@ module l2
       .full(prefetch_fifo_full),
       .empty(prefetch_fifo_empty),
 
-      .size()
+      .size(prefetch_size)
 
    );
 

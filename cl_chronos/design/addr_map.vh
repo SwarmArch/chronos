@@ -249,7 +249,7 @@
    parameter L2_FLUSH         = 8'h10;
    parameter L2_LOG_BVALID    = 8'h14;
    parameter L2_CIRCULATE_ON_STALL = 8'h18;
-   parameter L2_PREFETCH_ON   = 8'h1c;
+   parameter L2_PREFETCH_CAPACITY   = 8'h1c;
    parameter L2_READ_HITS     = 8'h20;
    parameter L2_READ_MISSES   = 8'h24;
    parameter L2_WRITE_HITS    = 8'h28;

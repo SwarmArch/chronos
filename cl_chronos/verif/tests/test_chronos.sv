@@ -101,7 +101,7 @@ initial begin
       ocl_poke(i, ID_TSB, TSB_HASH_KEY, 32'h4b56917f);
       ocl_poke(i, ID_ALL_APP_CORES, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 10);
       ocl_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS, 16);
-      ocl_poke(i, ID_L2, L2_PREFETCH_ON, 1);
+      ocl_poke(i, ID_L2, L2_PREFETCH_CAPACITY, 32);
    end
 
 
