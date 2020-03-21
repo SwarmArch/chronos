@@ -249,6 +249,17 @@ for (i=0;i<NUM_MI;i++) begin : ar_sched
    end
    assign ar_can_take_new[i] = (!m_arvalid[i] | m_arready[i]); 
 
+`ifdef USE_PIPELINED_TEMPLATE
+   highbit #(
+      .OUT_WIDTH(LOG_NUM_SI),
+      .IN_WIDTH(NUM_SI)
+   ) AR_SELECT (
+
+      .in(ar_sched_in[i]),
+      .out(ar_sched_out[i])
+   );
+
+`else
    rr_sched #(
       .OUT_WIDTH(LOG_NUM_SI),
       .IN_WIDTH(NUM_SI)
@@ -261,6 +272,7 @@ for (i=0;i<NUM_MI;i++) begin : ar_sched
 
       .advance(m_arvalid[i] & m_arready[i])
    );
+`endif
 
    always @(posedge clk) begin
       if (!rstn) begin
