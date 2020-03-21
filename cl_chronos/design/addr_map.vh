@@ -117,6 +117,7 @@
    parameter CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD = 8'h40;
    parameter CORE_THREAD_ID_FIFO_OCC = 8'h44;
    parameter CORE_DEBUG_WORD         = 8'h48;
+   parameter CORE_AR_BUFFER_SIZE     = 8'h4c;
 
     // for backwards compatibility, headers can only be send upto addr 0x40
    parameter CORE_HEADER_TOP = 8'ha4;

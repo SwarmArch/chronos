@@ -101,7 +101,7 @@ assign s_arready = !ar_fifo_full;
    fifo #(
       .WIDTH($bits(s_araddr) + $bits(s_arid)),
       .LOG_DEPTH(3)
-   ) WDATA_FIFO (
+   ) AR_FIFO (
       .clk(clk),
       .rstn(rstn),
       .wr_en(s_arvalid & s_arready),
