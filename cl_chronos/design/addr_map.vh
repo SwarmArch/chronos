@@ -265,6 +265,9 @@
 
 
    parameter L2_MISC_DEBUG = 8'h50;
+
+   parameter PREFETCHER_BASE_ADDR = 8'h20;
+   parameter PREFETCHER_OBJECT_SIZE = 8'h24;
    
 
    parameter CM_BLOCKED_VALID = 8'h20;

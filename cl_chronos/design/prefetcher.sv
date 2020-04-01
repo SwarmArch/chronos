@@ -35,7 +35,24 @@ module prefetcher
   assign prefetch_valid = task_in_valid;
 
 `else 
-  assign prefetch_valid = 1'b0;
+  assign prefetch_valid = task_in_valid;
+  logic [31:0] base_rw_addr;
+  logic [3:0] log_rw_width;
+  assign prefetch_addr = base_rw_addr + (task_in.object << (log_rw_width) );
+
+   always_ff @(posedge clk) begin
+      if (!rstn) begin
+         base_rw_addr <= 0;
+         log_rw_width <= 2;
+      end else begin
+         if (reg_bus_wvalid) begin
+            case (reg_bus_waddr) 
+               PREFETCHER_BASE_ADDR : base_rw_addr <= {reg_bus_wdata[29:0], 2'b00};
+               PREFETCHER_OBJECT_SIZE : log_rw_width <= reg_bus_wdata[3:0];
+            endcase
+         end
+      end
+   end
 `endif
 
 endmodule
