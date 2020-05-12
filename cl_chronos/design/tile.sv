@@ -396,6 +396,9 @@ endgenerate
    logic       [L2_PORTS-1:0] l2_arb_in_rlast;
    logic       [L2_PORTS-1:0] l2_arb_in_rvalid;
    logic       [L2_PORTS-1:0] l2_arb_in_rready;
+
+   logic                      l2_arb_in_prefetch_valid;
+   axi_addr_t                 l2_arb_in_prefetch_addr;
    // output from l2 arbiter
    axi_id_t    [L2_BANKS-1:0] l2_arb_out_awid;
    axi_addr_t  [L2_BANKS-1:0] l2_arb_out_awaddr;
@@ -429,6 +432,25 @@ endgenerate
    logic       [L2_BANKS-1:0] l2_arb_out_rlast;
    logic       [L2_BANKS-1:0] l2_arb_out_rvalid;
    logic       [L2_BANKS-1:0] l2_arb_out_rready;
+   
+   logic       [L2_BANKS-1:0] l2_arb_out_prefetch_valid;
+   logic       [L2_BANKS-1:0] l2_arb_out_prefetch_ready;
+   axi_addr_t  [L2_BANKS-1:0] l2_arb_out_prefetch_addr;
+
+prefetcher PREFETCHER 
+(
+   .clk(clk_main_a0),
+   .rstn(rst_main_n_sync),
+   .task_in_valid(task_enq_in.valid & task_enq_in.ready),
+   .task_in (task_enq_in.task_data),
+
+   .prefetch_valid(l2_arb_in_prefetch_valid),
+   .prefetch_addr(l2_arb_in_prefetch_addr),
+
+   .reg_bus_wvalid(reg_bus[ID_RW_READ].wvalid),
+   .reg_bus_waddr (reg_bus[ID_RW_READ].waddr),
+   .reg_bus_wdata (reg_bus[ID_RW_READ].wdata)
+);
 
 generate;
    for (i=0;i<L2_PORTS;i=i+1) begin
@@ -545,6 +567,8 @@ l2_arbiter
    .s_rvalid      (  l2_arb_in_rvalid    ),   
    .s_rready      (  l2_arb_in_rready    ),      
 
+   .s_prefetch_valid ( l2_arb_in_prefetch_valid ),
+   .s_prefetch_addr  ( l2_arb_in_prefetch_addr  ),
   
    .m_awid        (  l2_arb_out_awid      ),  
    .m_awaddr      (  l2_arb_out_awaddr    ),
@@ -577,7 +601,12 @@ l2_arbiter
    .m_rresp       (  l2_arb_out_rresp     ),
    .m_rlast       (  l2_arb_out_rlast     ),
    .m_rvalid      (  l2_arb_out_rvalid    ),   
-   .m_rready      (  l2_arb_out_rready    )      
+   .m_rready      (  l2_arb_out_rready    ),
+
+   .m_prefetch_valid ( l2_arb_out_prefetch_valid ),
+   .m_prefetch_ready ( l2_arb_out_prefetch_ready ),
+   .m_prefetch_addr  ( l2_arb_out_prefetch_addr  )
+
 );
 
 generate 
@@ -607,6 +636,9 @@ l2
    .rindex(),
    .mem_bus(l2_out[i]),
 
+   .prefetch_valid (l2_arb_out_prefetch_valid[i]),
+   .prefetch_ready (l2_arb_out_prefetch_ready[i]),
+   .prefetch_addr  (l2_arb_out_prefetch_addr [i]), 
    .reg_bus(reg_bus[ID_L2 + i]),
 
    .pci_debug(pci_debug[ID_L2 + i])

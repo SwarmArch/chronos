@@ -101,6 +101,10 @@ initial begin
       ocl_poke(i, ID_TSB, TSB_HASH_KEY, 32'h4b56917f);
       ocl_poke(i, ID_ALL_APP_CORES, CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD, 10);
       ocl_poke(i, ID_SERIALIZER, SERIALIZER_N_THREADS, 16);
+      ocl_poke(i, ID_L2, L2_PREFETCH_CAPACITY, 32);
+      `ifndef USE_PIPELINED_TEMPLATE 
+         ocl_poke(i, ID_RW_READ, PREFETCHER_OBJECT_SIZE, 2);
+      `endif
    end
 
 

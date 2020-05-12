@@ -259,3 +259,17 @@ any arbitrary read-only data.
 e.g,: For SSSP, the RW portion corresponds to reading current distance to the
 node, and then updating it. The RO portion reads the offsets, neighbors and
 creates new tasks. See 'design/apps/sssp/sssp_pipe.sv' for more documentation.
+
+Prefetching
+===========
+
+Chronos can be configured to prefetch a memory address when a tile receives a
+new task (see prefetecher.sv). The cache (l2.sv) issues prefetch requests from 
+a FIFO, the capacity of which can configured using the L2_PREFETCH_CAPACITY 
+OCL register. Setting this 0 disables prefetching. 
+
+The prefetch address computed by differently depending on the core type. 
+For non-pipelined cores, it is computed base_address + (object_size * task_object_id) 
+where base_address and object_size are configulable via the OCL interface. 
+For pipelined cores, these are computed implictly from the RW reader module.
+

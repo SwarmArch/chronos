@@ -154,6 +154,34 @@ logic s_out_ready_untied;
 logic [N_SUB_TYPES-1:0] s_sched_task_valid;
 logic [N_SUB_TYPES-1:0] s_sched_task_ready;
 logic [N_SUB_TYPES-1:0] s_sched_task_aborted;
+   
+logic        m_arvalid;
+logic        m_arready;
+logic [31:0] m_araddr;
+id_t         m_arid;
+
+logic ar_fifo_full, ar_fifo_empty;
+logic [3:0] ar_fifo_capacity, ar_fifo_size;
+   
+   fifo #(
+      .WIDTH($bits(m_araddr) + $bits(m_arid)),
+      .LOG_DEPTH(3)
+   ) AR_FIFO (
+      .clk(clk),
+      .rstn(rstn),
+      .wr_en(m_arvalid & m_arready),
+      .wr_data({m_araddr, m_arid}),
+
+      .full(ar_fifo_full),
+      .empty(ar_fifo_empty),
+
+      .rd_en(arvalid & arready),
+      .rd_data({araddr, arid}),
+      .size(ar_fifo_size)
+
+   );
+assign arvalid = !ar_fifo_empty;
+assign m_arready = !ar_fifo_full & (ar_fifo_size < ar_fifo_capacity);
 
 ro_stage_mshr_t write_mshr; 
 
@@ -271,7 +299,7 @@ always_ff @(posedge clk) begin
          endcase
          reg_start_word <= 0;
       end else if (reg_arvalid) begin
-         if (arvalid & arready) begin
+         if (m_arvalid & m_arready) begin
             if (!last_read_in_burst) begin
                reg_araddr <= reg_araddr + (ar_read_words * 4); 
                reg_n_words <= reg_n_words - ar_read_words;
@@ -300,21 +328,21 @@ assign write_mshr.thread = reg_thread;
 assign write_mshr.arsize = reg_arsize;
 assign write_mshr.start_word_id = reg_start_word;
 
-assign araddr = reg_araddr;
-assign arvalid = reg_arvalid & !arid_free_list_empty;
-assign arid = (1 <<10) | arid_free_list_next;
-assign s_arready = !thread_free_list_empty & ( !reg_arvalid | (arvalid & arready & last_read_in_burst) );
+assign m_araddr = reg_araddr;
+assign m_arvalid = reg_arvalid & !arid_free_list_empty;
+assign m_arid = (1 <<10) | arid_free_list_next;
+assign s_arready = !thread_free_list_empty & ( !reg_arvalid | (m_arvalid & m_arready & last_read_in_burst) );
 assign last_read_in_burst = ((reg_araddr[5:2] + reg_n_words) <= 16);
 // if the number of words remaining in the cache line is greater than number of
 // words requested..
 assign ar_read_words = ( (16- reg_araddr[5:2])  > reg_n_words) ? reg_n_words : (16 - reg_araddr[5:2]);
 
 always_ff @(posedge clk) begin
-   if (arvalid & arready) begin
+   if (m_arvalid & m_arready) begin
      ro_mshr[arid_free_list_next] <= write_mshr;
    end
 end
-assign arid_free_list_remove_valid = (arvalid & arready);
+assign arid_free_list_remove_valid = (m_arvalid & m_arready);
 
 // Memory Response
 logic [31:0] out_data_word_from_mem;
@@ -686,7 +714,7 @@ always_ff@(posedge clk) begin
    if (!rstn) begin
       arvalid_ar_not_ready_cycles <=0;
    end else begin
-      if (arvalid & !arready) begin
+      if (m_arvalid & !m_arready) begin
          arvalid_ar_not_ready_cycles <= arvalid_ar_not_ready_cycles + 1;
       end
    end   
@@ -697,10 +725,12 @@ logic [LOG_LOG_DEPTH:0] log_size;
 always_ff @(posedge clk) begin
    if (!rstn) begin
       fifo_out_almost_full_thresh <= '1;
+      ar_fifo_capacity <= 8;
    end else begin
       if (reg_bus.wvalid) begin
          case (reg_bus.waddr) 
             CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD : fifo_out_almost_full_thresh <= reg_bus.wdata;
+            CORE_AR_BUFFER_SIZE : ar_fifo_capacity <= reg_bus.wdata;
          endcase
       end
    end
@@ -721,7 +751,7 @@ always_ff @(posedge clk) begin
          CORE_DEBUG_WORD: reg_bus.rdata = {
             finish_task_valid, finish_task_ready,
             s_sched_task_valid, s_sched_task_ready,
-            arvalid, arready, rvalid, rready, out_valid, out_ready, child_valid, child_ready};
+            m_arvalid, m_arready, rvalid, rready, out_valid, out_ready, child_valid, child_ready};
          CORE_DEBUG_WORD + 4: reg_bus.rdata <= arvalid_ar_not_ready_cycles;
 
       endcase
@@ -792,7 +822,7 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
    } rw_read_log_t;
    rw_read_log_t log_word;
    always_comb begin
-      log_valid = mem_access_subtype_valid | non_mem_subtype_valid | (task_in_ready != 0)  | (arvalid & arready) | (rvalid & rready) ;
+      log_valid = mem_access_subtype_valid | non_mem_subtype_valid | (task_in_ready != 0)  | (m_arvalid & m_arready) | (rvalid & rready) ;
 
       log_word = '0;
    
@@ -808,13 +838,13 @@ if (READ_ONLY_STAGE_LOGGING[TILE_ID]) begin
       log_word.rid_mshr_thread_id = ro_mshr[s_rid[FREE_LIST_SIZE-1:0]].thread;
       log_word.out_data_word_valid = {out_data_word_0_valid, out_data_word_1_valid};
 
-      log_word.arvalid = arvalid;
-      log_word.arready = arready;
+      log_word.arvalid = m_arvalid;
+      log_word.arready = m_arready;
       log_word.rvalid = s_rvalid;
       log_word.rready = s_rready;
 
 
-      log_word.arid = arid[7:0];
+      log_word.arid = m_arid[7:0];
       log_word.rid = s_rid[7:0];
       log_word.thread_id = in_thread;
       log_word.thread_fifo_occ = thread_free_list_occ;

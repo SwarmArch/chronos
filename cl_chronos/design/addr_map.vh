@@ -117,6 +117,7 @@
    parameter CORE_FIFO_OUT_ALMOST_FULL_THRESHOLD = 8'h40;
    parameter CORE_THREAD_ID_FIFO_OCC = 8'h44;
    parameter CORE_DEBUG_WORD         = 8'h48;
+   parameter CORE_AR_BUFFER_SIZE     = 8'h4c;
 
     // for backwards compatibility, headers can only be send upto addr 0x40
    parameter CORE_HEADER_TOP = 8'ha4;
@@ -249,6 +250,7 @@
    parameter L2_FLUSH         = 8'h10;
    parameter L2_LOG_BVALID    = 8'h14;
    parameter L2_CIRCULATE_ON_STALL = 8'h18;
+   parameter L2_PREFETCH_CAPACITY   = 8'h1c;
    parameter L2_READ_HITS     = 8'h20;
    parameter L2_READ_MISSES   = 8'h24;
    parameter L2_WRITE_HITS    = 8'h28;
@@ -258,9 +260,14 @@
    parameter L2_RETRY_NOT_EMPTY   = 8'h38;
    parameter L2_RETRY_COUNT   = 8'h3c;
    parameter L2_STALL_IN      = 8'h40;
+   parameter L2_PREFETCH_HITS     = 8'h44;
+   parameter L2_PREFETCH_MISSES   = 8'h48;
 
 
    parameter L2_MISC_DEBUG = 8'h50;
+
+   parameter PREFETCHER_BASE_ADDR = 8'h20;
+   parameter PREFETCHER_OBJECT_SIZE = 8'h24;
    
 
    parameter CM_BLOCKED_VALID = 8'h20;
