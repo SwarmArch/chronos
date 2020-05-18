@@ -645,6 +645,15 @@ l2
 );
 
 end
+
+for (i=L2_BANKS;i<2;i++) begin
+   assign l2_out[i].awvalid = 1'b0;
+   assign l2_out[i].arvalid = 1'b0;
+   assign l2_out[i].wvalid = 1'b0;
+   assign l2_out[i].bready = 1'b1;
+   assign l2_out[i].rready = 1'b1;
+end
+
 endgenerate
 
 assign l2_out_debug = {
